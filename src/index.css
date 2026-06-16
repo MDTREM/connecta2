@@ -260,14 +260,165 @@ h1, h2, h3, h4 {
   transform: translateY(-16px) scale(1.05);
 }
 
-/* Desktop responsive: constrain content width for readability */
+/* ========================================
+   DESKTOP LAYOUT
+   ======================================== */
+
+/* Desktop Header */
+.desktop-header {
+  display: none;
+}
+
+/* Content container - adds spacing on desktop */
+.content-container {
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* Partner header for seller/provider/organizer/motoboy/admin */
+.partner-header {
+  height: 56px;
+  border-bottom: 1px solid #eaeaea;
+  background-color: #ffffff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 16px;
+  flex-shrink: 0;
+  z-index: 100;
+}
+
+/* Desktop icon button */
+.desktop-icon-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background-color: #f9f9f9;
+  border: 1px solid #eee;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  color: #666;
+}
+.desktop-icon-btn:hover {
+  background-color: #fff3dd;
+  border-color: #f28d1a;
+  color: #f28d1a;
+  transform: translateY(-1px);
+}
+
 @media (min-width: 768px) {
+  body {
+    background-color: #f5f3ef;
+  }
+
+  /* Desktop Header visible */
+  .desktop-header {
+    display: block;
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    background-color: rgba(255, 255, 255, 0.97);
+    backdrop-filter: blur(16px);
+    border-bottom: 1px solid #eaeaea;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.04);
+  }
+  .desktop-header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+  }
+
+  /* Desktop Nav */
+  .desktop-nav {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: 1;
+    justify-content: center;
+  }
+  .desktop-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 99px;
+    border: none;
+    background: none;
+    color: #888;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.25s ease;
+    white-space: nowrap;
+    font-family: var(--font-family);
+  }
+  .desktop-nav-item:hover {
+    background-color: #fff9ee;
+    color: #f28d1a;
+    transform: translateY(-1px);
+  }
+  .desktop-nav-item.active {
+    background: linear-gradient(135deg, #f9bb1a, #f28d1a);
+    color: white;
+    box-shadow: 0 4px 12px rgba(242, 141, 26, 0.25);
+  }
+  .desktop-nav-item.active:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(242, 141, 26, 0.35);
+  }
+
+  /* Content container desktop - with padding and max-width */
+  .content-container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px 32px;
+    min-height: calc(100vh - 64px);
+    background-color: #ffffff;
+    border-left: 1px solid #eaeaea;
+    border-right: 1px solid #eaeaea;
+  }
+
+  /* Partner header on desktop */
+  .partner-header {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+    background-color: #ffffff;
+    border-left: 1px solid #eaeaea;
+    border-right: 1px solid #eaeaea;
+  }
+
+  /* Hide mobile bottom nav on desktop */
   .bottom-nav {
-    max-width: 600px;
-    left: 50%;
-    transform: translateX(-50%);
-    border-radius: 24px 24px 0 0;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.05);
+    display: none !important;
+  }
+
+  /* Toast on desktop */
+  .toast {
+    position: fixed;
+    top: 80px;
+  }
+}
+
+/* Extra large screens */
+@media (min-width: 1400px) {
+  .desktop-header-inner {
+    max-width: 1400px;
+  }
+  .content-container {
+    max-width: 1400px;
+  }
+  .partner-header {
+    max-width: 1400px;
   }
 }
 

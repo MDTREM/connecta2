@@ -10,16 +10,24 @@ import EventsArea from './pages/Events/EventsArea';
 import DeliveryArea from './pages/Delivery/DeliveryArea';
 import AdminArea from './pages/Admin/AdminArea';
 
-import { Home, Search, Play, Heart, Layers, Bell, LogOut, User } from 'lucide-react';
+import { Home, Search, Play, Heart, Layers, Bell, LogOut, User, ShoppingCart, MapPin, Coins } from 'lucide-react';
 
 function AppContent() {
-  const { currentUser, logout, notifications, markNotificationsRead } = useFirebaseMock();
+  const { currentUser, logout, notifications, markNotificationsRead, categories } = useFirebaseMock();
   
   // Navigation subviews
   const [clientView, setClientView] = useState('client_home');
   const [showChatRoom, setShowChatRoom] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAuthScreen, setShowAuthScreen] = useState(false);
+
+  // Detect desktop
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // Sync clientView if tab changes
   const handleClientTabClick = (viewName) => {
@@ -80,7 +88,7 @@ function AppContent() {
     );
   }
 
-  // Define screen layout inside the smartphone frame based on user roles
+  // Define screen layout based on user roles
   const renderRoleScreen = () => {
 
     if (showNotifications) {
@@ -164,6 +172,157 @@ function AppContent() {
     }
   };
 
+  const isClientRole = !currentUser || currentUser.role === 'client';
+  const showBottomBar = isClientRole && 
+                        !showChatRoom && 
+                        ['client_home', 'client_search', 'client_foryou', 'client_favorites', 'client_profile'].includes(clientView);
+
+  // Desktop Top Nav for client
+  const renderDesktopTopNav = () => {
+    if (!isClientRole || showChatRoom) return null;
+    
+    const navItems = [
+      { id: 'client_home', label: 'Início', icon: <Home size={18} /> },
+      { id: 'client_search', label: 'Buscar', icon: <Search size={18} /> },
+      { id: 'client_foryou', label: 'ForYou', icon: <Play size={18} /> },
+      { id: 'client_favorites', label: 'Favoritos', icon: <Heart size={18} />, requireAuth: true },
+      { id: 'client_ourocoins', label: 'OuroCoins', icon: <Coins size={18} />, requireAuth: true },
+      { id: 'client_profile', label: 'Perfil', icon: <User size={18} />, requireAuth: true },
+    ];
+
+    return (
+      <header className="desktop-header">
+        <div className="desktop-header-inner">
+          {/* Logo */}
+          <div 
+            onClick={() => handleClientTabClick('client_home')} 
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }}
+          >
+            <div style={{
+              width: '36px', height: '36px', borderRadius: '12px',
+              background: 'linear-gradient(135deg, #f9bb1a, #f28d1a)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: 'white', fontWeight: 800, fontSize: '1.1rem'
+            }}>C+</div>
+            <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#2d2d2d' }}>Connecta<span style={{ color: '#f28d1a' }}>+</span></span>
+          </div>
+
+          {/* Nav links */}
+          <nav className="desktop-nav">
+            {navItems.map(item => (
+              <button
+                key={item.id}
+                onClick={() => {
+                  if (item.requireAuth && !currentUser) {
+                    setShowAuthScreen(true);
+                  } else {
+                    handleClientTabClick(item.id);
+                  }
+                }}
+                className={`desktop-nav-item ${clientView === item.id ? 'active' : ''}`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* Right actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+            {currentUser ? (
+              <>
+                <button
+                  onClick={() => {
+                    setShowNotifications(!showNotifications);
+                    if (!showNotifications) markNotificationsRead(currentUser.id);
+                  }}
+                  className="desktop-icon-btn"
+                  style={{ position: 'relative' }}
+                >
+                  <Bell size={18} />
+                  {unreadNotifications.length > 0 && (
+                    <span style={{
+                      position: 'absolute', top: '-2px', right: '-2px',
+                      backgroundColor: '#ff5e5b', width: '14px', height: '14px',
+                      borderRadius: '50%', fontSize: '0.55rem', color: 'white',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}>{unreadNotifications.length}</span>
+                  )}
+                </button>
+                <button onClick={logout} className="desktop-icon-btn" title="Sair">
+                  <LogOut size={18} style={{ color: '#ff5e5b' }} />
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={() => setShowAuthScreen(true)}
+                style={{
+                  padding: '8px 20px', borderRadius: '99px',
+                  background: 'linear-gradient(135deg, #f9bb1a, #f28d1a)',
+                  color: 'white', border: 'none', fontWeight: 600,
+                  fontSize: '0.85rem', cursor: 'pointer',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                Entrar / Cadastrar
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+    );
+  };
+
+  // Partner header for non-client roles
+  const renderPartnerHeader = () => {
+    if (!currentUser || currentUser.role === 'client' || showChatRoom || showNotifications) return null;
+
+    return (
+      <div className="partner-header">
+        <span style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d' }}>
+          {currentUser.role === 'seller' ? 'Painel Lojista' :
+           currentUser.role === 'provider' ? 'Painel Prestador' :
+           currentUser.role === 'organizer' ? 'Painel Eventos' :
+           currentUser.role === 'motoboy' ? 'Painel Entregador' : 'Painel Admin'}
+        </span>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          {currentUser.role !== 'admin' && (
+            <button
+              onClick={() => {
+                setShowNotifications(!showNotifications);
+                if (!showNotifications) markNotificationsRead(currentUser.id);
+              }}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: 'white', border: '1px solid #eee',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', position: 'relative'
+              }}
+            >
+              <Bell size={14} style={{ color: '#f28d1a' }} />
+              {unreadNotifications.length > 0 && (
+                <span style={{ position: 'absolute', top: '-2px', right: '-2px', backgroundColor: '#ff5e5b', width: '12px', height: '12px', borderRadius: '50%', fontSize: '0.55rem', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {unreadNotifications.length}
+                </span>
+              )}
+            </button>
+          )}
+          <button
+            onClick={logout}
+            style={{
+              width: '32px', height: '32px', borderRadius: '50%',
+              backgroundColor: '#ff5e5b15', border: 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+            }}
+            title="Sair da Conta"
+          >
+            <LogOut size={14} style={{ color: '#ff5e5b' }} />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <DeviceFrame 
       currentUser={currentUser}
@@ -183,165 +342,94 @@ function AppContent() {
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
-        height: '100%',
         minHeight: '100vh',
         minWidth: 0,
         width: '100%',
         overflowX: 'hidden'
       }}>
-        
-        {/* PARTNER HEADER BAR */}
-        {currentUser && currentUser.role !== 'client' && !showChatRoom && !showNotifications && (
-          <div style={{
-            height: '56px',
-            borderBottom: '1px solid #eaeaea',
-            backgroundColor: '#ffffff',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '0 16px',
-            flexShrink: 0,
-            zIndex: 100
-          }}>
-            <span style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d' }}>
-              {currentUser.role === 'seller' ? 'Painel Lojista' :
-               currentUser.role === 'provider' ? 'Painel Prestador' :
-               currentUser.role === 'organizer' ? 'Painel Eventos' :
-               currentUser.role === 'motoboy' ? 'Painel Entregador' : 'Painel Admin'}
-            </span>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              {currentUser.role !== 'admin' && (
-                <button
-                  onClick={() => {
-                    setShowNotifications(!showNotifications);
-                    if (!showNotifications) markNotificationsRead(currentUser.id);
-                  }}
-                  style={{
-                    width: '32px',
-                    height: '32px',
-                    borderRadius: '50%',
-                    backgroundColor: 'white',
-                    border: '1px solid #eee',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    position: 'relative'
-                  }}
-                >
-                  <Bell size={14} style={{ color: '#f28d1a' }} />
-                  {unreadNotifications.length > 0 && (
-                    <span style={{ position: 'absolute', top: '-2px', right: '-2px', backgroundColor: '#ff5e5b', width: '12px', height: '12px', borderRadius: '50%', fontSize: '0.55rem', color: 'white', display: 'flex', alignItems: 'center', justify: 'center' }}>
-                      {unreadNotifications.length}
-                    </span>
-                  )}
-                </button>
-              )}
-              
-              <button
-                onClick={logout}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  borderRadius: '50%',
-                  backgroundColor: '#ff5e5b15',
-                  border: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }}
-                title="Sair da Conta"
-              >
-                <LogOut size={14} style={{ color: '#ff5e5b' }} />
-              </button>
-            </div>
+
+        {/* Desktop Top Nav (only on desktop for client) */}
+        {isDesktop && renderDesktopTopNav()}
+
+        {/* Partner Header */}
+        {renderPartnerHeader()}
+
+        {/* Core Screen */}
+        <div className="main-content" style={{
+          flex: 1,
+          minWidth: 0,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          width: '100%',
+          maxWidth: '100%',
+          boxSizing: 'border-box',
+          paddingBottom: (!isDesktop && showBottomBar) ? '88px' : '0px'
+        }} className="custom-scroll">
+          <div className="content-container">
+            {renderRoleScreen()}
+          </div>
+        </div>
+
+        {/* MOBILE BOTTOM BAR (hidden on desktop) */}
+        {!isDesktop && showBottomBar && (
+          <div className="bottom-nav">
+            <button 
+              onClick={() => handleClientTabClick('client_home')}
+              className={`bottom-nav-item ${clientView === 'client_home' ? 'active' : ''}`}
+            >
+              <Home size={20} />
+              <span>início</span>
+            </button>
+
+            <button 
+              onClick={() => handleClientTabClick('client_search')}
+              className={`bottom-nav-item ${clientView === 'client_search' ? 'active' : ''}`}
+            >
+              <Search size={20} />
+              <span>buscar</span>
+            </button>
+
+            {/* Glowing ForYou center button */}
+            <button 
+              onClick={() => handleClientTabClick('client_foryou')}
+              className="bottom-nav-center"
+            >
+              <Play size={22} />
+            </button>
+
+            <button 
+              onClick={() => {
+                if (!currentUser) {
+                  setShowAuthScreen(true);
+                } else {
+                  handleClientTabClick('client_favorites');
+                }
+              }}
+              className={`bottom-nav-item ${clientView === 'client_favorites' ? 'active' : ''}`}
+            >
+              <Heart size={20} />
+              <span>favoritos</span>
+            </button>
+
+            <button 
+              onClick={() => {
+                if (!currentUser) {
+                  setShowAuthScreen(true);
+                } else {
+                  handleClientTabClick('client_profile');
+                }
+              }}
+              className={`bottom-nav-item ${clientView === 'client_profile' ? 'active' : ''}`}
+            >
+              <User size={20} />
+              <span>perfil</span>
+            </button>
           </div>
         )}
 
-        {/* Core Screen */}
-        {(() => {
-          const showBottomBar = (!currentUser || currentUser.role === 'client') && 
-                                !showChatRoom && 
-                                ['client_home', 'client_search', 'client_foryou', 'client_favorites', 'client_profile'].includes(clientView);
-          return (
-            <>
-              <div style={{
-                flex: 1,
-                minWidth: 0,
-                overflowY: 'auto',
-                overflowX: 'hidden',
-                width: '100%',
-                maxWidth: '100%',
-                boxSizing: 'border-box',
-                paddingBottom: showBottomBar ? '88px' : '0px' // padding for fixed bottom menu
-              }} className="custom-scroll">
-                {renderRoleScreen()}
-              </div>
-
-              {/* CUSTOMER BOTTOM BAR:
-                  inicio, buscar, foryou, camera highlighted, favoritos, categoria */}
-              {showBottomBar && (
-                <div className="bottom-nav">
-                  <button 
-                    onClick={() => handleClientTabClick('client_home')}
-                    className={`bottom-nav-item ${clientView === 'client_home' ? 'active' : ''}`}
-                  >
-                    <Home size={20} />
-                    <span>início</span>
-                  </button>
-
-                  <button 
-                    onClick={() => handleClientTabClick('client_search')}
-                    className={`bottom-nav-item ${clientView === 'client_search' ? 'active' : ''}`}
-                  >
-                    <Search size={20} />
-                    <span>buscar</span>
-                  </button>
-
-                  {/* Glowing ForYou center button */}
-                  <button 
-                    onClick={() => handleClientTabClick('client_foryou')}
-                    className="bottom-nav-center"
-                  >
-                    <Play size={22} />
-                  </button>
-
-                  <button 
-                    onClick={() => {
-                      if (!currentUser) {
-                        setShowAuthScreen(true);
-                      } else {
-                        handleClientTabClick('client_favorites');
-                      }
-                    }}
-                    className={`bottom-nav-item ${clientView === 'client_favorites' ? 'active' : ''}`}
-                  >
-                    <Heart size={20} />
-                    <span>favoritos</span>
-                  </button>
-
-                  <button 
-                    onClick={() => {
-                      if (!currentUser) {
-                        setShowAuthScreen(true);
-                      } else {
-                        handleClientTabClick('client_profile');
-                      }
-                    }}
-                    className={`bottom-nav-item ${clientView === 'client_profile' ? 'active' : ''}`}
-                  >
-                    <User size={20} />
-                    <span>perfil</span>
-                  </button>
-                </div>
-              )}
-            </>
-          );
-        })()}
         {showChatRoom && (
           <div style={{
-            position: 'absolute',
+            position: 'fixed',
             inset: 0,
             backgroundColor: '#ffffff',
             zIndex: 1000,
