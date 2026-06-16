@@ -1,0 +1,573 @@
+import { useState } from 'react';
+import { useFirebaseMock } from '../../context/FirebaseMockContext';
+import { Home, UserCheck, Ticket, Bell, Layers } from 'lucide-react';
+
+export default function AdminArea() {
+  const { 
+    users, orders, servicesHired, coupons, updateRegistrationStatus, 
+    setUserBanStatus, createCoupon, triggerGlobalNotification, setUsers,
+    categories, addCategory, editCategory, deleteCategory 
+  } = useFirebaseMock();
+
+  const [activeTab, setActiveTab] = useState('metrics'); // metrics, users_mod, coupons_mod, notifications
+
+  // Coupon form
+  const [cpCode, setCpCode] = useState('');
+  const [cpType, setCpType] = useState('fixed');
+  const [cpValue, setCpValue] = useState('');
+  const [cpMin, setCpMin] = useState('0.00');
+
+  // Push form
+  const [pushTarget, setPushTarget] = useState('all'); // all, client, seller, motoboy
+  const [pushText, setPushText] = useState('');
+
+  // Coins adjustment
+  const [selectedUserId, setSelectedUserId] = useState('');
+  const [coinsDelta, setCoinsDelta] = useState('50');
+
+  // Category management
+  const [catLabel, setCatLabel] = useState('');
+  const [catDesc, setCatDesc] = useState('');
+  const [catIcon, setCatIcon] = useState('Sparkles');
+  const [catType, setCatType] = useState('lojas');
+  const [editingCatId, setEditingCatId] = useState(null);
+
+  // --- STATS CALCULATION ---
+  const clientsCount = users.filter(u => u.role === 'client').length;
+  const sellersCount = users.filter(u => u.role === 'seller').length;
+  const providersCount = users.filter(u => u.role === 'provider').length;
+  const organizersCount = users.filter(u => u.role === 'organizer').length;
+  const motoboysCount = users.filter(u => u.role === 'motoboy').length;
+
+  // Revenue by sector
+  let productSales = 0;
+  let productCommissions = 0;
+  let ticketSales = 0;
+  let ticketCommissions = 0;
+
+  orders.forEach(o => {
+    if (o.type === 'ticket') {
+      ticketSales += o.total;
+      ticketCommissions += o.commissionFee;
+    } else {
+      productSales += o.total;
+      productCommissions += o.commissionFee;
+    }
+  });
+
+  const serviceVolume = servicesHired
+    .filter(h => h.status === 'completed' || h.status === 'accepted')
+    .reduce((acc, h) => acc + h.total, 0);
+
+  const serviceCommissions = servicesHired
+    .filter(h => h.status === 'completed' || h.status === 'accepted')
+    .reduce((acc, h) => acc + h.commissionFee, 0);
+
+  const totalGMV = productSales + ticketSales + serviceVolume;
+  const totalCommissions = productCommissions + ticketCommissions + serviceCommissions;
+
+  const handleCouponSubmit = (e) => {
+    e.preventDefault();
+    if (!cpCode || !cpValue) return;
+
+    createCoupon({
+      code: cpCode,
+      discountType: cpType,
+      value: parseFloat(cpValue),
+      minPurchase: parseFloat(cpMin)
+    });
+
+    setCpCode('');
+    setCpValue('');
+    alert('Cupom criado e ativado no sistema, sô!');
+  };
+
+  const handlePushSubmit = (e) => {
+    e.preventDefault();
+    if (!pushText) return;
+
+    triggerGlobalNotification(pushTarget, pushText);
+    setPushText('');
+    alert('Notificação enviada em massa com sucesso!');
+  };
+
+  const handleCoinsAdjustment = (e) => {
+    e.preventDefault();
+    if (!selectedUserId || !coinsDelta) return;
+
+    setUsers(prev => prev.map(u => {
+      if (u.id === selectedUserId) {
+        return { ...u, ouroCoins: Math.max(0, u.ouroCoins + parseInt(coinsDelta)) };
+      }
+      return u;
+    }));
+
+    setCoinsDelta('50');
+    alert('Saldo de OuroCoins ajustado!');
+  };
+
+  // --- SUBVIEW 1: GLOBAL METRICS ---
+  const renderMetrics = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
+      
+      {/* Title */}
+      <div>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 500, color: '#2d2d2d' }}>Desempenho Geral</h2>
+        <p style={{ fontSize: '0.78rem', color: '#777' }}>Auditoria financeira em tempo real</p>
+      </div>
+
+      {/* Total system balance */}
+      <div style={{
+        background: 'linear-gradient(135deg, #2ec4b6 0%, #209f93 100%)',
+        borderRadius: '24px',
+        padding: '20px',
+        color: 'white',
+        boxShadow: '0 8px 20px rgba(46,196,182,0.2)'
+      }}>
+        <span style={{ fontSize: '0.75rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Faturamento Líquido Connecta+ (Comissões)</span>
+        <h1 style={{ fontSize: '2.2rem', fontWeight: 900, margin: '4px 0', color: 'white' }}>
+          R$ {totalCommissions.toFixed(2)}
+        </h1>
+        <p style={{ fontSize: '0.75rem', opacity: 0.9 }}>
+          Volume Transacionado Geral (GMV): <strong>R$ {totalGMV.toFixed(2)}</strong>
+        </p>
+      </div>
+
+      {/* Stats by Sector */}
+      <div>
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '10px' }}>Faturamento por Setor</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {[
+            { name: 'Lojas & Produtos', vol: productSales, fee: productCommissions, rate: '10%' },
+            { name: 'Festas & Ingressos', vol: ticketSales, fee: ticketCommissions, rate: '10%' },
+            { name: 'Prestadores de Serviço', vol: serviceVolume, fee: serviceCommissions, rate: '12%' }
+          ].map(sec => (
+            <div
+              key={sec.name}
+              style={{
+                backgroundColor: 'white',
+                padding: '12px 16px',
+                borderRadius: '16px',
+                border: '1px solid #eee',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}
+            >
+              <div>
+                <strong style={{ fontSize: '0.82rem', color: '#2d2d2d' }}>{sec.name}</strong>
+                <div style={{ fontSize: '0.68rem', color: '#777', marginTop: '2px' }}>
+                  Volume: R$ {sec.vol.toFixed(2)} | Comissão: {sec.rate}
+                </div>
+              </div>
+              <strong style={{ fontSize: '0.9rem', color: '#2ec4b6' }}>+ R$ {sec.fee.toFixed(2)}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Users Count summary */}
+      <div style={{ backgroundColor: 'white', padding: '16px', borderRadius: '24px', border: '1px solid #eee' }}>
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '10px' }}>Usuários Cadastrados</h3>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', textAlign: 'center' }}>
+          {[
+            { label: 'Clientes', count: clientsCount },
+            { label: 'Lojas', count: sellersCount },
+            { label: 'Prestadores', count: providersCount },
+            { label: 'Motoboys', count: motoboysCount },
+            { label: 'Eventos', count: organizersCount }
+          ].map(it => (
+            <div key={it.label} style={{ backgroundColor: '#fafafa', padding: '8px', borderRadius: '12px' }}>
+              <div style={{ fontSize: '0.65rem', color: '#777' }}>{it.label}</div>
+              <strong style={{ fontSize: '1.1rem', color: '#f28d1a' }}>{it.count}</strong>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // --- SUBVIEW 2: USERS MODERATION & REGISTRATIONS AUDITING ---
+  const renderUsersMod = () => {
+    const pendingUsers = users.filter(u => u.registrationStatus === 'pending');
+    const approvedUsers = users.filter(u => u.registrationStatus === 'approved' && u.role !== 'admin');
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
+        
+        {/* Approvals section */}
+        <div>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '8px' }}>Auditoria de Cadastros ({pendingUsers.length})</h3>
+          {pendingUsers.length === 0 ? (
+            <div style={{ fontSize: '0.78rem', color: '#888', fontStyle: 'italic', backgroundColor: 'white', padding: '12px', borderRadius: '16px', border: '1px solid #eee' }}>
+              Nenhum cadastro aguardando aprovação uai.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {pendingUsers.map(user => (
+                <div
+                  key={user.id}
+                  style={{
+                    backgroundColor: 'white',
+                    padding: '14px',
+                    borderRadius: '20px',
+                    border: '1px solid #eee',
+                    fontSize: '0.78rem'
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 500, marginBottom: '6px' }}>
+                    <span>{user.name}</span>
+                    <span style={{ color: '#f28d1a' }}>{user.role.toUpperCase()}</span>
+                  </div>
+                  <div><strong>Email:</strong> {user.email}</div>
+                  <div><strong>Contato:</strong> {user.phone}</div>
+                  {user.cnpj && <div><strong>CNPJ/CPF:</strong> {user.cnpj}</div>}
+                  {user.cpf && <div><strong>CPF:</strong> {user.cpf}</div>}
+                  {user.address && <div><strong>Endereço:</strong> {user.address}</div>}
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                    <button
+                      onClick={() => updateRegistrationStatus(user.id, 'refused')}
+                      className="btn btn-secondary"
+                      style={{ flex: 1, padding: '4px 0', fontSize: '0.72rem', borderRadius: '10px' }}
+                    >
+                      Recusar
+                    </button>
+                    <button
+                      onClick={() => updateRegistrationStatus(user.id, 'approved')}
+                      className="btn btn-primary"
+                      style={{ flex: 1, padding: '4px 0', fontSize: '0.72rem', borderRadius: '10px', backgroundColor: '#2ec4b6' }}
+                    >
+                      Aprovar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* User list & Ban controls */}
+        <div>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '8px' }}>Gerenciar Usuários Aprovados</h3>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {approvedUsers.map(user => (
+              <div
+                key={user.id}
+                style={{
+                  backgroundColor: 'white',
+                  padding: '12px 14px',
+                  borderRadius: '16px',
+                  border: '1px solid #eee',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  fontSize: '0.8rem'
+                }}
+              >
+                <div>
+                  <strong>{user.name}</strong>
+                  <div style={{ fontSize: '0.68rem', color: '#666' }}>Papel: {user.role} | Coins: {user.ouroCoins || 0}</div>
+                </div>
+                
+                <button
+                  onClick={() => setUserBanStatus(user.id, !user.banned)}
+                  style={{
+                    padding: '4px 12px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: user.banned ? '#2ec4b6' : '#ff5e5b15',
+                    color: user.banned ? 'white' : '#ff5e5b',
+                    fontWeight: 500,
+                    fontSize: '0.7rem',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {user.banned ? 'Desbanir' : 'Banir'}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Adjust OuroCoins */}
+        <div style={{ backgroundColor: 'white', padding: '16px', borderRadius: '24px', border: '1px solid #eee' }}>
+          <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '10px' }}>Modificar OuroCoins</h3>
+          <form onSubmit={handleCoinsAdjustment} style={{ display: 'flex', gap: '8px' }}>
+            <select
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              style={{ flex: 1, padding: '8px 12px', borderRadius: '12px', border: '2px solid #eaeaea', fontSize: '0.8rem' }}
+              required
+            >
+              <option value="">Escolha Usuário...</option>
+              {approvedUsers.filter(u => u.role === 'client').map(u => (
+                <option key={u.id} value={u.id}>{u.name} ({u.ouroCoins} coins)</option>
+              ))}
+            </select>
+            
+            <input
+              type="number"
+              value={coinsDelta}
+              onChange={(e) => setCoinsDelta(e.target.value)}
+              style={{ width: '70px', padding: '8px 12px', borderRadius: '12px', border: '2px solid #eaeaea', fontSize: '0.8rem', fontWeight: 500 }}
+              placeholder="Ex: 50"
+            />
+            
+            <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.75rem', borderRadius: '12px' }}>
+              Mudar
+            </button>
+          </form>
+        </div>
+
+      </div>
+    );
+  };
+
+  // --- SUBVIEW 3: COUPONS GENERATOR ---
+  const renderCouponsMod = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
+      
+      {/* Coupon form */}
+      <div style={{ backgroundColor: 'white', padding: '16px', borderRadius: '24px', border: '1px solid #eee' }}>
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>Criar Novo Cupom</h3>
+        <form onSubmit={handleCouponSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '0.68rem', color: '#666' }}>Código do Cupom</label>
+              <input type="text" value={cpCode} onChange={(e) => setCpCode(e.target.value.toUpperCase())} className="input-field" style={{ padding: '8px 12px', fontSize: '0.8rem' }} placeholder="Ex: OURO30" required />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '0.68rem', color: '#666' }}>Tipo de Desconto</label>
+              <select value={cpType} onChange={(e) => setCpType(e.target.value)} style={{ width: '100%', padding: '10px 12px', borderRadius: '16px', border: '2px solid #eaeaea', fontSize: '0.8rem', backgroundColor: 'white', fontWeight: 600 }}>
+                <option value="fixed">Valor Fixo (R$)</option>
+                <option value="percentage">Porcentagem (%)</option>
+              </select>
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '0.68rem', color: '#666' }}>Valor do Desconto</label>
+              <input type="number" value={cpValue} onChange={(e) => setCpValue(e.target.value)} className="input-field" style={{ padding: '8px 12px', fontSize: '0.8rem' }} placeholder="10.00" required />
+            </div>
+            <div style={{ flex: 1 }}>
+              <label style={{ fontSize: '0.68rem', color: '#666' }}>Mínimo Compra (R$)</label>
+              <input type="number" value={cpMin} onChange={(e) => setCpMin(e.target.value)} className="input-field" style={{ padding: '8px 12px', fontSize: '0.8rem' }} placeholder="30.00" />
+            </div>
+          </div>
+
+          <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '42px', marginTop: '4px' }}>
+            Criar e Ativar Cupom
+          </button>
+        </form>
+      </div>
+
+      {/* Coupon List */}
+      <div>
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '8px' }}>Cupons Ativos</h3>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          {coupons.map(cp => (
+            <div key={cp.code} style={{ backgroundColor: 'white', padding: '12px', borderRadius: '16px', border: '1px solid #eee', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem' }}>
+              <div>
+                <strong>{cp.code}</strong>
+                <div style={{ fontSize: '0.68rem', color: '#777' }}>
+                  Desconto: {cp.discountType === 'fixed' ? `R$ ${cp.value.toFixed(2)}` : `${cp.value}%`} | Mínimo: R$ {cp.minPurchase.toFixed(2)}
+                </div>
+              </div>
+              <span style={{ fontSize: '0.7rem', color: '#2ec4b6', fontWeight: 500 }}>Ativo</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  // --- SUBVIEW 4: GLOBAL PUSH NOTIFICATIONS ---
+  const renderNotifications = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
+      
+      <div style={{ backgroundColor: 'white', padding: '16px', borderRadius: '24px', border: '1px solid #eee' }}>
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>Enviar Alerta / Push Simulado</h3>
+        <form onSubmit={handlePushSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Destinatários</label>
+            <select
+              value={pushTarget}
+              onChange={(e) => setPushTarget(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '12px 14px',
+                borderRadius: '16px',
+                border: '2px solid #eaeaea',
+                fontSize: '0.82rem',
+                backgroundColor: 'white',
+                fontWeight: 600
+              }}
+            >
+              <option value="all">Todos os Usuários</option>
+              <option value="client">Apenas Clientes</option>
+              <option value="seller">Apenas Lojistas</option>
+              <option value="motoboy">Apenas Motoboys</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Texto da Notificação</label>
+            <textarea
+              placeholder="Digite o aviso que aparecerá instantaneamente nas contas..."
+              value={pushText}
+              onChange={(e) => setPushText(e.target.value)}
+              className="input-field"
+              style={{ height: '70px', resize: 'none', fontSize: '0.8rem' }}
+              required
+            />
+          </div>
+
+          <button type="submit" className="btn btn-primary" style={{ width: '100%', height: '44px' }}>
+            Enviar Push virtual
+          </button>
+        </form>
+      </div>
+
+    </div>
+  );
+
+  // --- SUBVIEW 5: CATEGORIES MANAGEMENT ---
+  const renderCategoriesAdmin = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
+      <div>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 500, color: '#2d2d2d' }}>Gerenciar Categorias</h2>
+        <p style={{ fontSize: '0.78rem', color: '#777' }}>Adicione, edite e organize as categorias do app</p>
+      </div>
+
+      {/* Add/Edit Category Form */}
+      <div style={{ backgroundColor: 'white', padding: '16px', borderRadius: '24px', border: '1px solid #eee' }}>
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+          {editingCatId ? 'Editar Categoria' : 'Nova Categoria'}
+        </h3>
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          if (!catLabel) return;
+          if (editingCatId) {
+            editCategory(editingCatId, { label: catLabel, key: catLabel, desc: catDesc, icon: catIcon, type: catType });
+            setEditingCatId(null);
+          } else {
+            addCategory({ label: catLabel, key: catLabel, desc: catDesc, icon: catIcon, type: catType });
+          }
+          setCatLabel(''); setCatDesc(''); setCatIcon('Sparkles'); setCatType('lojas');
+        }} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Nome da Categoria</label>
+            <input type="text" placeholder="Ex: Artesanato" value={catLabel} onChange={(e) => setCatLabel(e.target.value)} className="input-field" required />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Descrição (opcional)</label>
+            <input type="text" placeholder="Ex: Peças em cobre e pedra-sabão" value={catDesc} onChange={(e) => setCatDesc(e.target.value)} className="input-field" />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Tipo</label>
+            <select value={catType} onChange={(e) => setCatType(e.target.value)} style={{ width: '100%', padding: '12px 14px', borderRadius: '16px', border: '2px solid #eaeaea', fontSize: '0.82rem', backgroundColor: 'white', fontWeight: 600 }}>
+              <option value="lojas">Lojas</option>
+              <option value="servicos">Serviços</option>
+              <option value="eventos">Eventos</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Ícone</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {['Sparkles','Palette','Gift','Wrench','Ticket','Star','Award','Heart','ShoppingCart','MapPin','Camera','Music','Coffee','Book','Gem','Scissors','Brush','Utensils','Wine','Mountain','Sun','Umbrella','Zap','Flame','Leaf'].map(iconName => (
+                <button key={iconName} type="button" onClick={() => setCatIcon(iconName)} style={{ width: '40px', height: '40px', borderRadius: '12px', border: catIcon === iconName ? '2px solid #f28d1a' : '1px solid #eee', backgroundColor: catIcon === iconName ? '#fff9ee' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.65rem', color: catIcon === iconName ? '#f28d1a' : '#888', fontWeight: 600 }}>
+                  {iconName.slice(0, 4)}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button type="submit" className="btn btn-primary" style={{ flex: 1, height: '44px' }}>
+              {editingCatId ? 'Salvar' : 'Adicionar'}
+            </button>
+            {editingCatId && (
+              <button type="button" onClick={() => { setEditingCatId(null); setCatLabel(''); setCatDesc(''); setCatIcon('Sparkles'); setCatType('lojas'); }} style={{ padding: '10px 16px', borderRadius: '16px', border: '1px solid #eee', backgroundColor: 'white', cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600, color: '#888' }}>Cancelar</button>
+            )}
+          </div>
+        </form>
+      </div>
+
+      {/* Existing Categories List */}
+      <div>
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '10px' }}>Categorias Cadastradas ({categories.length})</h3>
+        {categories.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '30px', color: '#999', fontSize: '0.82rem', backgroundColor: '#f9f9f9', borderRadius: '16px' }}>Nenhuma categoria cadastrada ainda.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {['lojas', 'servicos', 'eventos'].map(type => {
+              const typeCats = categories.filter(c => c.type === type);
+              if (typeCats.length === 0) return null;
+              return (
+                <div key={type}>
+                  <h4 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f28d1a', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px', marginTop: '8px' }}>
+                    {type === 'lojas' ? 'Lojas' : type === 'servicos' ? 'Serviços' : 'Eventos'}
+                  </h4>
+                  {typeCats.map(cat => (
+                    <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'white', padding: '10px 14px', borderRadius: '16px', border: '1px solid #eee', marginBottom: '6px' }}>
+                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#fff9ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: '#f28d1a', fontWeight: 700, flexShrink: 0 }}>
+                        {(cat.icon || 'Sp').slice(0, 3)}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d' }}>{cat.label}</div>
+                        {cat.desc && <div style={{ fontSize: '0.68rem', color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cat.desc}</div>}
+                      </div>
+                      <button type="button" onClick={() => { setEditingCatId(cat.id); setCatLabel(cat.label); setCatDesc(cat.desc || ''); setCatIcon(cat.icon || 'Sparkles'); setCatType(cat.type || 'lojas'); }} style={{ background: 'none', border: 'none', color: '#f28d1a', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>Editar</button>
+                      <button type="button" onClick={() => { if(confirm('Remover esta categoria?')) deleteCategory(cat.id); }} style={{ background: 'none', border: 'none', color: '#ff5e5b', cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600 }}>Excluir</button>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#ffffff', position: 'relative' }} className="animate-fade-in">
+      {/* Body */}
+      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', paddingBottom: '90px' }} className="custom-scroll">
+        {activeTab === 'metrics' && renderMetrics()}
+        {activeTab === 'users_mod' && renderUsersMod()}
+        {activeTab === 'coupons_mod' && renderCouponsMod()}
+        {activeTab === 'categories_mod' && renderCategoriesAdmin()}
+        {activeTab === 'notifications' && renderNotifications()}
+      </div>
+
+      {/* Menu Fixo Embaixo com Ícones */}
+      <div className="bottom-nav">
+        {[
+          { id: 'metrics', label: 'Relatórios', icon: <Home size={20} /> },
+          { id: 'users_mod', label: 'Moderar', icon: <UserCheck size={20} /> },
+          { id: 'coupons_mod', label: 'Cupons', icon: <Ticket size={20} /> },
+          { id: 'categories_mod', label: 'Categorias', icon: <Layers size={20} /> },
+          { id: 'notifications', label: 'Alertas', icon: <Bell size={20} /> }
+        ].map(item => (
+          <button
+            key={item.id}
+            type="button"
+            onClick={() => setActiveTab(item.id)}
+            className={`bottom-nav-item ${activeTab === item.id ? 'active' : ''}`}
+          >
+            {item.icon}
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
