@@ -177,13 +177,14 @@ function AppContent() {
         setShowAuthScreen(true);
       }}
     >
-      {/* Smartphone app wrapper bar */}
+      {/* App wrapper */}
       <div style={{
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
         height: '100%',
+        minHeight: '100vh',
         minWidth: 0,
         width: '100%',
         overflowX: 'hidden'
@@ -273,7 +274,7 @@ function AppContent() {
                 width: '100%',
                 maxWidth: '100%',
                 boxSizing: 'border-box',
-                paddingBottom: showBottomBar ? '72px' : '0px' // padding for bottom menu
+                paddingBottom: showBottomBar ? '88px' : '0px' // padding for fixed bottom menu
               }} className="custom-scroll">
                 {renderRoleScreen()}
               </div>
