@@ -199,11 +199,10 @@ function AppContent() {
             style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }}
           >
             <img 
-              src="/logo.png" 
+              src="/logo-full.png" 
               alt="Connecta+" 
-              style={{ width: '36px', height: '36px', borderRadius: '10px', objectFit: 'cover' }} 
+              style={{ height: '34px', objectFit: 'contain' }} 
             />
-            <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#2d2d2d' }}>Connecta<span style={{ color: '#f28d1a' }}>+</span></span>
           </div>
 
           {/* Nav links */}
