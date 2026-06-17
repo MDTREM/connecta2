@@ -486,3 +486,72 @@ h1, h2, h3, h4 {
   animation: heartBeat 0.45s ease-in-out forwards;
 }
 
+/* ========================================
+   ADMIN AREA RESPONSIVE LAYOUT
+   ======================================== */
+.desktop-admin-nav {
+  display: none;
+}
+.admin-body {
+  padding-bottom: 90px !important;
+}
+
+@media (min-width: 768px) {
+  .desktop-admin-nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 32px;
+    background-color: #ffffff;
+    border-bottom: 1px solid #eaeaea;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+  }
+
+  .desktop-admin-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: none;
+    border: none;
+    padding: 10px 16px;
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: #666;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .desktop-admin-nav-item:hover {
+    color: var(--primary);
+  }
+
+  .desktop-admin-nav-item.active {
+    color: var(--primary);
+    border-bottom-color: var(--primary);
+  }
+
+  .desktop-admin-logout-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background-color: #fff0ef;
+    border: none;
+    border-radius: 12px;
+    padding: 8px 16px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: #ff5e5b;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+
+  .desktop-admin-logout-btn:hover {
+    background-color: #ffe3e1;
+  }
+
+  .admin-body {
+    padding-bottom: 24px !important;
+  }
+}
+

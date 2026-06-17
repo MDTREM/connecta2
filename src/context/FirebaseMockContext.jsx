@@ -144,7 +144,13 @@ export const FirebaseMockProvider = ({ children }) => {
           customTexts: {},
           customColors: {},
           sectionOrder: ['banner', 'categories', 'flashDeals', 'nearbyStores', 'products', 'buyers', 'events', 'services'],
-          avatarOffset: { top: -36, left: 32 }
+          avatarOffset: { top: -36, left: 32 },
+          homeBanner: {
+            title: 'Artesanato & Tradição',
+            desc: 'Peças em Pedra-Sabão direto de Ouro Preto',
+            img: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=500',
+            link: 'Artesanato'
+          }
         };
         setDoc(doc(db, 'settings', 'visualLayout'), defaultSettings).catch(err => console.error(err));
       }
@@ -297,7 +303,7 @@ export const FirebaseMockProvider = ({ children }) => {
         address: userData.address || '',
         registrationStatus: status,
         banned: false,
-        ouroCoins: isClient ? 100 : 0,
+        ouroCoins: 0,
         createdAt: Date.now(),
         ...userData,
         id: uid
@@ -970,9 +976,19 @@ export const FirebaseMockProvider = ({ children }) => {
       customTexts: {},
       customColors: {},
       sectionOrder: ['banner', 'categories', 'flashDeals', 'nearbyStores', 'products', 'buyers', 'events', 'services'],
-      avatarOffset: { top: -36, left: 32 }
+      avatarOffset: { top: -36, left: 32 },
+      homeBanner: {
+        title: 'Artesanato & Tradição',
+        desc: 'Peças em Pedra-Sabão direto de Ouro Preto',
+        img: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=500',
+        link: 'Artesanato'
+      }
     };
     setDoc(doc(db, 'settings', 'visualLayout'), defaultSettings).catch(err => console.error(err));
+  };
+
+  const updateVisualLayoutSettings = (newSettings) => {
+    setDoc(doc(db, 'settings', 'visualLayout'), newSettings).catch(err => console.error(err));
   };
 
   const addProductReview = (productId, userName, rating, comment, images = []) => {
@@ -1074,6 +1090,7 @@ export const FirebaseMockProvider = ({ children }) => {
       updateAvatarOffset,
       reorderSections,
       resetVisualLayout,
+      updateVisualLayoutSettings,
       productReviews,
       addProductReview,
       getCoinsUsedInPeriod,

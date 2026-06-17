@@ -1,15 +1,50 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
-import { Home, UserCheck, Ticket, Bell, Layers } from 'lucide-react';
+import { 
+  Home, UserCheck, Ticket, Bell, Layers, LogOut,
+  Sparkles, Palette, Gift, Wrench, Star, Award, Heart, 
+  ShoppingCart, MapPin, Camera, Music, Coffee, Book, 
+  Gem, Scissors, Brush, Utensils, Wine, Mountain, 
+  Sun, Umbrella, Zap, Flame, Leaf 
+} from 'lucide-react';
+
+const iconComponents = {
+  Sparkles, Palette, Gift, Wrench, Ticket, Star, Award, Heart, 
+  ShoppingCart, MapPin, Camera, Music, Coffee, Book, 
+  Gem, Scissors, Brush, Utensils, Wine, Mountain, 
+  Sun, Umbrella, Zap, Flame, Leaf
+};
 
 export default function AdminArea() {
   const { 
     users, orders, servicesHired, coupons, updateRegistrationStatus, 
     setUserBanStatus, createCoupon, triggerGlobalNotification, setUsers,
-    categories, addCategory, editCategory, deleteCategory 
+    categories, addCategory, editCategory, deleteCategory,
+    visualLayoutSettings, updateVisualLayoutSettings, logout
   } = useFirebaseMock();
 
-  const [activeTab, setActiveTab] = useState('metrics'); // metrics, users_mod, coupons_mod, notifications
+  const [activeTab, setActiveTab] = useState('metrics'); // metrics, users_mod, coupons_mod, categories_mod, notifications
+
+  // Banner Editor state
+  const [bannerTitle, setBannerTitle] = useState('');
+  const [bannerDesc, setBannerDesc] = useState('');
+  const [bannerImg, setBannerImg] = useState('');
+  const [bannerLink, setBannerLink] = useState('');
+
+  // Sync state when settings are loaded
+  useEffect(() => {
+    if (visualLayoutSettings?.homeBanner) {
+      setBannerTitle(visualLayoutSettings.homeBanner.title || '');
+      setBannerDesc(visualLayoutSettings.homeBanner.desc || '');
+      setBannerImg(visualLayoutSettings.homeBanner.img || '');
+      setBannerLink(visualLayoutSettings.homeBanner.link || '');
+    }
+  }, [visualLayoutSettings]);
+
+  const renderCategoryIcon = (iconName, size = 18) => {
+    const IconComp = iconComponents[iconName] || Sparkles;
+    return <IconComp size={size} />;
+  };
 
   // Coupon form
   const [cpCode, setCpCode] = useState('');
@@ -183,6 +218,157 @@ export default function AdminArea() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Personalizar Página Inicial (Home Banner) */}
+      <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '24px', border: '1px solid #eee', marginTop: '16px' }}>
+        <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '4px' }}>Banner Principal da Home</h3>
+        <p style={{ fontSize: '0.72rem', color: '#777', marginBottom: '14px' }}>Configure o slide de destaque na página inicial dos clientes</p>
+        
+        {/* Banner Preview */}
+        {bannerImg && (
+          <div style={{
+            width: '100%',
+            height: '100px',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            position: 'relative',
+            marginBottom: '14px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.05)'
+          }}>
+            <img src={bannerImg} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'linear-gradient(to right, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.1) 100%)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center',
+              padding: '12px 16px',
+              color: 'white'
+            }}>
+              <h4 style={{ fontSize: '0.88rem', fontWeight: 600, margin: 0, color: '#f9bb1a' }}>{bannerTitle || 'Título do Banner'}</h4>
+              <p style={{ fontSize: '0.68rem', marginTop: '2px', opacity: 0.9 }}>{bannerDesc || 'Descrição do banner...'}</p>
+              <span style={{ fontSize: '0.58rem', marginTop: '4px', backgroundColor: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: '4px', width: 'fit-content' }}>
+                Destino: {bannerLink || 'Nenhum'}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          updateVisualLayoutSettings({
+            ...visualLayoutSettings,
+            homeBanner: {
+              title: bannerTitle,
+              desc: bannerDesc,
+              img: bannerImg,
+              link: bannerLink
+            }
+          });
+          alert('Banner da Home atualizado com sucesso, sô!');
+        }} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#444' }}>Título do Banner</label>
+            <input 
+              type="text" 
+              placeholder="Ex: Artesanato & Tradição" 
+              value={bannerTitle} 
+              onChange={(e) => setBannerTitle(e.target.value)} 
+              className="input-field" 
+              style={{ padding: '8px 12px', fontSize: '0.78rem' }}
+              required 
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#444' }}>Descrição</label>
+            <input 
+              type="text" 
+              placeholder="Ex: Peças em pedra-sabão direto de Ouro Preto" 
+              value={bannerDesc} 
+              onChange={(e) => setBannerDesc(e.target.value)} 
+              className="input-field" 
+              style={{ padding: '8px 12px', fontSize: '0.78rem' }}
+              required 
+            />
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#444' }}>Foto do Banner</label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input 
+                type="text" 
+                placeholder="URL da imagem ou faça upload..." 
+                value={bannerImg} 
+                onChange={(e) => setBannerImg(e.target.value)} 
+                className="input-field" 
+                style={{ padding: '8px 12px', fontSize: '0.78rem', flex: 1 }}
+                required 
+              />
+              <label style={{
+                padding: '8px 12px',
+                borderRadius: '12px',
+                backgroundColor: '#fff9ee',
+                color: '#f28d1a',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                border: '1px dashed #f28d1a',
+                flexShrink: 0
+              }}>
+                Upload
+                <input 
+                  type="file" 
+                  accept="image/*" 
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setBannerImg(reader.result);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }} 
+                  style={{ display: 'none' }} 
+                />
+              </label>
+            </div>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#444' }}>Redirecionar Para (Link)</label>
+            <select 
+              value={bannerLink} 
+              onChange={(e) => setBannerLink(e.target.value)} 
+              style={{ 
+                width: '100%', 
+                padding: '8px 12px', 
+                borderRadius: '12px', 
+                border: '2px solid #eaeaea', 
+                fontSize: '0.78rem', 
+                backgroundColor: 'white', 
+                fontWeight: 600 
+              }}
+            >
+              <option value="lojas">Aba Lojas (Home Principal)</option>
+              <option value="servicos">Aba Serviços</option>
+              <option value="eventos">Aba Eventos</option>
+              <optgroup label="Categorias Específicas">
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.label}>{cat.label} ({cat.type})</option>
+                ))}
+              </optgroup>
+            </select>
+          </div>
+
+          <button type="submit" className="btn btn-primary" style={{ height: '38px', fontSize: '0.82rem', fontWeight: 600, marginTop: '8px' }}>
+            Salvar Alterações na Home
+          </button>
+        </form>
       </div>
     </div>
   );
@@ -479,11 +665,11 @@ export default function AdminArea() {
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label>Ícone</label>
+            <label>Ícone de Exibição</label>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-              {['Sparkles','Palette','Gift','Wrench','Ticket','Star','Award','Heart','ShoppingCart','MapPin','Camera','Music','Coffee','Book','Gem','Scissors','Brush','Utensils','Wine','Mountain','Sun','Umbrella','Zap','Flame','Leaf'].map(iconName => (
-                <button key={iconName} type="button" onClick={() => setCatIcon(iconName)} style={{ width: '40px', height: '40px', borderRadius: '12px', border: catIcon === iconName ? '2px solid #f28d1a' : '1px solid #eee', backgroundColor: catIcon === iconName ? '#fff9ee' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '0.65rem', color: catIcon === iconName ? '#f28d1a' : '#888', fontWeight: 600 }}>
-                  {iconName.slice(0, 4)}
+              {Object.keys(iconComponents).map(iconName => (
+                <button key={iconName} type="button" onClick={() => setCatIcon(iconName)} style={{ width: '40px', height: '40px', borderRadius: '12px', border: catIcon === iconName ? '2px solid #f28d1a' : '1px solid #eee', backgroundColor: catIcon === iconName ? '#fff9ee' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: catIcon === iconName ? '#f28d1a' : '#888' }} title={iconName}>
+                  {renderCategoryIcon(iconName, 20)}
                 </button>
               ))}
             </div>
@@ -517,8 +703,8 @@ export default function AdminArea() {
                   </h4>
                   {typeCats.map(cat => (
                     <div key={cat.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: 'white', padding: '10px 14px', borderRadius: '16px', border: '1px solid #eee', marginBottom: '6px' }}>
-                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#fff9ee', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.6rem', color: '#f28d1a', fontWeight: 700, flexShrink: 0 }}>
-                        {(cat.icon || 'Sp').slice(0, 3)}
+                      <div style={{ width: '36px', height: '36px', borderRadius: '10px', backgroundColor: '#fff9ee', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f28d1a', flexShrink: 0 }}>
+                        {renderCategoryIcon(cat.icon, 18)}
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d' }}>{cat.label}</div>
@@ -539,8 +725,51 @@ export default function AdminArea() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#ffffff', position: 'relative' }} className="animate-fade-in">
+      {/* Menu Topo para Desktop */}
+      <div className="desktop-admin-nav">
+        {/* Left: Brand Logo */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <img src="/logo-full.png" alt="Connecta+" style={{ height: '30px', objectFit: 'contain' }} />
+          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#f28d1a', border: '1px solid #f28d1a', padding: '2px 6px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            Painel Admin
+          </span>
+        </div>
+        
+        {/* Center: Tabs */}
+        <div style={{ display: 'flex', gap: '16px' }}>
+          {[
+            { id: 'metrics', label: 'Relatórios', icon: <Home size={16} /> },
+            { id: 'users_mod', label: 'Moderar', icon: <UserCheck size={16} /> },
+            { id: 'coupons_mod', label: 'Cupons', icon: <Ticket size={16} /> },
+            { id: 'categories_mod', label: 'Categorias', icon: <Layers size={16} /> },
+            { id: 'notifications', label: 'Alertas', icon: <Bell size={16} /> }
+          ].map(item => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setActiveTab(item.id)}
+              className={`desktop-admin-nav-item ${activeTab === item.id ? 'active' : ''}`}
+            >
+              {item.icon}
+              <span>{item.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Right: Sair */}
+        <div>
+          <button 
+            onClick={logout} 
+            className="desktop-admin-logout-btn"
+          >
+            <LogOut size={16} />
+            <span>Sair</span>
+          </button>
+        </div>
+      </div>
+
       {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '16px', paddingBottom: '90px' }} className="custom-scroll">
+      <div className="admin-body custom-scroll" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {activeTab === 'metrics' && renderMetrics()}
         {activeTab === 'users_mod' && renderUsersMod()}
         {activeTab === 'coupons_mod' && renderCouponsMod()}
@@ -548,7 +777,7 @@ export default function AdminArea() {
         {activeTab === 'notifications' && renderNotifications()}
       </div>
 
-      {/* Menu Fixo Embaixo com Ícones */}
+      {/* Menu Fixo Embaixo com Ícones (Somente Mobile) */}
       <div className="bottom-nav">
         {[
           { id: 'metrics', label: 'Relatórios', icon: <Home size={20} /> },

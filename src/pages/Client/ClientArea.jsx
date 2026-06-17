@@ -566,11 +566,12 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
   // --- SUBVIEW 1: CLIENT HOME ---
   const renderHome = () => {
-    // Carousels images simulation
-    const banners = [
-      { id: 1, title: 'Artesanato & Tradição', desc: 'Peças em Pedra-Sabão direto de Ouro Preto', color: '#fffdf0', img: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=500' },
-      { id: 2, title: 'Festival de Inverno 2026', desc: 'Ingressos do 2º lote voando, sô!', color: '#fffbeb', img: 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500' }
-    ];
+    const activeBanner = visualLayoutSettings?.homeBanner || {
+      title: 'Artesanato & Tradição',
+      desc: 'Peças em Pedra-Sabão direto de Ouro Preto',
+      img: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=500',
+      link: 'Artesanato'
+    };
 
     // Top buyers dynamically from users with most orders
     const clientUsers = users.filter(u => u.role === 'client');
@@ -603,8 +604,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           boxShadow: '0 8px 24px rgba(242,141,26,0.06)'
         }}>
           <img 
-            src={banners[0].img} 
-            alt={banners[0].title}
+            src={activeBanner.img} 
+            alt={activeBanner.title}
             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
           <div style={{
@@ -617,10 +618,21 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             padding: '20px',
             color: 'white'
           }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 500, margin: 0, color: '#f9bb1a' }}>{banners[0].title}</h3>
-            <p style={{ fontSize: '0.75rem', marginTop: '4px', opacity: 0.9, maxWidth: '60%' }}>{banners[0].desc}</p>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, margin: 0, color: '#f9bb1a' }}>{activeBanner.title}</h3>
+            <p style={{ fontSize: '0.75rem', marginTop: '4px', opacity: 0.9, maxWidth: '60%' }}>{activeBanner.desc}</p>
             <button
-              onClick={() => { setSelectedCategory('Artesanato'); onSwitchView('client_categories'); }}
+              onClick={() => {
+                const linkVal = activeBanner.link || 'Artesanato';
+                if (linkVal === 'lojas' || linkVal === 'servicos' || linkVal === 'eventos') {
+                  // Direct tab redirect
+                  setSelectedCategory('Todos');
+                  if (linkVal === 'lojas') onSwitchView('client_home');
+                  else onSwitchView('client_categories'); // Or appropriate view
+                } else {
+                  setSelectedCategory(linkVal);
+                  onSwitchView('client_categories');
+                }
+              }}
               style={{
                 marginTop: '10px',
                 padding: '4px 12px',
@@ -634,7 +646,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 cursor: 'pointer'
               }}
             >
-              ver artesanato
+              Ver Mais
             </button>
           </div>
         </div>
@@ -1513,7 +1525,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               gap: '4px'
             }}
           >
-            <Coins size={14} /> {isVisitor ? '+100' : (currentUser?.ouroCoins || 0)} Coins
+            <Coins size={14} /> {isVisitor ? '0' : (currentUser?.ouroCoins || 0)} Coins
           </button>
         </div>
 
@@ -5323,13 +5335,19 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          {[
-            { code: 'BEMVINDO', desc: 'Ganhe 10% de desconto na sua primeira compra!', tag: '10% OFF' },
-            { code: 'OURO10', desc: 'R$ 10 de desconto em compras acima de R$ 30.', tag: 'R$ 10.00' },
-            { code: 'UAI20', desc: 'Especial 20% de desconto para novos cadastros de Ouro Preto.', tag: '20% OFF' }
-          ].map(cp => (
-            <div
-              key={cp.code}
+          {coupons.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px', color: '#999', fontSize: '0.82rem', backgroundColor: 'white', borderRadius: '20px', border: '1px solid #eee' }}>
+              Nenhum cupom disponível no momento, uai!
+            </div>
+          ) : coupons.map(cp => {
+            const tag = cp.discountType === 'percent' ? `${cp.value}% OFF` : `R$ ${cp.value.toFixed(2)}`;
+            const desc = cp.discountType === 'percent'
+              ? `Ganhe ${cp.value}% de desconto em suas compras!`
+              : `Desconto de R$ ${cp.value.toFixed(2)}`;
+            const minPurchaseText = cp.minPurchase > 0 ? ` em compras acima de R$ ${cp.minPurchase.toFixed(2)}.` : '';
+            return (
+              <div
+                key={cp.code}
               style={{
                 backgroundColor: 'white',
                 border: '1.5px dashed #f28d1a',
@@ -5349,10 +5367,10 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   padding: '2px 8px',
                   borderRadius: '99px'
                 }}>
-                  {cp.tag}
+                  {tag}
                 </span>
                 <h3 style={{ fontSize: '1rem', color: '#2d2d2d', margin: '4px 0' }}>{cp.code}</h3>
-                <p style={{ fontSize: '0.72rem', color: '#777', lineHeight: 1.3 }}>{cp.desc}</p>
+                <p style={{ fontSize: '0.72rem', color: '#777', lineHeight: 1.3 }}>{desc}{minPurchaseText}</p>
               </div>
               
               <button
@@ -5374,7 +5392,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 Usar
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
