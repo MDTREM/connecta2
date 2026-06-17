@@ -5,8 +5,10 @@ import {
   Sparkles, Palette, Gift, Wrench, Star, Award, Heart, 
   ShoppingCart, MapPin, Camera, Music, Coffee, Book, 
   Gem, Scissors, Brush, Utensils, Wine, Mountain, 
-  Sun, Umbrella, Zap, Flame, Leaf 
+  Sun, Umbrella, Zap, Flame, Leaf,
+  X, User, MessageSquare
 } from 'lucide-react';
+import Chat from '../Shared/Chat';
 
 const iconComponents = {
   Sparkles, Palette, Gift, Wrench, Ticket, Star, Award, Heart, 
@@ -24,6 +26,12 @@ export default function AdminArea() {
   } = useFirebaseMock();
 
   const [activeTab, setActiveTab] = useState('metrics'); // metrics, users_mod, coupons_mod, categories_mod, notifications
+  const [selectedProfileUser, setSelectedProfileUser] = useState(null);
+
+  // Commission Rates states
+  const [commProd, setCommProd] = useState('');
+  const [commTicket, setCommTicket] = useState('');
+  const [commServ, setCommServ] = useState('');
 
   // Banner Editor state
   const [bannerTitle, setBannerTitle] = useState('');
@@ -38,6 +46,15 @@ export default function AdminArea() {
       setBannerDesc(visualLayoutSettings.homeBanner.desc || '');
       setBannerImg(visualLayoutSettings.homeBanner.img || '');
       setBannerLink(visualLayoutSettings.homeBanner.link || '');
+    }
+    if (visualLayoutSettings?.commissions) {
+      setCommProd(visualLayoutSettings.commissions.products?.toString() || '10');
+      setCommTicket(visualLayoutSettings.commissions.tickets?.toString() || '10');
+      setCommServ(visualLayoutSettings.commissions.services?.toString() || '12');
+    } else {
+      setCommProd('10');
+      setCommTicket('10');
+      setCommServ('12');
     }
   }, [visualLayoutSettings]);
 
@@ -153,11 +170,11 @@ export default function AdminArea() {
 
       {/* Total system balance */}
       <div style={{
-        background: 'linear-gradient(135deg, #2ec4b6 0%, #209f93 100%)',
+        background: 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)',
         borderRadius: '24px',
         padding: '20px',
         color: 'white',
-        boxShadow: '0 8px 20px rgba(46,196,182,0.2)'
+        boxShadow: '0 8px 20px rgba(242,141,26,0.2)'
       }}>
         <span style={{ fontSize: '0.75rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Faturamento Líquido Connecta+ (Comissões)</span>
         <h1 style={{ fontSize: '2.2rem', fontWeight: 900, margin: '4px 0', color: 'white' }}>
@@ -173,9 +190,9 @@ export default function AdminArea() {
         <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '10px' }}>Faturamento por Setor</h3>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {[
-            { name: 'Lojas & Produtos', vol: productSales, fee: productCommissions, rate: '10%' },
-            { name: 'Festas & Ingressos', vol: ticketSales, fee: ticketCommissions, rate: '10%' },
-            { name: 'Prestadores de Serviço', vol: serviceVolume, fee: serviceCommissions, rate: '12%' }
+            { name: 'Lojas & Produtos', vol: productSales, fee: productCommissions, rate: `${visualLayoutSettings?.commissions?.products ?? 10}%` },
+            { name: 'Festas & Ingressos', vol: ticketSales, fee: ticketCommissions, rate: `${visualLayoutSettings?.commissions?.tickets ?? 10}%` },
+            { name: 'Prestadores de Serviço', vol: serviceVolume, fee: serviceCommissions, rate: `${visualLayoutSettings?.commissions?.services ?? 12}%` }
           ].map(sec => (
             <div
               key={sec.name}
@@ -195,10 +212,89 @@ export default function AdminArea() {
                   Volume: R$ {sec.vol.toFixed(2)} | Comissão: {sec.rate}
                 </div>
               </div>
-              <strong style={{ fontSize: '0.9rem', color: '#2ec4b6' }}>+ R$ {sec.fee.toFixed(2)}</strong>
+              <strong style={{ fontSize: '0.9rem', color: '#f28d1a' }}>+ R$ {sec.fee.toFixed(2)}</strong>
             </div>
           ))}
         </div>
+      </div>
+
+      {/* Commission settings form */}
+      <div style={{ backgroundColor: 'white', padding: '18px', borderRadius: '24px', border: '1px solid #eee' }}>
+        <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '4px' }}>Gerenciar Taxas de Comissão (%)</h3>
+        <p style={{ fontSize: '0.72rem', color: '#777', marginBottom: '14px' }}>Defina a taxa de comissão cobrada para cada tipo de setor.</p>
+        
+        <form onSubmit={(e) => {
+          e.preventDefault();
+          const updatedCommissions = {
+            products: parseFloat(commProd) || 0,
+            tickets: parseFloat(commTicket) || 0,
+            services: parseFloat(commServ) || 0
+          };
+          updateVisualLayoutSettings({
+            ...visualLayoutSettings,
+            commissions: updatedCommissions
+          });
+          alert('Taxas de comissão atualizadas com sucesso!');
+        }} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <div style={{ flex: 1, minWidth: '120px' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#555', display: 'block', marginBottom: '4px' }}>Lojas & Produtos (%)</label>
+              <input 
+                type="number" 
+                step="0.1"
+                min="0"
+                max="100"
+                value={commProd}
+                onChange={(e) => setCommProd(e.target.value)}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: '10px',
+                  border: '1px solid #ddd', fontSize: '0.8rem', outline: 'none'
+                }}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: '120px' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#555', display: 'block', marginBottom: '4px' }}>Festas & Ingressos (%)</label>
+              <input 
+                type="number" 
+                step="0.1"
+                min="0"
+                max="100"
+                value={commTicket}
+                onChange={(e) => setCommTicket(e.target.value)}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: '10px',
+                  border: '1px solid #ddd', fontSize: '0.8rem', outline: 'none'
+                }}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: '120px' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#555', display: 'block', marginBottom: '4px' }}>Prestadores de Serviço (%)</label>
+              <input 
+                type="number" 
+                step="0.1"
+                min="0"
+                max="100"
+                value={commServ}
+                onChange={(e) => setCommServ(e.target.value)}
+                style={{
+                  width: '100%', padding: '8px 12px', borderRadius: '10px',
+                  border: '1px solid #ddd', fontSize: '0.8rem', outline: 'none'
+                }}
+              />
+            </div>
+          </div>
+          <button
+            type="submit"
+            style={{
+              padding: '8px 16px', borderRadius: '10px',
+              backgroundColor: '#f28d1a', color: 'white', border: 'none',
+              fontWeight: 600, fontSize: '0.78rem', cursor: 'pointer',
+              alignSelf: 'flex-start', marginTop: '4px'
+            }}
+          >
+            Salvar Taxas
+          </button>
+        </form>
       </div>
 
       {/* Users Count summary */}
@@ -435,75 +531,131 @@ export default function AdminArea() {
 
         {/* User list & Ban controls */}
         <div>
-          <h3 style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '8px' }}>Gerenciar Usuários Aprovados</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            {approvedUsers.map(user => (
-              <div
-                key={user.id}
-                style={{
-                  backgroundColor: 'white',
-                  padding: '12px 14px',
-                  borderRadius: '16px',
-                  border: '1px solid #eee',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontSize: '0.8rem'
-                }}
-              >
-                <div>
-                  <strong>{user.name}</strong>
-                  <div style={{ fontSize: '0.68rem', color: '#666' }}>Papel: {user.role} | Coins: {user.ouroCoins || 0}</div>
-                </div>
-                
-                <button
-                  onClick={() => setUserBanStatus(user.id, !user.banned)}
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '12px' }}>
+            Gerenciar Usuários Aprovados ({approvedUsers.length})
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '12px' }}>
+            {approvedUsers.map(user => {
+              const purchaseCount = orders.filter(o => o.userId === user.id || o.customerId === user.id).length;
+              const hasAvatar = !!user.avatar;
+              const displayRole = user.role === 'client' ? 'Cliente' :
+                                  user.role === 'seller' ? 'Lojista' :
+                                  user.role === 'provider' ? 'Prestador' :
+                                  user.role === 'motoboy' ? 'Motoboy' : user.role;
+
+              return (
+                <div
+                  key={user.id}
                   style={{
-                    padding: '4px 12px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    backgroundColor: user.banned ? '#2ec4b6' : '#ff5e5b15',
-                    color: user.banned ? 'white' : '#ff5e5b',
-                    fontWeight: 500,
-                    fontSize: '0.7rem',
-                    cursor: 'pointer'
+                    backgroundColor: 'white',
+                    padding: '16px',
+                    borderRadius: '20px',
+                    border: '1px solid #eee',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    fontSize: '0.78rem',
+                    position: 'relative',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.01)'
                   }}
                 >
-                  {user.banned ? 'Desbanir' : 'Banir'}
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+                  {/* User Header */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <div style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      backgroundColor: '#f5f5f5',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      border: '1px solid #eaeaea',
+                      flexShrink: 0
+                    }}>
+                      {hasAvatar ? (
+                        <img src={user.avatar} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <User size={20} style={{ color: '#bbb' }} />
+                      )}
+                    </div>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontWeight: 700, color: '#2d2d2d', fontSize: '0.85rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {user.name}
+                      </div>
+                      <span style={{
+                        fontSize: '0.62rem',
+                        fontWeight: 700,
+                        backgroundColor: '#fff3e0',
+                        color: '#f28d1a',
+                        padding: '2px 8px',
+                        borderRadius: '6px',
+                        textTransform: 'uppercase',
+                        marginTop: '2px',
+                        display: 'inline-block'
+                      }}>
+                        {displayRole}
+                      </span>
+                    </div>
+                  </div>
 
-        {/* Adjust OuroCoins */}
-        <div style={{ backgroundColor: 'white', padding: '16px', borderRadius: '24px', border: '1px solid #eee' }}>
-          <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '10px' }}>Modificar OuroCoins</h3>
-          <form onSubmit={handleCoinsAdjustment} style={{ display: 'flex', gap: '8px' }}>
-            <select
-              value={selectedUserId}
-              onChange={(e) => setSelectedUserId(e.target.value)}
-              style={{ flex: 1, padding: '8px 12px', borderRadius: '12px', border: '2px solid #eaeaea', fontSize: '0.8rem' }}
-              required
-            >
-              <option value="">Escolha Usuário...</option>
-              {approvedUsers.filter(u => u.role === 'client').map(u => (
-                <option key={u.id} value={u.id}>{u.name} ({u.ouroCoins} coins)</option>
-              ))}
-            </select>
-            
-            <input
-              type="number"
-              value={coinsDelta}
-              onChange={(e) => setCoinsDelta(e.target.value)}
-              style={{ width: '70px', padding: '8px 12px', borderRadius: '12px', border: '2px solid #eaeaea', fontSize: '0.8rem', fontWeight: 500 }}
-              placeholder="Ex: 50"
-            />
-            
-            <button type="submit" className="btn btn-primary" style={{ padding: '8px 16px', fontSize: '0.75rem', borderRadius: '12px' }}>
-              Mudar
-            </button>
-          </form>
+                  {/* Details Grid */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid #f9f9f9', paddingTop: '8px' }}>
+                    <div><strong>Telefone:</strong> {user.phone || 'Não informado'}</div>
+                    <div><strong>Endereço:</strong> {user.address || 'Não informado'}</div>
+                    <div><strong>CPF/CNPJ:</strong> {user.cpf || user.cnpj || 'Não informado'}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px', backgroundColor: '#fafafa', padding: '6px 8px', borderRadius: '8px' }}>
+                      <span><strong>OuroCoins:</strong> {user.ouroCoins || 0}</span>
+                      <span><strong>Compras:</strong> {purchaseCount}</span>
+                    </div>
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                    <button
+                      onClick={() => setSelectedProfileUser(user)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 0',
+                        borderRadius: '10px',
+                        border: '1px solid #f28d1a',
+                        backgroundColor: 'white',
+                        color: '#f28d1a',
+                        fontWeight: 600,
+                        fontSize: '0.72rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '4px'
+                      }}
+                    >
+                      Ver Perfil
+                    </button>
+                    <button
+                      onClick={() => setUserBanStatus(user.id, !user.banned)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 0',
+                        borderRadius: '10px',
+                        border: 'none',
+                        backgroundColor: user.banned ? '#f28d1a' : '#ff5e5b15',
+                        color: user.banned ? 'white' : '#ff5e5b',
+                        fontWeight: 600,
+                        fontSize: '0.72rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    >
+                      {user.banned ? 'Desbanir' : 'Banir'}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
       </div>
@@ -740,6 +892,7 @@ export default function AdminArea() {
           {[
             { id: 'metrics', label: 'Relatórios', icon: <Home size={16} /> },
             { id: 'users_mod', label: 'Moderar', icon: <UserCheck size={16} /> },
+            { id: 'support_chat', label: 'Suporte', icon: <MessageSquare size={16} /> },
             { id: 'coupons_mod', label: 'Cupons', icon: <Ticket size={16} /> },
             { id: 'categories_mod', label: 'Categorias', icon: <Layers size={16} /> },
             { id: 'notifications', label: 'Alertas', icon: <Bell size={16} /> }
@@ -772,6 +925,11 @@ export default function AdminArea() {
       <div className="admin-body custom-scroll" style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
         {activeTab === 'metrics' && renderMetrics()}
         {activeTab === 'users_mod' && renderUsersMod()}
+        {activeTab === 'support_chat' && (
+          <div style={{ height: 'calc(100vh - 140px)', minHeight: '450px', display: 'flex', flexDirection: 'column' }}>
+            <Chat onCloseChat={() => setActiveTab('metrics')} />
+          </div>
+        )}
         {activeTab === 'coupons_mod' && renderCouponsMod()}
         {activeTab === 'categories_mod' && renderCategoriesAdmin()}
         {activeTab === 'notifications' && renderNotifications()}
@@ -782,6 +940,7 @@ export default function AdminArea() {
         {[
           { id: 'metrics', label: 'Relatórios', icon: <Home size={20} /> },
           { id: 'users_mod', label: 'Moderar', icon: <UserCheck size={20} /> },
+          { id: 'support_chat', label: 'Suporte', icon: <MessageSquare size={20} /> },
           { id: 'coupons_mod', label: 'Cupons', icon: <Ticket size={20} /> },
           { id: 'categories_mod', label: 'Categorias', icon: <Layers size={20} /> },
           { id: 'notifications', label: 'Alertas', icon: <Bell size={20} /> }
@@ -797,6 +956,139 @@ export default function AdminArea() {
           </button>
         ))}
       </div>
+
+      {/* Modal Ver Perfil */}
+      {selectedProfileUser && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          backdropFilter: 'blur(3px)'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '440px',
+            overflow: 'hidden',
+            boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+            animation: 'scaleUp 0.2s ease-out'
+          }}>
+            {/* Banner cover */}
+            <div style={{
+              height: '110px',
+              backgroundColor: '#f28d1a',
+              background: selectedProfileUser.banner ? `url(${selectedProfileUser.banner}) center/cover no-repeat` : 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 40%, #e67e22 100%)',
+              position: 'relative'
+            }}>
+              <button
+                onClick={() => setSelectedProfileUser(null)}
+                style={{
+                  position: 'absolute',
+                  top: '12px',
+                  right: '12px',
+                  backgroundColor: 'white',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Profile Content */}
+            <div style={{ padding: '20px', position: 'relative', marginTop: '-36px' }}>
+              {/* Avatar */}
+              <div style={{
+                width: '72px',
+                height: '72px',
+                borderRadius: '16px',
+                border: '3px solid white',
+                overflow: 'hidden',
+                backgroundColor: '#f5f5f5',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+              }}>
+                {selectedProfileUser.avatar ? (
+                  <img src={selectedProfileUser.avatar} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  <User size={32} style={{ color: '#bbb' }} />
+                )}
+              </div>
+
+              {/* Bio & Basic info */}
+              <div style={{ marginTop: '12px' }}>
+                <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#2d2d2d', margin: 0 }}>
+                  {selectedProfileUser.name}
+                </h3>
+                <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 600, marginTop: '2px', textTransform: 'uppercase' }}>
+                  {selectedProfileUser.role === 'client' ? 'Cliente' :
+                   selectedProfileUser.role === 'seller' ? 'Lojista' :
+                   selectedProfileUser.role === 'provider' ? 'Prestador' :
+                   selectedProfileUser.role === 'motoboy' ? 'Motoboy' : selectedProfileUser.role}
+                </div>
+                {selectedProfileUser.bio && (
+                  <p style={{ fontSize: '0.75rem', color: '#555', marginTop: '8px', lineHeight: 1.4, backgroundColor: '#f9f9f9', padding: '10px', borderRadius: '12px' }}>
+                    {selectedProfileUser.bio}
+                  </p>
+                )}
+              </div>
+
+              {/* Grid of full user details */}
+              <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #eee', paddingTop: '16px', fontSize: '0.75rem' }}>
+                <div><strong>E-mail:</strong> {selectedProfileUser.email}</div>
+                <div><strong>Telefone:</strong> {selectedProfileUser.phone || 'Não informado'}</div>
+                <div><strong>Endereço:</strong> {selectedProfileUser.address || 'Não informado'}</div>
+                <div><strong>CPF/CNPJ:</strong> {selectedProfileUser.cpf || selectedProfileUser.cnpj || 'Não informado'}</div>
+                <div><strong>Status de Cadastro:</strong> <span style={{ fontWeight: 600, color: selectedProfileUser.registrationStatus === 'approved' ? '#2ec4b6' : '#f28d1a' }}>{selectedProfileUser.registrationStatus}</span></div>
+                <div style={{ display: 'flex', gap: '10px', marginTop: '6px' }}>
+                  <div style={{ flex: 1, backgroundColor: '#fff3e0', padding: '8px', borderRadius: '12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.62rem', color: '#777' }}>OuroCoins</div>
+                    <strong style={{ fontSize: '1.1rem', color: '#f28d1a' }}>{selectedProfileUser.ouroCoins || 0}</strong>
+                  </div>
+                  <div style={{ flex: 1, backgroundColor: '#fff3e0', padding: '8px', borderRadius: '12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.62rem', color: '#777' }}>Compras Feitas</div>
+                    <strong style={{ fontSize: '1.1rem', color: '#f28d1a' }}>{orders.filter(o => o.userId === selectedProfileUser.id || o.customerId === selectedProfileUser.id).length}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Close Button */}
+              <button
+                onClick={() => setSelectedProfileUser(null)}
+                style={{
+                  width: '100%',
+                  marginTop: '20px',
+                  padding: '10px 0',
+                  borderRadius: '14px',
+                  backgroundColor: '#f28d1a',
+                  color: 'white',
+                  border: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.82rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Voltar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

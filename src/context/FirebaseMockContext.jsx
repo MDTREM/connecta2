@@ -150,6 +150,11 @@ export const FirebaseMockProvider = ({ children }) => {
             desc: 'Peças em Pedra-Sabão direto de Ouro Preto',
             img: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=500',
             link: 'Artesanato'
+          },
+          commissions: {
+            products: 10,
+            tickets: 10,
+            services: 12
           }
         };
         setDoc(doc(db, 'settings', 'visualLayout'), defaultSettings).catch(err => console.error(err));
@@ -457,7 +462,8 @@ export const FirebaseMockProvider = ({ children }) => {
     }
 
     const total = subtotal - coinDiscount;
-    const commissionFee = subtotal * 0.12;
+    const servicesCommRate = (visualLayoutSettings?.commissions?.services !== undefined ? visualLayoutSettings.commissions.services : 12) / 100;
+    const commissionFee = subtotal * servicesCommRate;
 
     const newHiring = {
       id: newHiringId,
@@ -622,7 +628,8 @@ export const FirebaseMockProvider = ({ children }) => {
 
     const total = Math.max(0, subtotal + shipping - discount - coinDiscount);
     const orderId = generateRandomOrderId();
-    const commissionFee = subtotal * 0.10;
+    const productsCommRate = (visualLayoutSettings?.commissions?.products !== undefined ? visualLayoutSettings.commissions.products : 10) / 100;
+    const commissionFee = subtotal * productsCommRate;
 
     const newOrder = {
       id: orderId,
@@ -738,7 +745,8 @@ export const FirebaseMockProvider = ({ children }) => {
     }
 
     const total = subtotal - coinDiscount;
-    const commissionFee = subtotal * 0.10;
+    const ticketsCommRate = (visualLayoutSettings?.commissions?.tickets !== undefined ? visualLayoutSettings.commissions.tickets : 10) / 100;
+    const commissionFee = subtotal * ticketsCommRate;
     const ticketOrderId = generateRandomTicketOrderId();
 
     const newTicketOrder = {
@@ -837,12 +845,13 @@ export const FirebaseMockProvider = ({ children }) => {
   // --- CHAT SYSTEM ---
   const addMessage = (roomKey, text, sender) => {
     const newId = 'msg_' + Math.random().toString(36).substr(2, 9);
+    const isAdmin = sender.role === 'admin' || sender.id === 'admin';
     const newMsg = {
       id: newId,
       roomKey,
       text,
-      senderId: sender.id,
-      senderName: sender.name,
+      senderId: isAdmin ? 'admin' : sender.id,
+      senderName: isAdmin ? 'Suporte Connecta' : sender.name,
       senderRole: sender.role,
       timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     };
@@ -854,9 +863,9 @@ export const FirebaseMockProvider = ({ children }) => {
         const autoReply = {
           id: autoReplyId,
           roomKey,
-          text: `Olá, ${sender.name}! Recebi seu chamado uai. Nossa equipe de suporte Connecta+ está analisando o seu caso e te responde logo logo. Obrigado pela paciência!`,
+          text: `Olá, ${sender.name}! Recebi seu chamado uai. Nossa equipe de suporte Connecta está analisando o seu caso e te responde logo logo. Obrigado pela paciência!`,
           senderId: 'admin',
-          senderName: 'Suporte Connecta+',
+          senderName: 'Suporte Connecta',
           senderRole: 'admin',
           timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         };
@@ -982,6 +991,11 @@ export const FirebaseMockProvider = ({ children }) => {
         desc: 'Peças em Pedra-Sabão direto de Ouro Preto',
         img: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=500',
         link: 'Artesanato'
+      },
+      commissions: {
+        products: 10,
+        tickets: 10,
+        services: 12
       }
     };
     setDoc(doc(db, 'settings', 'visualLayout'), defaultSettings).catch(err => console.error(err));

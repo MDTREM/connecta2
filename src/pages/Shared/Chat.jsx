@@ -3,7 +3,7 @@ import { useFirebaseMock } from '../../context/FirebaseMockContext';
 import { Send, ArrowLeft, MessageSquare } from 'lucide-react';
 
 export default function Chat({ onCloseChat }) {
-  const { currentUser, chats, addMessage } = useFirebaseMock();
+  const { currentUser, chats, addMessage, users } = useFirebaseMock();
   const [activeRoom, setActiveRoom] = useState(null); // roomKey string
   const [text, setText] = useState('');
   const chatEndRef = useRef(null);
@@ -102,28 +102,63 @@ export default function Chat({ onCloseChat }) {
         role: 'admin'
       });
     } else if (currentUser.role === 'admin') {
-      // Admin sees ALL conversations initiated or default ones
-      defaultRooms.push({
-        key: `c1_admin`,
-        title: 'Mateus Oliveira (Cliente)',
-        subtitle: 'Chat de Suporte',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        role: 'client'
+      const adminRooms = [];
+      const userIdsInChats = new Set();
+      
+      chats.forEach(c => {
+        if (c.roomKey && c.roomKey.endsWith('_admin')) {
+          const uId = c.roomKey.split('_')[0];
+          userIdsInChats.add(uId);
+        }
       });
-      defaultRooms.push({
-        key: `v1_admin`,
-        title: 'Artesanatos do Aleijadinho (Loja)',
-        subtitle: 'Chat de Suporte',
-        avatar: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=150',
-        role: 'seller'
+
+      userIdsInChats.add('c1');
+      userIdsInChats.add('v1');
+      userIdsInChats.add('m1');
+
+      userIdsInChats.forEach(uId => {
+        const targetUser = users?.find(u => u.id === uId);
+        if (targetUser) {
+          const roleLabel = targetUser.role === 'client' ? 'Cliente' :
+                            targetUser.role === 'seller' ? 'Loja' :
+                            targetUser.role === 'provider' ? 'Prestador' :
+                            targetUser.role === 'motoboy' ? 'Motoboy' : targetUser.role;
+          adminRooms.push({
+            key: `${uId}_admin`,
+            title: `${targetUser.name} (${roleLabel})`,
+            subtitle: 'Suporte',
+            avatar: targetUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+            role: targetUser.role
+          });
+        } else {
+          if (uId === 'c1') {
+            adminRooms.push({
+              key: 'c1_admin',
+              title: 'Mateus Oliveira (Cliente)',
+              subtitle: 'Suporte',
+              avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+              role: 'client'
+            });
+          } else if (uId === 'v1') {
+            adminRooms.push({
+              key: 'v1_admin',
+              title: 'Artesanatos do Aleijadinho (Loja)',
+              subtitle: 'Suporte',
+              avatar: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=500',
+              role: 'seller'
+            });
+          } else if (uId === 'm1') {
+            adminRooms.push({
+              key: 'm1_admin',
+              title: 'Juninho Entregas (Motoboy)',
+              subtitle: 'Suporte',
+              avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
+              role: 'motoboy'
+            });
+          }
+        }
       });
-      defaultRooms.push({
-        key: `m1_admin`,
-        title: 'Juninho Entregas (Motoboy)',
-        subtitle: 'Chat de Suporte',
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-        role: 'motoboy'
-      });
+      return adminRooms;
     }
 
     return defaultRooms;
@@ -176,17 +211,32 @@ export default function Chat({ onCloseChat }) {
         )}
         
         {activeRoom && currentRoomDetails ? (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <img 
-              src={currentRoomDetails.avatar} 
-              alt={currentRoomDetails.title}
-              style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #f28d1a' }}
-            />
-            <div>
-              <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#2d2d2d' }}>{currentRoomDetails.title}</div>
-              <div style={{ fontSize: '0.72rem', color: '#2ec4b6', fontWeight: 600 }}>online</div>
-            </div>
-          </div>
+          (() => {
+            const isAdminRoom = currentRoomDetails.role === 'admin' || currentRoomDetails.key.endsWith('_admin');
+            const roomTitle = (isAdminRoom && currentUser.role !== 'admin') ? 'Suporte Connecta' : currentRoomDetails.title;
+            const roomAvatar = (isAdminRoom && currentUser.role !== 'admin') ? '/logo.png' : currentRoomDetails.avatar;
+
+            return (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img 
+                  src={roomAvatar || '/logo.png'} 
+                  alt={roomTitle}
+                  style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #f28d1a' }}
+                />
+                <div>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {roomTitle}
+                    {isAdminRoom && currentUser.role !== 'admin' && (
+                      <svg viewBox="0 0 24 24" width="12" height="12">
+                        <path fill="#f9bb1a" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                      </svg>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 600 }}>online</div>
+                </div>
+              </div>
+            );
+          })()
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <MessageSquare size={20} style={{ color: '#f28d1a' }} />
@@ -207,6 +257,10 @@ export default function Chat({ onCloseChat }) {
             </p>
             {roomsList.map(room => {
               const lastMsg = chats.filter(c => c.roomKey === room.key).pop();
+              const isAdminRoom = room.role === 'admin' || room.key.endsWith('_admin');
+              const roomTitle = (isAdminRoom && currentUser.role !== 'admin') ? 'Suporte Connecta' : room.title;
+              const roomAvatar = (isAdminRoom && currentUser.role !== 'admin') ? '/logo.png' : room.avatar;
+
               return (
                 <div
                   key={room.key}
@@ -227,24 +281,31 @@ export default function Chat({ onCloseChat }) {
                   onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
                 >
                   <img 
-                    src={room.avatar} 
-                    alt={room.title}
+                    src={roomAvatar || '/logo.png'} 
+                    alt={roomTitle}
                     style={{ width: '46px', height: '46px', borderRadius: '50%', objectFit: 'cover' }}
                   />
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2d2d2d' }}>{room.title}</span>
-                      <span style={{ fontSize: '0.65rem', color: '#999' }}>{lastMsg ? lastMsg.timestamp : ''}</span>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>
+                        {roomTitle}
+                        {isAdminRoom && currentUser.role !== 'admin' && (
+                          <svg viewBox="0 0 24 24" width="12" height="12" style={{ flexShrink: 0 }}>
+                            <path fill="#f9bb1a" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                          </svg>
+                        )}
+                      </span>
+                      <span style={{ fontSize: '0.65rem', color: '#999', flexShrink: 0 }}>{lastMsg ? lastMsg.timestamp : ''}</span>
                     </div>
                     <div style={{ fontSize: '0.75rem', color: '#888', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ backgroundColor: '#fffbf0', color: '#f28d1a', padding: '1px 6px', borderRadius: '99px', fontSize: '0.65rem', fontWeight: 600 }}>
+                      <span style={{ backgroundColor: '#fffbf0', color: '#f28d1a', padding: '1px 6px', borderRadius: '99px', fontSize: '0.65rem', fontWeight: 600, flexShrink: 0 }}>
                         {room.subtitle}
                       </span>
                       <span style={{
                         whiteSpace: 'nowrap',
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
-                        maxWidth: '120px'
+                        flex: 1
                       }}>
                         {lastMsg ? lastMsg.text : 'Nenhuma mensagem ainda...'}
                       </span>
@@ -293,8 +354,13 @@ export default function Chat({ onCloseChat }) {
                     >
                       {/* Name of sender in group/support chat */}
                       {!isMe && (
-                        <span style={{ fontSize: '0.65rem', color: '#888', marginBottom: '2px', marginLeft: '8px' }}>
-                          {msg.senderName}
+                        <span style={{ fontSize: '0.65rem', color: '#888', marginBottom: '2px', marginLeft: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          {msg.senderRole === 'admin' || msg.senderId === 'admin' ? 'Suporte Connecta' : msg.senderName}
+                          {(msg.senderRole === 'admin' || msg.senderId === 'admin') && (
+                            <svg viewBox="0 0 24 24" width="12" height="12" style={{ display: 'inline-block' }}>
+                              <path fill="#f9bb1a" d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10 10-4.5 10-10S17.5 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                            </svg>
+                          )}
                         </span>
                       )}
                       

@@ -14,11 +14,18 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     currentUser, products, events, services, videos, orders, coupons,
     cart, addToCart, updateCartQty, removeFromCart, placeOrder, buyTicket,
     userLocation, likeVideo, unlikeVideo, setUserLocation, hireServiceProvider, users,
-    servicesHired, updateUserProfile, logout,
+    servicesHired, updateUserProfile, logout, notifications, markNotificationsRead,
     isVisualEditorActive, visualLayoutSettings, updateVisualText,
     updateAvatarOffset, reorderSections,
     productReviews, addProductReview, getCoinsUsedInPeriod, categories
   } = useFirebaseMock();
+
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const SectionWrapper = ({ sectionId, children }) => {
     if (isVisualEditorActive) {
@@ -1405,7 +1412,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     return (
       <div style={{ padding: '16px', paddingBottom: '90px', overflowX: 'hidden', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
         {/* Localization & Header Actions */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div className="mobile-home-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div 
             onClick={() => setShowLocationModal(true)}
             style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
@@ -5820,14 +5827,13 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     const userTickets = userOrders.filter(o => o.type === 'ticket');
     const userHiredServices = servicesHired.filter(sh => sh.userId === user.id || sh.customerId === user.id);
 
-    // Initial fill for editing fields
     const startEditing = () => {
       setEditName(user.name || '');
-      setEditBio(user.bio || 'Amante de artesanato mineiro e um bom café ☕ | Explorador de Ouro Preto 🏛️');
-      setEditAvatar(user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150');
-      setEditBanner(user.banner || 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=600');
-      setEditAddress(user.address || 'Rua Direita, 45, Centro - Ouro Preto');
-      setEditPhone(user.phone || '(31) 98888-7777');
+      setEditBio(user.bio || '');
+      setEditAvatar(user.avatar || '');
+      setEditBanner(user.banner || '');
+      setEditAddress(user.address || '');
+      setEditPhone(user.phone || '');
       setIsEditingProfile(true);
     };
 
@@ -6143,6 +6149,39 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               ))}
             </div>
           )}
+
+          {/* Notificações */}
+          {profileSubSection === 'notifications' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {(() => {
+                const myNotifs = currentUser ? notifications.filter(n => n.userId === currentUser.id) : [];
+                if (myNotifs.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '40px 10px', color: '#999', fontSize: '0.82rem' }}>
+                      Nenhuma notificação por aqui uai...
+                    </div>
+                  );
+                }
+                return myNotifs.map(n => (
+                  <div 
+                    key={n.id} 
+                    style={{
+                      backgroundColor: n.read ? 'white' : '#fff9ee',
+                      border: '1px solid #eaeaea',
+                      padding: '12px 14px',
+                      borderRadius: '16px',
+                      fontSize: '0.78rem',
+                      position: 'relative'
+                    }}
+                  >
+                    {!n.read && <span style={{ position: 'absolute', top: '12px', right: '14px', width: '6px', height: '6px', backgroundColor: '#f28d1a', borderRadius: '50%' }} />}
+                    <div style={{ color: '#2d2d2d', lineHeight: 1.3 }}>{n.text}</div>
+                    <div style={{ fontSize: '0.62rem', color: '#999', marginTop: '6px', textAlign: 'right' }}>{n.date}</div>
+                  </div>
+                ));
+              })()}
+            </div>
+          )}
         </div>
       );
     }
@@ -6150,7 +6189,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     return (
       <div style={{ backgroundColor: '#ffffff', minHeight: '100%', overflowX: 'hidden', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
         {/* Painel do Cliente Header Bar (Private view only) */}
-        {isOwnProfile && (
+        {isOwnProfile && !isDesktop && (
           <div style={{
             height: '56px',
             borderBottom: '1px solid #eaeaea',
@@ -6210,7 +6249,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         <div style={{
           width: 'calc(100% - 32px)',
           margin: '16px auto 0 auto',
-          aspectRatio: '21/9',
+          height: '140px',
           position: 'relative',
           overflow: 'hidden',
           borderRadius: '24px',
@@ -6336,15 +6375,29 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 </div>
               </div>
             )}
-            <img 
-              src={user.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'} 
-              alt="avatar" 
-              style={{
+            {user.avatar ? (
+              <img 
+                src={user.avatar} 
+                alt="avatar" 
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
+                }}
+              />
+            ) : (
+              <div style={{
                 width: '100%',
                 height: '100%',
-                objectFit: 'cover'
-              }}
-            />
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#f5f5f5',
+                color: '#bbb'
+              }}>
+                <User size={32} />
+              </div>
+            )}
             {isOwnProfile && (
               <>
                 <label 
@@ -6449,7 +6502,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               @<EditableText textId={`profile_username_${user.id}`} defaultText={user.name?.toLowerCase().replace(/\s/g, '') || 'usuario'} />
             </div>
             <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '6px', lineHeight: 1.3, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-              <EditableText textId={`profile_bio_${user.id}`} defaultText={user.bio || 'Amante de artesanato mineiro e um bom café ☕ | Explorador de Ouro Preto 🏛️'} />
+              <EditableText textId={`profile_bio_${user.id}`} defaultText={user.bio || ''} />
             </p>
             {user.role !== 'client' && (
               <>
@@ -6499,7 +6552,11 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             { icon: <Heart size={16} />, label: 'Favoritos', key: 'menu_favoritos', count: isOwnProfile ? favorites.length : 0, action: () => isOwnProfile ? onSwitchView('client_favorites') : triggerToast("Apenas o próprio usuário pode ver seus favoritos.") },
             { icon: <Star size={16} />, label: 'Avaliações Feitas', key: 'menu_avaliacoes_feitas', count: isOwnProfile ? userReviews.length : 2, action: () => setProfileSubSection('reviews') },
             { icon: <StoreIcon size={16} />, label: 'Perfis Seguidos', key: 'menu_perfis_seguidos', count: isOwnProfile ? followingIds.length : 3, action: () => isOwnProfile ? onSwitchView('client_following') : triggerToast("Apenas o próprio usuário pode ver seus perfis seguidos.") },
-            { icon: <Wrench size={16} />, label: 'Serviços Realizados', key: 'menu_servicos_realizados', count: userHiredServices.length, action: () => setProfileSubSection('services') }
+            { icon: <Wrench size={16} />, label: 'Serviços Realizados', key: 'menu_servicos_realizados', count: userHiredServices.length, action: () => setProfileSubSection('services') },
+            ...(isOwnProfile && isDesktop ? [
+              { icon: <Bell size={16} />, label: 'Notificações', key: 'menu_notificacoes', count: currentUser ? notifications.filter(n => n.userId === currentUser.id && !n.read).length : 0, action: () => { setProfileSubSection('notifications'); if (currentUser) markNotificationsRead(currentUser.id); } },
+              { icon: <LogOut size={16} style={{ color: '#ff5e5b' }} />, label: 'Sair da Conta', key: 'menu_sair', count: null, action: logout }
+            ] : [])
           ].map((item, idx) => {
             // Se for perfil público de outro usuário, ocultar Pedidos, Ingressos, Favoritos e Serviços Realizados
             if (!isOwnProfile && (

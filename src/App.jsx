@@ -10,10 +10,10 @@ import EventsArea from './pages/Events/EventsArea';
 import DeliveryArea from './pages/Delivery/DeliveryArea';
 import AdminArea from './pages/Admin/AdminArea';
 
-import { Home, Search, Play, Heart, Layers, Bell, LogOut, User, ShoppingCart, MapPin, Coins } from 'lucide-react';
+import { Home, Search, Play, Heart, Layers, Bell, LogOut, User, ShoppingCart, MapPin, Coins, Ticket } from 'lucide-react';
 
 function AppContent() {
-  const { currentUser, logout, notifications, markNotificationsRead, categories } = useFirebaseMock();
+  const { currentUser, logout, notifications, markNotificationsRead, categories, cart } = useFirebaseMock();
   
   // Navigation subviews
   const [clientView, setClientView] = useState('client_home');
@@ -49,6 +49,7 @@ function AppContent() {
 
   // Unread notifications count
   const unreadNotifications = currentUser ? notifications.filter(n => n.userId === currentUser.id && !n.read) : [];
+  const cartCount = cart ? cart.reduce((acc, item) => acc + item.quantity, 0) : 0;
   
   // Render Login & Registration status if not fully logged in and approved
   if (!currentUser && showAuthScreen) {
@@ -226,32 +227,39 @@ function AppContent() {
           </nav>
 
           {/* Right actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
-            {currentUser ? (
-              <>
-                <button
-                  onClick={() => {
-                    setShowNotifications(!showNotifications);
-                    if (!showNotifications) markNotificationsRead(currentUser.id);
-                  }}
-                  className="desktop-icon-btn"
-                  style={{ position: 'relative' }}
-                >
-                  <Bell size={18} />
-                  {unreadNotifications.length > 0 && (
-                    <span style={{
-                      position: 'absolute', top: '-2px', right: '-2px',
-                      backgroundColor: '#ff5e5b', width: '14px', height: '14px',
-                      borderRadius: '50%', fontSize: '0.55rem', color: 'white',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center'
-                    }}>{unreadNotifications.length}</span>
-                  )}
-                </button>
-                <button onClick={logout} className="desktop-icon-btn" title="Sair">
-                  <LogOut size={18} style={{ color: '#ff5e5b' }} />
-                </button>
-              </>
-            ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+            {/* Cupons */}
+            <button
+              onClick={() => {
+                if (!currentUser) setShowAuthScreen(true);
+                else handleClientTabClick('client_coupons');
+              }}
+              className={`desktop-icon-btn ${clientView === 'client_coupons' ? 'active' : ''}`}
+              title="Meus Cupons"
+            >
+              <Ticket size={18} style={{ color: '#f28d1a' }} />
+            </button>
+
+            {/* Carrinho */}
+            <button
+              onClick={() => handleClientTabClick('client_cart')}
+              className={`desktop-icon-btn ${clientView === 'client_cart' ? 'active' : ''}`}
+              style={{ position: 'relative' }}
+              title="Carrinho"
+            >
+              <ShoppingCart size={18} style={{ color: '#f28d1a' }} />
+              {cartCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: '-4px', right: '-4px',
+                  backgroundColor: '#ff5e5b', width: '16px', height: '16px',
+                  borderRadius: '50%', fontSize: '0.6rem', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontWeight: 700
+                }}>{cartCount}</span>
+              )}
+            </button>
+
+            {!currentUser && (
               <button
                 onClick={() => setShowAuthScreen(true)}
                 style={{
@@ -259,7 +267,8 @@ function AppContent() {
                   background: 'linear-gradient(135deg, #f9bb1a, #f28d1a)',
                   color: 'white', border: 'none', fontWeight: 600,
                   fontSize: '0.85rem', cursor: 'pointer',
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  marginLeft: '4px'
                 }}
               >
                 Entrar / Cadastrar
