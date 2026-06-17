@@ -198,12 +198,11 @@ function AppContent() {
             onClick={() => handleClientTabClick('client_home')} 
             style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }}
           >
-            <div style={{
-              width: '36px', height: '36px', borderRadius: '12px',
-              background: 'linear-gradient(135deg, #f9bb1a, #f28d1a)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'white', fontWeight: 800, fontSize: '1.1rem'
-            }}>C+</div>
+            <img 
+              src="/logo.png" 
+              alt="Connecta+" 
+              style={{ width: '36px', height: '36px', borderRadius: '10px', objectFit: 'cover' }} 
+            />
             <span style={{ fontWeight: 700, fontSize: '1.1rem', color: '#2d2d2d' }}>Connecta<span style={{ color: '#f28d1a' }}>+</span></span>
           </div>
 

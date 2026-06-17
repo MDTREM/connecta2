@@ -7,8 +7,8 @@ service cloud.firestore {
     // USERS
     // ========================================
     match /users/{userId} {
-      // Qualquer pessoa autenticada pode ler perfis de usuários
-      allow read: if request.auth != null;
+      // Qualquer pessoa pode ler perfis de usuários (para ver lojas, avaliações, etc.)
+      allow read: if true;
       
       // Usuário pode criar seu próprio documento no signup
       allow create: if request.auth != null && request.auth.uid == userId;

@@ -86,11 +86,12 @@ export const FirebaseMockProvider = ({ children }) => {
 
   // --- Firestore real-time listeners ---
   useEffect(() => {
+    // Public subscriptions that anyone (even guest users) can read
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const list = [];
       snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
       setUsers(list);
-    });
+    }, (error) => console.warn("Users subscription warning:", error));
 
     const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
       const list = [];
@@ -122,30 +123,6 @@ export const FirebaseMockProvider = ({ children }) => {
       setCoupons(list);
     });
 
-    const unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
-      const list = [];
-      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-      setOrders(list);
-    });
-
-    const unsubServicesHired = onSnapshot(collection(db, 'servicesHired'), (snapshot) => {
-      const list = [];
-      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-      setServicesHired(list);
-    });
-
-    const unsubChats = onSnapshot(collection(db, 'chats'), (snapshot) => {
-      const list = [];
-      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-      setChats(list);
-    });
-
-    const unsubNotifications = onSnapshot(collection(db, 'notifications'), (snapshot) => {
-      const list = [];
-      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-      setNotifications(list);
-    });
-
     const unsubReviews = onSnapshot(collection(db, 'productReviews'), (snapshot) => {
       const list = [];
       snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
@@ -173,13 +150,56 @@ export const FirebaseMockProvider = ({ children }) => {
       }
     });
 
+    // Refs for dynamically managed authenticated subscriptions
+    let unsubOrders = null;
+    let unsubServicesHired = null;
+    let unsubChats = null;
+    let unsubNotifications = null;
+
+    const cleanAuthSubscriptions = () => {
+      if (unsubOrders) { unsubOrders(); unsubOrders = null; }
+      if (unsubServicesHired) { unsubServicesHired(); unsubServicesHired = null; }
+      if (unsubChats) { unsubChats(); unsubChats = null; }
+      if (unsubNotifications) { unsubNotifications(); unsubNotifications = null; }
+    };
+
     // Firebase Auth listener to auto-restore session
     const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
       if (firebaseUser) {
-        // User is signed in — we'll try to match in the separate useEffect below
-        // because `users` state may not be populated yet at mount time
+        // Create authenticated subscriptions
+        cleanAuthSubscriptions();
+
+        unsubOrders = onSnapshot(collection(db, 'orders'), (snapshot) => {
+          const list = [];
+          snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+          setOrders(list);
+        }, (error) => console.error("Orders subscription error:", error));
+
+        unsubServicesHired = onSnapshot(collection(db, 'servicesHired'), (snapshot) => {
+          const list = [];
+          snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+          setServicesHired(list);
+        }, (error) => console.error("ServicesHired subscription error:", error));
+
+        unsubChats = onSnapshot(collection(db, 'chats'), (snapshot) => {
+          const list = [];
+          snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+          setChats(list);
+        }, (error) => console.error("Chats subscription error:", error));
+
+        unsubNotifications = onSnapshot(collection(db, 'notifications'), (snapshot) => {
+          const list = [];
+          snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+          setNotifications(list);
+        }, (error) => console.error("Notifications subscription error:", error));
+
       } else {
         setCurrentUser(null);
+        cleanAuthSubscriptions();
+        setOrders([]);
+        setServicesHired([]);
+        setChats([]);
+        setNotifications([]);
       }
     });
 
@@ -190,13 +210,10 @@ export const FirebaseMockProvider = ({ children }) => {
       unsubServices();
       unsubVideos();
       unsubCoupons();
-      unsubOrders();
-      unsubServicesHired();
-      unsubChats();
-      unsubNotifications();
       unsubReviews();
       unsubCategories();
       unsubSettings();
+      cleanAuthSubscriptions();
       unsubAuth();
     };
   }, []);

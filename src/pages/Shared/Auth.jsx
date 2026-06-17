@@ -282,7 +282,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
         marginBottom: '32px',
         flexShrink: 0
       }}>
-        {/* Logo container: White circle with brand color smile hook */}
+        {/* Logo container: White circle with brand logo */}
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '20px', marginTop: '10px' }}>
           <div style={{
             width: '64px',
@@ -294,15 +294,11 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             justifyContent: 'center',
             boxShadow: '0 4px 12px rgba(0,0,0,0.06)'
           }}>
-            <svg width="34" height="34" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path 
-                d="M 30,38 L 30,52 A 20,20 0 0,0 70,52 L 70,38 L 62,38" 
-                stroke="#f28d1a" 
-                strokeWidth="12" 
-                strokeLinecap="round" 
-                strokeLinejoin="round"
-              />
-            </svg>
+            <img 
+              src="/logo.png" 
+              alt="Connecta+" 
+              style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} 
+            />
           </div>
         </div>
 
