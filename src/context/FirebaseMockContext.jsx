@@ -24,28 +24,49 @@ const generateRandomTicketOrderId = () => 'TK-' + Math.floor(100000 + Math.rando
 
 export const FirebaseMockProvider = ({ children }) => {
   const [users, setUsers] = useState([]);
+  const [deletedUsers, setDeletedUsers] = useState([]);
   const [products, setProducts] = useState([]);
   const [events, setEvents] = useState([]);
   const [services, setServices] = useState([]);
   const [videos, setVideos] = useState([]);
   const [coupons, setCoupons] = useState([]);
+  const [videoComments, setVideoComments] = useState([]);
   const [orders, setOrders] = useState([]);
   const [servicesHired, setServicesHired] = useState([]);
   const [chats, setChats] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('connecta_current_user');
+    return saved ? JSON.parse(saved) : null;
+  });
   const [userLocation, setUserLocation] = useState('Centro Histórico, Ouro Preto - MG');
   const [cart, setCart] = useState(() => {
     const saved = localStorage.getItem('connecta_cart');
     return saved ? JSON.parse(saved) : [];
   });
   const [productReviews, setProductReviews] = useState([]);
+  const [serviceReviews, setServiceReviews] = useState([]);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [authInitialized, setAuthInitialized] = useState(false);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [productsLoaded, setProductsLoaded] = useState(false);
+  const [eventsLoaded, setEventsLoaded] = useState(false);
+  const [servicesLoaded, setServicesLoaded] = useState(false);
+  const [bannersLoaded, setBannersLoaded] = useState(false);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
+  const [homeSectionsLoaded, setHomeSectionsLoaded] = useState(false);
+  const [authFirebaseUser, setAuthFirebaseUser] = useState(null);
+  const [banners, setBanners] = useState([]);
+  const [homeSections, setHomeSections] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [visualLayoutSettings, setVisualLayoutSettings] = useState({
-    customTexts: {},
-    customColors: {},
-    sectionOrder: ['banner', 'categories', 'flashDeals', 'nearbyStores', 'products', 'buyers', 'events', 'services'],
-    avatarOffset: { top: -36, left: 32 }
+  const [visualLayoutSettings, setVisualLayoutSettings] = useState(() => {
+    const saved = localStorage.getItem('connecta_visual_layout_settings');
+    return saved ? JSON.parse(saved) : {
+      customTexts: {},
+      customColors: {},
+      sectionOrder: ['banner', 'categories', 'flashDeals', 'nearbyStores', 'products', 'buyers', 'events', 'services'],
+      avatarOffset: { top: -36, left: 32 }
+    };
   });
 
   const parseDateStr = (dateStr) => {
@@ -91,29 +112,58 @@ export const FirebaseMockProvider = ({ children }) => {
       const list = [];
       snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
       setUsers(list);
-    }, (error) => console.warn("Users subscription warning:", error));
+      setUsersLoaded(true);
+    }, (error) => {
+      console.warn("Users subscription warning:", error);
+      setUsersLoaded(true);
+    });
+
+    const unsubDeletedUsers = onSnapshot(collection(db, 'deletedUsers'), (snapshot) => {
+      const list = [];
+      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+      setDeletedUsers(list);
+    }, (error) => {
+      console.warn("DeletedUsers subscription warning:", error);
+    });
 
     const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
       const list = [];
       snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
       setProducts(list);
+      setProductsLoaded(true);
+    }, (error) => {
+      console.warn("Products subscription error:", error);
+      setProductsLoaded(true);
     });
 
     const unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
       const list = [];
       snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
       setEvents(list);
+      setEventsLoaded(true);
+    }, (error) => {
+      console.warn("Events subscription error:", error);
+      setEventsLoaded(true);
     });
 
     const unsubServices = onSnapshot(collection(db, 'services'), (snapshot) => {
       const list = [];
       snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
       setServices(list);
+      setServicesLoaded(true);
+    }, (error) => {
+      console.warn("Services subscription error:", error);
+      setServicesLoaded(true);
     });
 
     const unsubVideos = onSnapshot(collection(db, 'videos'), (snapshot) => {
       const list = [];
-      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+      snapshot.forEach(doc => {
+        const data = doc.data();
+        if (doc.id && !doc.id.startsWith('vid_default_')) {
+          list.push({ ...data, id: doc.id });
+        }
+      });
       setVideos(list);
     });
 
@@ -129,16 +179,84 @@ export const FirebaseMockProvider = ({ children }) => {
       setProductReviews(list);
     });
 
+    const unsubServiceReviews = onSnapshot(collection(db, 'serviceReviews'), (snapshot) => {
+      const list = [];
+      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+      setServiceReviews(list);
+    }, (error) => console.warn("ServiceReviews subscription warning:", error));
+
+    const unsubVideoComments = onSnapshot(collection(db, 'videoComments'), (snapshot) => {
+      const list = [];
+      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+      setVideoComments(list);
+    }, (error) => console.warn("videoComments subscription warning:", error));
+
     const unsubCategories = onSnapshot(collection(db, 'categories'), (snapshot) => {
+      if (snapshot.empty) {
+        const defaultCats = [
+          { label: 'Artesanato', key: 'Artesanato', type: 'lojas', icon: 'Palette', order: 0 },
+          { label: 'Lembranças', key: 'Lembranças', type: 'lojas', icon: 'Gift', order: 1 },
+          { label: 'Gastronomia', key: 'Gastronomia', type: 'lojas', icon: 'Utensils', order: 2 },
+          { label: 'Alimentos', key: 'Alimentos', type: 'lojas', icon: 'ShoppingBag', order: 3 },
+          { label: 'Bebidas', key: 'Bebidas', type: 'lojas', icon: 'Coffee', order: 4 },
+          { label: 'Outros', key: 'Outros', type: 'lojas', icon: 'Sparkles', order: 5 },
+          { label: 'Guia Turístico / Roteiros', key: 'Guia Turístico', type: 'servicos', icon: 'Compass', order: 0 },
+          { label: 'Fotógrafo', key: 'Fotógrafo', type: 'servicos', icon: 'Camera', order: 1 },
+          { label: 'Diarista / Faxina', key: 'Diarista', type: 'servicos', icon: 'Activity', order: 2 },
+          { label: 'Manutenção Geral', key: 'Marido de Aluguel', type: 'servicos', icon: 'Wrench', order: 3 },
+          { label: 'Entregas Grandes / Mudanças', key: 'Fretes', type: 'servicos', icon: 'Truck', order: 4 },
+          { label: 'Entrega de Moto', key: 'Moto', type: 'entregadores', icon: 'Bike', order: 5 },
+          { label: 'Entrega de Carro / Fretes', key: 'Carro', type: 'entregadores', icon: 'Truck', order: 6 }
+        ];
+        defaultCats.forEach((cat, index) => {
+          const catId = `cat_default_${index}`;
+          setDoc(doc(db, 'categories', catId), {
+            id: catId,
+            ...cat,
+            desc: '',
+            active: true,
+            createdAt: Date.now()
+          }).catch(err => console.error("Error seeding category:", err));
+        });
+        setCategoriesLoaded(true);
+      } else {
+        const list = [];
+        snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+        list.sort((a, b) => (a.order || 0) - (b.order || 0));
+        setCategories(list);
+        setCategoriesLoaded(true);
+      }
+    }, (error) => {
+      console.warn("Categories subscription error:", error);
+      setCategoriesLoaded(true);
+    });
+
+    const unsubBanners = onSnapshot(collection(db, 'banners'), (snapshot) => {
+      const list = [];
+      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+      setBanners(list);
+      setBannersLoaded(true);
+    }, (error) => {
+      console.warn("Banners subscription warning:", error);
+      setBannersLoaded(true);
+    });
+
+    const unsubHomeSections = onSnapshot(collection(db, 'homeSections'), (snapshot) => {
       const list = [];
       snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
       list.sort((a, b) => (a.order || 0) - (b.order || 0));
-      setCategories(list);
+      setHomeSections(list);
+      setHomeSectionsLoaded(true);
+    }, (error) => {
+      console.warn("HomeSections subscription warning:", error);
+      setHomeSectionsLoaded(true);
     });
 
     const unsubSettings = onSnapshot(doc(db, 'settings', 'visualLayout'), (docSnap) => {
       if (docSnap.exists()) {
-        setVisualLayoutSettings(docSnap.data());
+        const data = docSnap.data();
+        setVisualLayoutSettings(data);
+        localStorage.setItem('connecta_visual_layout_settings', JSON.stringify(data));
       } else {
         const defaultSettings = {
           customTexts: {},
@@ -154,7 +272,7 @@ export const FirebaseMockProvider = ({ children }) => {
           commissions: {
             products: 10,
             tickets: 10,
-            services: 12
+            services: 10
           }
         };
         setDoc(doc(db, 'settings', 'visualLayout'), defaultSettings).catch(err => console.error(err));
@@ -176,6 +294,8 @@ export const FirebaseMockProvider = ({ children }) => {
 
     // Firebase Auth listener to auto-restore session
     const unsubAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      setAuthFirebaseUser(firebaseUser);
+      setAuthInitialized(true);
       if (firebaseUser) {
         // Create authenticated subscriptions
         cleanAuthSubscriptions();
@@ -216,42 +336,77 @@ export const FirebaseMockProvider = ({ children }) => {
 
     return () => {
       unsubUsers();
+      unsubDeletedUsers();
       unsubProducts();
       unsubEvents();
       unsubServices();
       unsubVideos();
       unsubCoupons();
       unsubReviews();
+      unsubServiceReviews();
+      unsubVideoComments();
       unsubCategories();
+      unsubBanners();
+      unsubHomeSections();
       unsubSettings();
       cleanAuthSubscriptions();
       unsubAuth();
     };
   }, []);
 
-  // Re-check auth when users state populates (handles race condition at mount)
+  // Manage currentUser and isAuthLoading deterministically
   useEffect(() => {
-    const firebaseUser = auth.currentUser;
-    if (firebaseUser && !currentUser) {
-      const userDoc = users.find(u => u.id === firebaseUser.uid);
-      if (userDoc && !userDoc.banned) {
-        setCurrentUser(userDoc);
+    if (!authInitialized) {
+      setIsAuthLoading(true);
+      return;
+    }
+
+    if (!authFirebaseUser) {
+      setCurrentUser(null);
+      setIsAuthLoading(false);
+    } else {
+      if (usersLoaded) {
+        const userDoc = users.find(u => u.id === authFirebaseUser.uid);
+        if (userDoc) {
+          if (!userDoc.banned) {
+            setCurrentUser(userDoc);
+          } else {
+            signOut(auth).catch(err => console.error(err));
+            setCurrentUser(null);
+          }
+        } else {
+          // Verify if the user is in the deletedUsers list
+          const isDeleted = deletedUsers.some(du => du.id === authFirebaseUser.uid);
+          if (isDeleted) {
+            signOut(auth).catch(err => console.error(err));
+            setCurrentUser(null);
+          }
+        }
+        setIsAuthLoading(false);
+      } else {
+        setIsAuthLoading(true);
       }
     }
-  }, [users]);
+  }, [authInitialized, authFirebaseUser, usersLoaded, users, deletedUsers]);
 
   // Sync currentUser with localStorage and fresh Firestore data
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('connecta_current_user', JSON.stringify(currentUser));
       const freshUser = users.find(u => u.id === currentUser.id);
-      if (freshUser && JSON.stringify(freshUser) !== JSON.stringify(currentUser)) {
+      if (usersLoaded && !freshUser) {
+        setTimeout(() => {
+          signOut(auth).catch(err => console.error(err));
+          setCurrentUser(null);
+          localStorage.removeItem('connecta_current_user');
+        }, 0);
+      } else if (freshUser && JSON.stringify(freshUser) !== JSON.stringify(currentUser)) {
         setTimeout(() => setCurrentUser(freshUser), 0);
       }
     } else {
       localStorage.removeItem('connecta_current_user');
     }
-  }, [currentUser, users]);
+  }, [currentUser, users, usersLoaded]);
 
   useEffect(() => {
     localStorage.setItem('connecta_cart', JSON.stringify(cart));
@@ -296,8 +451,7 @@ export const FirebaseMockProvider = ({ children }) => {
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
       const uid = userCredential.user.uid;
-      const isClient = userData.role === 'client';
-      const status = isClient ? 'approved' : 'pending';
+      const status = 'approved';
 
       const newUser = {
         id: uid,
@@ -308,9 +462,9 @@ export const FirebaseMockProvider = ({ children }) => {
         address: userData.address || '',
         registrationStatus: status,
         banned: false,
-        ouroCoins: 0,
         createdAt: Date.now(),
         ...userData,
+        ouroCoins: 0,
         id: uid
       };
       delete newUser.password;
@@ -370,6 +524,14 @@ export const FirebaseMockProvider = ({ children }) => {
     deleteDoc(doc(db, 'products', prodId)).catch(err => console.error(err));
   };
 
+  const deleteService = (servId) => {
+    deleteDoc(doc(db, 'services', servId)).catch(err => console.error(err));
+  };
+
+  const deleteEvent = (eventId) => {
+    deleteDoc(doc(db, 'events', eventId)).catch(err => console.error(err));
+  };
+
   const toggleProductActive = (prodId) => {
     const p = products.find(prod => prod.id === prodId);
     if (p) {
@@ -420,9 +582,10 @@ export const FirebaseMockProvider = ({ children }) => {
       id: newId,
       rating: 5.0,
       reviewsCount: 0,
-      pricePerHour: parseFloat(servData.pricePerHour),
-      minHours: parseInt(servData.minHours) || 1,
-      ...servData
+      ...servData,
+      pricePerHour: isNaN(parseFloat(servData.pricePerHour)) ? null : parseFloat(servData.pricePerHour),
+      totalPrice: isNaN(parseFloat(servData.totalPrice)) ? null : parseFloat(servData.totalPrice),
+      minHours: parseInt(servData.minHours) || 1
     };
     setDoc(doc(db, 'services', newId), newServ).catch(err => console.error(err));
   };
@@ -430,19 +593,21 @@ export const FirebaseMockProvider = ({ children }) => {
   const editService = (servId, updatedData) => {
     updateDoc(doc(db, 'services', servId), {
       ...updatedData,
-      pricePerHour: parseFloat(updatedData.pricePerHour),
+      pricePerHour: isNaN(parseFloat(updatedData.pricePerHour)) ? null : parseFloat(updatedData.pricePerHour),
+      totalPrice: isNaN(parseFloat(updatedData.totalPrice)) ? null : parseFloat(updatedData.totalPrice),
       minHours: parseInt(updatedData.minHours) || 1
     }).catch(err => console.error(err));
   };
 
-  const hireServiceProvider = (serviceId, hours, date, time, notes, useCoins = false) => {
+  const hireServiceProvider = (serviceId, hours, date, time, notes, useCoins = false, variation = null) => {
     if (!currentUser) return { success: false, message: 'Precisa logar primeiro, uai!' };
     
     const service = services.find(s => s.id === serviceId);
     if (!service) return { success: false, message: 'Serviço não encontrado.' };
 
     const newHiringId = generateRandomHiringId();
-    const subtotal = service.pricePerHour * hours;
+    const variationPrice = variation?.price || 0;
+    const subtotal = (service.pricePerHour * hours) + variationPrice;
     
     // Apply Coins
     let coinsUsed = 0;
@@ -462,7 +627,7 @@ export const FirebaseMockProvider = ({ children }) => {
     }
 
     const total = subtotal - coinDiscount;
-    const servicesCommRate = (visualLayoutSettings?.commissions?.services !== undefined ? visualLayoutSettings.commissions.services : 12) / 100;
+    const servicesCommRate = (visualLayoutSettings?.commissions?.services !== undefined ? visualLayoutSettings.commissions.services : 10) / 100;
     const commissionFee = subtotal * servicesCommRate;
 
     const newHiring = {
@@ -482,7 +647,9 @@ export const FirebaseMockProvider = ({ children }) => {
       total,
       coinsUsed,
       commissionFee,
-      status: 'pending'
+      status: 'pending',
+      variation: variation ? variation.text : null,
+      variationPrice: variation ? variation.price : 0
     };
 
     setDoc(doc(db, 'servicesHired', newHiringId), newHiring).catch(err => console.error(err));
@@ -535,6 +702,19 @@ export const FirebaseMockProvider = ({ children }) => {
     updateDoc(doc(db, 'events', eventId), { commissioners }).catch(err => console.error(err));
   };
 
+  const updateEvent = (eventId, eventData) => {
+    const updates = { ...eventData };
+    if (eventData.batches) {
+      updates.batches = eventData.batches.map(b => ({
+        ...b,
+        price: parseFloat(b.price || 0),
+        limit: parseInt(b.limit || 0),
+        sold: parseInt(b.sold || 0)
+      }));
+    }
+    updateDoc(doc(db, 'events', eventId), updates).catch(err => console.error(err));
+  };
+
 
   // --- FOR YOU VIDEOS ---
   const addVideo = (vidData) => {
@@ -559,6 +739,40 @@ export const FirebaseMockProvider = ({ children }) => {
     const v = videos.find(vid => vid.id === vidId);
     if (v) {
       updateDoc(doc(db, 'videos', vidId), { likes: Math.max(0, v.likes - 1) }).catch(err => console.error(err));
+    }
+  };
+
+  const deleteVideo = (vidId) => {
+    deleteDoc(doc(db, 'videos', vidId)).catch(err => console.error(err));
+  };
+
+  const updateVideo = (vidId, vidData) => {
+    updateDoc(doc(db, 'videos', vidId), vidData).catch(err => console.error(err));
+  };
+
+  const addVideoComment = async (videoId, userName, userAvatar, text, userId) => {
+    const newId = 'vidcmt_' + Math.random().toString(36).substr(2, 9);
+    const newComment = {
+      id: newId,
+      videoId,
+      userName,
+      userAvatar: userAvatar || '',
+      text,
+      userId: userId || '',
+      createdAt: new Date().toISOString()
+    };
+    
+    // Update local state immediately for instant feedback
+    setVideoComments(prev => [...prev, newComment]);
+
+    try {
+      await setDoc(doc(db, 'videoComments', newId), newComment);
+      const v = videos.find(vid => vid.id === videoId);
+      if (v) {
+        await updateDoc(doc(db, 'videos', videoId), { comments: (v.comments || 0) + 1 });
+      }
+    } catch (err) {
+      console.error("Erro ao salvar comentário do vídeo no Firebase:", err);
     }
   };
 
@@ -819,11 +1033,35 @@ export const FirebaseMockProvider = ({ children }) => {
     }
   };
 
-  const callRider = (orderId) => {
-    updateOrderStatus(orderId, 'calling_rider');
-    users.filter(u => u.role === 'motoboy' && u.online).forEach(rider => {
-      createNotification(rider.id, `Corrida disponível! Pedido #${orderId}.`);
-    });
+  const callRider = (orderId, riderId = null) => {
+    const updates = { status: 'calling_rider' };
+    if (riderId) {
+      updates.assignedRiderId = riderId;
+      const rider = users.find(u => u.id === riderId);
+      if (rider) {
+        updates.assignedRiderName = rider.name;
+      }
+    } else {
+      updates.assignedRiderId = null;
+      updates.assignedRiderName = null;
+    }
+    updateDoc(doc(db, 'orders', orderId), updates).catch(err => console.error(err));
+
+    if (riderId) {
+      createNotification(riderId, `Você recebeu uma proposta de entrega exclusiva! Pedido #${orderId}.`);
+    } else {
+      users.filter(u => u.role === 'motoboy' && u.online).forEach(rider => {
+        createNotification(rider.id, `Corrida disponível! Pedido #${orderId}.`);
+      });
+    }
+  };
+
+  const cancelCallRider = (orderId) => {
+    updateDoc(doc(db, 'orders', orderId), {
+      status: 'preparing',
+      assignedRiderId: null,
+      assignedRiderName: null
+    }).catch(err => console.error(err));
   };
 
   const acceptDelivery = (orderId, riderId) => {
@@ -863,7 +1101,7 @@ export const FirebaseMockProvider = ({ children }) => {
         const autoReply = {
           id: autoReplyId,
           roomKey,
-          text: `Olá, ${sender.name}! Recebi seu chamado uai. Nossa equipe de suporte Connecta está analisando o seu caso e te responde logo logo. Obrigado pela paciência!`,
+          text: `Olá, ${sender.name} Recebi seu chamado. Nossa equipe de suporte está analisando o seu caso e te responde logo logo. Obrigado pela paciência!`,
           senderId: 'admin',
           senderName: 'Suporte Connecta',
           senderRole: 'admin',
@@ -951,7 +1189,7 @@ export const FirebaseMockProvider = ({ children }) => {
   };
 
   const reorderSections = (sectionId, direction) => {
-    const order = [...(visualLayoutSettings.sectionOrder || ['banner', 'categories', 'flashDeals', 'nearbyStores', 'products', 'buyers', 'events', 'services'])];
+    const order = [...(visualLayoutSettings.sectionOrder || [])];
     const index = order.indexOf(sectionId);
     if (index === -1) return;
     
@@ -965,6 +1203,15 @@ export const FirebaseMockProvider = ({ children }) => {
     const updated = {
       ...visualLayoutSettings,
       sectionOrder: order
+    };
+    setDoc(doc(db, 'settings', 'visualLayout'), updated).catch(err => console.error(err));
+  };
+
+  // Salva a lista inteira de sectionOrder de uma vez
+  const setSectionOrder = (newOrder) => {
+    const updated = {
+      ...visualLayoutSettings,
+      sectionOrder: newOrder
     };
     setDoc(doc(db, 'settings', 'visualLayout'), updated).catch(err => console.error(err));
   };
@@ -1019,6 +1266,44 @@ export const FirebaseMockProvider = ({ children }) => {
     setDoc(doc(db, 'productReviews', newId), newReview).catch(err => console.error(err));
   };
 
+  const addServiceReview = async (hiringId, userName, rating, comment, images = []) => {
+    const hiring = servicesHired.find(sh => sh.id === hiringId);
+    if (!hiring) return { success: false, message: 'Agendamento não encontrado.' };
+
+    const reviewId = 'srev_' + Math.random().toString(36).substr(2, 9);
+    const newReview = {
+      id: reviewId,
+      hiringId,
+      serviceId: hiring.serviceId,
+      serviceName: hiring.serviceName,
+      providerId: hiring.providerId,
+      providerName: hiring.providerName,
+      customerName: userName || hiring.customerName || 'Cliente Anônimo',
+      rating: parseInt(rating),
+      comment,
+      images,
+      date: new Date().toLocaleDateString('pt-BR'),
+      createdAt: Date.now()
+    };
+
+    await setDoc(doc(db, 'serviceReviews', reviewId), newReview);
+    await updateDoc(doc(db, 'servicesHired', hiringId), { reviewed: true });
+
+    // Update aggregate rating on the service document
+    const serviceDocRef = doc(db, 'services', hiring.serviceId);
+    const allReviewsForService = [...serviceReviews, newReview].filter(r => r.serviceId === hiring.serviceId);
+    const totalRating = allReviewsForService.reduce((sum, r) => sum + r.rating, 0);
+    const avgRating = parseFloat((totalRating / allReviewsForService.length).toFixed(1));
+
+    await updateDoc(serviceDocRef, {
+      rating: avgRating,
+      reviewsCount: allReviewsForService.length
+    });
+
+    createNotification(hiring.providerId, `Oba! Você recebeu uma avaliação de ${rating} estrelas de ${newReview.customerName} pelo serviço "${hiring.serviceName}"!`);
+    return { success: true };
+  };
+
   // --- CATEGORIES CRUD ---
   const addCategory = (catData) => {
     const newId = 'cat_' + Math.random().toString(36).substr(2, 9);
@@ -1045,6 +1330,94 @@ export const FirebaseMockProvider = ({ children }) => {
     deleteDoc(doc(db, 'categories', catId)).catch(err => console.error(err));
   };
 
+  const addBanner = (bannerData) => {
+    const newId = 'banner_' + Math.random().toString(36).substr(2, 9);
+    const newBanner = {
+      id: newId,
+      title: bannerData.title || '',
+      desc: bannerData.desc || '',
+      img: bannerData.img || '',
+      imgMobile: bannerData.imgMobile || '',
+      link: bannerData.link || '',
+      createdAt: Date.now()
+    };
+    return setDoc(doc(db, 'banners', newId), newBanner);
+  };
+
+  const deleteBanner = (bannerId) => {
+    deleteDoc(doc(db, 'banners', bannerId)).catch(err => console.error("Error deleting banner:", err));
+  };
+
+  // --- HOME SECTIONS CRUD ---
+  const addHomeSection = (sectionData) => {
+    const newId = 'section_' + Math.random().toString(36).substr(2, 9);
+    const newSection = {
+      id: newId,
+      name: sectionData.name,
+      type: sectionData.type, // 'products', 'stores', 'services', 'events'
+      itemIds: sectionData.itemIds || [],
+      order: sectionData.order !== undefined ? sectionData.order : homeSections.length,
+      active: true,
+      createdAt: Date.now()
+    };
+    setDoc(doc(db, 'homeSections', newId), newSection).catch(err => console.error("Error adding home section:", err));
+  };
+
+  const editHomeSection = (sectionId, updatedData) => {
+    updateDoc(doc(db, 'homeSections', sectionId), updatedData).catch(err => console.error("Error editing home section:", err));
+  };
+
+  const deleteHomeSection = (sectionId) => {
+    deleteDoc(doc(db, 'homeSections', sectionId)).catch(err => console.error("Error deleting home section:", err));
+  };
+
+  const reorderHomeSections = async (orderedIds) => {
+    for (let i = 0; i < orderedIds.length; i++) {
+      const sId = orderedIds[i];
+      await updateDoc(doc(db, 'homeSections', sId), { order: i }).catch(err => console.error("Error reordering home section:", err));
+    }
+  };
+
+  const deleteUser = async (userId) => {
+    try {
+      // Find the user document first to copy their data
+      const userDoc = users.find(u => u.id === userId);
+      if (userDoc) {
+        // Save the deleted user to 'deletedUsers' collection
+        await setDoc(doc(db, 'deletedUsers', userId), {
+          ...userDoc,
+          deletedAt: Date.now()
+        });
+      }
+
+      // Delete the user document
+      await deleteDoc(doc(db, 'users', userId));
+
+      // Delete all products owned by this user
+      const userProducts = products.filter(p => p.storeId === userId || p.sellerId === userId);
+      for (const p of userProducts) {
+        await deleteDoc(doc(db, 'products', p.id)).catch(err => console.error("Error deleting user product:", err));
+      }
+
+      // Delete all services owned by this user
+      const userServices = services.filter(s => s.providerId === userId);
+      for (const s of userServices) {
+        await deleteDoc(doc(db, 'services', s.id)).catch(err => console.error("Error deleting user service:", err));
+      }
+
+      // Delete all events owned by this user
+      const userEvents = events.filter(e => e.organizerId === userId);
+      for (const e of userEvents) {
+        await deleteDoc(doc(db, 'events', e.id)).catch(err => console.error("Error deleting user event:", err));
+      }
+
+      alert("Usuário excluído com sucesso do Firestore, sô! Todas as suas informações associadas foram limpas.");
+    } catch (err) {
+      console.error("Error deleting user:", err);
+      alert("Erro ao excluir usuário: " + err.message);
+    }
+  };
+
   return (
     <FirebaseMockContext.Provider value={{
       users,
@@ -1059,6 +1432,7 @@ export const FirebaseMockProvider = ({ children }) => {
       chats,
       notifications,
       currentUser,
+      deletedUsers,
       userLocation,
       cart,
       login,
@@ -1069,6 +1443,8 @@ export const FirebaseMockProvider = ({ children }) => {
       addProduct,
       editProduct,
       deleteProduct,
+      deleteService,
+      deleteEvent,
       toggleProductActive,
       addFlashDeal,
       removeFlashDeal,
@@ -1077,10 +1453,15 @@ export const FirebaseMockProvider = ({ children }) => {
       hireServiceProvider,
       updateHiringStatus,
       addEvent,
+      updateEvent,
       addCommissioner,
       addVideo,
       likeVideo,
       unlikeVideo,
+      deleteVideo,
+      updateVideo,
+      videoComments,
+      addVideoComment,
       addToCart,
       updateCartQty,
       removeFromCart,
@@ -1088,6 +1469,7 @@ export const FirebaseMockProvider = ({ children }) => {
       buyTicket,
       updateOrderStatus,
       callRider,
+      cancelCallRider,
       acceptDelivery,
       addMessage,
       createCoupon,
@@ -1107,11 +1489,25 @@ export const FirebaseMockProvider = ({ children }) => {
       updateVisualLayoutSettings,
       productReviews,
       addProductReview,
+      serviceReviews,
+      addServiceReview,
       getCoinsUsedInPeriod,
       categories,
       addCategory,
       editCategory,
-      deleteCategory
+      deleteCategory,
+      banners,
+      addBanner,
+      deleteBanner,
+      homeSections,
+      addHomeSection,
+      editHomeSection,
+      deleteHomeSection,
+      reorderHomeSections,
+      deleteUser,
+      setSectionOrder,
+      isAuthLoading,
+      isDataLoading: !usersLoaded || !productsLoaded || !eventsLoaded || !servicesLoaded || !bannersLoaded || !categoriesLoaded || !homeSectionsLoaded
     }}>
       {children}
     </FirebaseMockContext.Provider>
@@ -1125,7 +1521,10 @@ export const useFirebaseMock = () => useContext(FirebaseMockContext);
 export function EditableText({ textId, defaultText, style = {} }) {
   const { isVisualEditorActive, visualLayoutSettings, updateVisualText, updateVisualColor } = useFirebaseMock();
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const currentText = (visualLayoutSettings?.customTexts && visualLayoutSettings.customTexts[textId]) || defaultText;
+  let currentText = (visualLayoutSettings?.customTexts && visualLayoutSettings.customTexts[textId]) || defaultText;
+  if (currentText === 'Oi, lindeza!' || currentText === 'Oi, lindeza') {
+    currentText = 'Olá! Seja bem-vindo!';
+  }
   const currentColor = (visualLayoutSettings?.customColors && visualLayoutSettings.customColors[textId]) || style.color || 'inherit';
 
   const colors = [

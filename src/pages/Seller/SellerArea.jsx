@@ -1,20 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
 import { 
   Plus, Trash2, ToggleLeft, ToggleRight, 
-  ShoppingBag, User, MapPin, Phone, Truck, MessageSquare,
+  ShoppingBag, User, MapPin, Phone, Truck, Bike, MessageSquare,
   Edit, Camera, Save, X, Star, Users, Clock, Upload, ArrowLeft,
-  Home, Store as StoreIcon, Layers, Play, ClipboardList
+  Home, Store as StoreIcon, Layers, Play, ClipboardList,
+  Bell, LogOut
 } from 'lucide-react';
+import { uploadAvatar, uploadCover, uploadProductImage, uploadVideoFile } from '../../firebase/storage';
 
-export default function SellerArea({ onOpenChat }) {
+export default function SellerArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout }) {
   const { 
     currentUser, products, orders, addProduct, editProduct,
-    deleteProduct, toggleProductActive, updateOrderStatus, callRider, addVideo,
-    setUsers, addFlashDeal, removeFlashDeal
+    deleteProduct, toggleProductActive, updateOrderStatus, callRider, cancelCallRider, addVideo,
+    setUsers, addFlashDeal, removeFlashDeal, visualLayoutSettings, updateUserProfile, users,
+    productReviews
   } = useFirebaseMock();
 
-  const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, profile, products, categories, orders, foryou
+  // Rider selection modal state
+  const [selectedOrderForRider, setSelectedOrderForRider] = useState(null);
+
+  // Saque modal states
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawPixKey, setWithdrawPixKey] = useState('');
+  const [withdrawAccount, setWithdrawAccount] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawError, setWithdrawError] = useState('');
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
+
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('connecta_seller_active_tab') || 'dashboard';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('connecta_seller_active_tab', activeTab);
+  }, [activeTab]);
 
   // Edit profile states
   const [editingField, setEditingField] = useState(null); // 'name', 'description', 'phone', 'address', 'openingHours'
@@ -51,6 +71,9 @@ export default function SellerArea({ onOpenChat }) {
   const [reelsVideoName, setReelsVideoName] = useState('');
   const [reelsProductId, setReelsProductId] = useState('');
   const [isLinkDropdownOpen, setIsLinkDropdownOpen] = useState(false);
+  const [showTaxInfoModal, setShowTaxInfoModal] = useState(false);
+  const [reelsFile, setReelsFile] = useState(null);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
 
   // Flash Deal states
   const [fdProductId, setFdProductId] = useState('');
@@ -82,9 +105,16 @@ export default function SellerArea({ onOpenChat }) {
     return `${hours}h ${minutes}m restando`;
   };
 
-  // Filter products and orders belonging to this store
   const storeProducts = products.filter(p => p.storeId === currentUser.id);
-  const storeCategories = currentUser.storeCategories || ['Todos', 'Pedra-Sabão', 'Cobre'];
+  const storeCategories = currentUser.storeCategories || ['Todos'];
+  
+  const followers = users.filter(u => u.following && u.following.includes(currentUser.id));
+  const storeProdIds = storeProducts.map(p => p.id);
+  const storeReviews = productReviews ? productReviews.filter(r => storeProdIds.includes(r.productId)) : [];
+  const totalReviewsCount = storeReviews.length;
+  const avgRating = totalReviewsCount > 0 
+    ? parseFloat((storeReviews.reduce((sum, r) => sum + (parseFloat(r.rating) || 5), 0) / totalReviewsCount).toFixed(1)) 
+    : 0.0;
 
   // Flatten items of orders to see if they belong to this store
   const storeOrders = orders.filter(o => 
@@ -98,8 +128,8 @@ export default function SellerArea({ onOpenChat }) {
     .filter(o => o.status === 'delivered')
     .reduce((acc, o) => acc + o.total - o.commissionFee, 0);
   
-  const monthlyEarnings = dailyEarnings * 25.5; // Simulate monthly projections
-  const withdrawableBalance = dailyEarnings * 12.8; // Simulate balance
+  const monthlyEarnings = dailyEarnings; // Real monthly earnings calculated from delivered orders
+  const withdrawableBalance = dailyEarnings; // Real withdrawable balance from delivered orders
 
   // Profile fields handlers
   const startEditing = (field, initialVal) => {
@@ -141,31 +171,41 @@ export default function SellerArea({ onOpenChat }) {
   };
 
   const handleSaveField = (field) => {
-    setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, [field]: editValue } : u));
+    if (field === 'name') {
+      setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, name: editValue, companyName: editValue } : u));
+      updateUserProfile(currentUser.id, { name: editValue, companyName: editValue });
+    } else {
+      setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, [field]: editValue } : u));
+      updateUserProfile(currentUser.id, { [field]: editValue });
+    }
     setEditingField(null);
   };
 
-  const handleLogoUpload = (e) => {
+  const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target.result;
-        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, logo: base64 } : u));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const url = await uploadAvatar(file, currentUser.id);
+        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, logo: url, avatar: url } : u));
+        updateUserProfile(currentUser.id, { logo: url, avatar: url });
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao enviar foto de perfil. Tente novamente, sô!');
+      }
     }
   };
 
-  const handleCoverUpload = (e) => {
+  const handleCoverUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target.result;
-        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, cover: base64 } : u));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const url = await uploadCover(file, currentUser.id);
+        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, cover: url, banner: url } : u));
+        updateUserProfile(currentUser.id, { cover: url, banner: url });
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao enviar imagem de capa. Tente novamente, sô!');
+      }
     }
   };
 
@@ -180,6 +220,7 @@ export default function SellerArea({ onOpenChat }) {
     }
     const updated = [...storeCategories, cleanName];
     setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, storeCategories: updated } : u));
+    updateUserProfile(currentUser.id, { storeCategories: updated });
     setNewCategoryName('');
   };
 
@@ -191,6 +232,7 @@ export default function SellerArea({ onOpenChat }) {
     if (confirm(`Quer mesmo remover a categoria "${catToDelete}"?`)) {
       const updated = storeCategories.filter(c => c !== catToDelete);
       setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, storeCategories: updated } : u));
+      updateUserProfile(currentUser.id, { storeCategories: updated });
     }
   };
 
@@ -246,19 +288,21 @@ export default function SellerArea({ onOpenChat }) {
     setProdVariations([]);
   };
 
-  const handleProductImageUpload = (idx, e) => {
+  const handleProductImageUpload = async (idx, e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target.result;
+      try {
+        const productId = editingProductId && editingProductId !== 'new' ? editingProductId : 'temp_' + Date.now();
+        const url = await uploadProductImage(file, currentUser.id, productId);
         setProdImages(prev => {
           const updated = [...prev];
-          updated[idx] = base64;
+          updated[idx] = url;
           return updated;
         });
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao fazer upload da imagem do produto.');
+      }
     }
   };
 
@@ -272,17 +316,19 @@ export default function SellerArea({ onOpenChat }) {
   };
 
   // Variations handlers
-  const handleVarImageUpload = (e) => {
+  const handleVarImageUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setNewVarImage(event.target.result);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const productId = editingProductId && editingProductId !== 'new' ? editingProductId : 'temp_' + Date.now();
+        const url = await uploadProductImage(file, currentUser.id, productId);
+        setNewVarImage(url);
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao fazer upload da imagem de variação.');
+      }
     }
   };
-
   const handleAddVariation = (e) => {
     e.preventDefault();
     if (!newVarText.trim()) {
@@ -292,7 +338,7 @@ export default function SellerArea({ onOpenChat }) {
     const newVar = {
       id: 'var_' + Math.random().toString(36).substr(2, 9),
       text: newVarText.trim(),
-      image: newVarImage || 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=100'
+      image: newVarImage || ''
     };
     setProdVariations(prev => [...prev, newVar]);
     setNewVarText('');
@@ -330,7 +376,7 @@ export default function SellerArea({ onOpenChat }) {
       images: filteredImages,
       variations: prodVariations,
       storeId: currentUser.id,
-      storeName: currentUser.name
+      storeName: currentUser.companyName || currentUser.name
     };
 
     if (editingProductId === 'new') {
@@ -351,37 +397,52 @@ export default function SellerArea({ onOpenChat }) {
       const url = URL.createObjectURL(file);
       setReelsVideoUrl(url);
       setReelsVideoName(file.name);
+      setReelsFile(file);
     }
   };
 
-  const handleReelsSubmit = (e) => {
+  const handleReelsSubmit = async (e) => {
     e.preventDefault();
     if (!reelsTitle || !reelsVideoUrl) {
       alert('Carregue um vídeo e informe a legenda, uai!');
       return;
     }
 
-    const linkedProd = products.find(p => p.id === reelsProductId);
-    addVideo({
-      title: reelsTitle,
-      description: reelsDesc,
-      creatorId: currentUser.id,
-      creatorName: currentUser.name,
-      videoUrl: reelsVideoUrl,
-      poster: linkedProd ? linkedProd.image : currentUser.logo || 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400',
-      linkedType: linkedProd ? 'product' : null,
-      linkedId: linkedProd ? linkedProd.id : null,
-      linkedName: linkedProd ? linkedProd.name : null,
-      linkedPrice: linkedProd ? linkedProd.price : null
-    });
+    setIsUploadingVideo(true);
+    try {
+      let finalVideoUrl = reelsVideoUrl;
+      if (reelsFile) {
+        finalVideoUrl = await uploadVideoFile(reelsFile, currentUser.id);
+      }
 
-    setReelsTitle('');
-    setReelsDesc('');
-    setReelsVideoUrl('');
-    setReelsVideoName('');
-    setReelsProductId('');
-    setActiveTab('dashboard');
-    alert('Vídeo publicado com sucesso no ForYou!');
+      const linkedProd = products.find(p => p.id === reelsProductId);
+      addVideo({
+        title: reelsTitle,
+        description: reelsDesc,
+        creatorId: currentUser.id,
+        creatorName: currentUser.name,
+        videoUrl: finalVideoUrl,
+        poster: linkedProd ? linkedProd.image : currentUser.logo || 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400',
+        linkedType: linkedProd ? 'product' : null,
+        linkedId: linkedProd ? linkedProd.id : null,
+        linkedName: linkedProd ? linkedProd.name : null,
+        linkedPrice: linkedProd ? linkedProd.price : null
+      });
+
+      setReelsTitle('');
+      setReelsDesc('');
+      setReelsVideoUrl('');
+      setReelsVideoName('');
+      setReelsProductId('');
+      setReelsFile(null);
+      setActiveTab('dashboard');
+      alert('Vídeo publicado com sucesso!');
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao enviar vídeo. Tente novamente.');
+    } finally {
+      setIsUploadingVideo(false);
+    }
   };
 
   // --- SUBVIEW 1: DASHBOARD ---
@@ -389,7 +450,7 @@ export default function SellerArea({ onOpenChat }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>{currentUser.name}</h2>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>{currentUser.companyName || currentUser.name}</h2>
           <p style={{ fontSize: '0.78rem', color: '#777', margin: '2px 0 0 0' }}>Painel da Loja | Ouro Preto</p>
         </div>
       </div>
@@ -416,17 +477,27 @@ export default function SellerArea({ onOpenChat }) {
             <div style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0' }}>{st.val}</div>
             <div style={{ fontSize: '0.62rem', color: '#999' }}>{st.desc}</div>
             {st.btn && (
-              <button style={{
-                marginTop: '8px',
-                padding: '2px 10px',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: '#f28d1a',
-                color: 'white',
-                fontWeight: 500,
-                fontSize: '0.62rem',
-                cursor: 'pointer'
-              }}>
+              <button 
+                onClick={() => {
+                  setWithdrawAmount(withdrawableBalance.toString());
+                  setWithdrawPixKey('');
+                  setWithdrawAccount('');
+                  setWithdrawError('');
+                  setWithdrawSuccess(false);
+                  setShowWithdrawModal(true);
+                }}
+                style={{
+                  marginTop: '8px',
+                  padding: '2px 10px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#f28d1a',
+                  color: 'white',
+                  fontWeight: 500,
+                  fontSize: '0.62rem',
+                  cursor: 'pointer'
+                }}
+              >
                 {st.btn}
               </button>
             )}
@@ -482,23 +553,118 @@ export default function SellerArea({ onOpenChat }) {
         </button>
       </div>
 
+      {/* Informações sobre Taxas (discreto) */}
+      <div style={{ textAlign: 'center', marginTop: '6px' }}>
+        <button
+          type="button"
+          onClick={() => setShowTaxInfoModal(true)}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#888',
+            fontSize: '0.65rem',
+            textDecoration: 'underline',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          <span>Informações sobre taxas e comissões</span>
+        </button>
+      </div>
+
+      {showTaxInfoModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '440px',
+            padding: '24px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }} className="animate-fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Taxas e Comissões</h3>
+              <button 
+                type="button"
+                onClick={() => setShowTaxInfoModal(false)}
+                style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', display: 'flex', padding: 0 }}
+              >
+                <X size={20} style={{ color: '#666' }} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.82rem', color: '#555', lineHeight: 1.5 }}>
+              <p style={{ margin: 0 }}>Como funcionam nossas taxas:</p>
+              
+              <div style={{ backgroundColor: '#fffdf4', padding: '14px', borderRadius: '16px', border: '1px solid #f28d1a15' }}>
+                <strong style={{ color: '#d4730d', display: 'block', marginBottom: '4px' }}>Taxa Administrativa</strong>
+                A taxa cobrada pelo Conecta+ para venda de produtos é de <strong>{visualLayoutSettings?.commissions?.products !== undefined ? visualLayoutSettings.commissions.products : 10}%</strong> sobre o valor de cada venda realizada.
+              </div>
+
+              <div style={{ backgroundColor: '#f3faf8', padding: '14px', borderRadius: '16px', border: '1px solid #2ec4b615' }}>
+                <strong style={{ color: '#2ec4b6', display: 'block', marginBottom: '4px' }}>Saldo Líquido</strong>
+                O valor líquido das vendas é creditado no seu saldo disponível pós-pagamento do pedido.
+              </div>
+
+              <div style={{ backgroundColor: '#fcf6ed', padding: '14px', borderRadius: '16px', border: '1px solid #f28d1a15' }}>
+                <strong style={{ color: '#f28d1a', display: 'block', marginBottom: '4px' }}>Saques Pix</strong>
+                Você pode solicitar o saque do seu saldo acumulado via Pix diretamente no painel a qualquer momento!
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowTaxInfoModal(false)}
+              style={{
+                padding: '12px',
+                backgroundColor: '#f28d1a',
+                color: 'white',
+                border: 'none',
+                borderRadius: '16px',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                textAlign: 'center',
+                marginTop: '6px'
+              }}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
   // --- SUBVIEW 2: PROFILE VIEW (LOJA) ---
   const renderProfileView = () => {
-    const followers = currentUser.followersList || [
-      { name: 'Mateus Oliveira', phone: '(31) 98888-7777', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100' },
-      { name: 'Juliana Silva', phone: '(31) 97777-1111', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100' },
-      { name: 'Lucas Barbosa', phone: '(31) 96666-2222', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100' }
-    ];
+
 
     return (
       <div style={{ backgroundColor: '#ffffff', minHeight: '100%', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }} className="animate-fade-in">
         {/* Cover */}
-        <div style={{ width: '100%', aspectRatio: '21/9', position: 'relative', backgroundColor: '#fafafa', borderRadius: '16px', overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '140px', position: 'relative', backgroundColor: '#fafafa', borderRadius: '16px', overflow: 'hidden' }}>
           <img 
-            src={currentUser.cover || 'https://images.unsplash.com/photo-1464822759023-fed622ff2c3b?w=600'} 
+            src={currentUser.cover || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 35"><rect width="100" height="35" fill="%23eaeaea"/></svg>'} 
             alt="cover" 
             style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
           />
@@ -546,7 +712,7 @@ export default function SellerArea({ onOpenChat }) {
             backgroundColor: 'white'
           }}>
             <img 
-              src={currentUser.logo || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=150'} 
+              src={currentUser.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'} 
               alt="logo" 
               style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
             />
@@ -601,8 +767,8 @@ export default function SellerArea({ onOpenChat }) {
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>{currentUser.name}</h3>
-                <button onClick={() => startEditing('name', currentUser.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><Edit size={14} /></button>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>{currentUser.companyName || currentUser.name}</h3>
+                <button onClick={() => startEditing('name', currentUser.companyName || currentUser.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><Edit size={14} /></button>
               </div>
             )}
 
@@ -653,7 +819,7 @@ export default function SellerArea({ onOpenChat }) {
               </div>
             ) : (
               <div style={{ marginTop: '8px', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                <p style={{ fontSize: '0.75rem', color: '#666', margin: 0, lineHeight: 1.35, flex: 1 }}>{currentUser.description || 'Nenhuma descrição informada.'}</p>
+                <p style={{ fontSize: '0.75rem', color: '#666', margin: 0, lineHeight: 1.35, flex: 1, whiteSpace: 'pre-wrap' }}>{currentUser.description || 'Nenhuma descrição informada.'}</p>
                 <button onClick={() => startEditing('description', currentUser.description || '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: '2px 0 0 0' }}><Edit size={12} /></button>
               </div>
             )}
@@ -730,69 +896,53 @@ export default function SellerArea({ onOpenChat }) {
               )}
             </div>
 
-            {/* RATINGS (Read Only) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '12px' }}>
-              <div style={{ display: 'flex', gap: '2px' }}>
-                {[1, 2, 3, 4, 5].map(star => (
-                  <Star key={star} size={12} fill="#f28d1a" stroke="none" />
-                ))}
-              </div>
-              <span style={{ fontSize: '0.72rem', color: '#2d2d2d', fontWeight: 500 }}>4.9 (18 avaliações)</span>
+            {/* DELIVERY TIME ESTIMATE */}
+            <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '4px' }}>
+              {editingField === 'deliveryTimeEstimate' ? (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Truck size={12} />
+                  <input 
+                    type="text" 
+                    value={editValue} 
+                    onChange={(e) => setEditValue(e.target.value)} 
+                    className="input-field" 
+                    placeholder="Ex: 30-50 min"
+                    style={{ padding: '4px 8px', fontSize: '0.75rem', margin: 0 }}
+                  />
+                  <button onClick={() => handleSaveField('deliveryTimeEstimate')} className="btn btn-primary" style={{ padding: '2px 8px', fontSize: '0.7rem', height: '28px', width: 'auto', backgroundColor: '#f28d1a' }}><Save size={12} /></button>
+                  <button onClick={() => setEditingField(null)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.7rem', height: '28px', width: 'auto' }}><X size={12} /></button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Truck size={12} style={{ color: '#aaa' }} /> 
+                  <span style={{ color: '#555' }}>Tempo de Entrega:</span> {currentUser.deliveryTimeEstimate || 'Não informado'}
+                  <button onClick={() => startEditing('deliveryTimeEstimate', currentUser.deliveryTimeEstimate || '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><Edit size={10} /></button>
+                </div>
+              )}
             </div>
 
-            {/* FOLLOWERS (Read Only) */}
-            <div style={{ marginTop: '14px', borderTop: '1px solid #f2f2f2', paddingTop: '10px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.75rem', color: '#2d2d2d' }}>
-                <Users size={14} style={{ color: '#666' }} />
-                <span>Seguidores:</span>
-                <strong style={{ fontWeight: 500 }}>{followers.length} clientes</strong>
-              </div>
-              <div 
-                style={{ display: 'flex', gap: '6px', overflowX: 'auto', marginTop: '8px' }} 
-                className="hide-scrollbar"
-                onMouseDown={handleMouseDown}
-                onMouseLeave={handleMouseLeave}
-                onMouseUp={handleMouseUp}
-                onMouseMove={handleMouseMove}
-              >
-                {followers.map(f => (
-                  <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#f9f9f9', padding: '4px 10px', borderRadius: '12px', border: '1px solid #eee', flexShrink: 0 }}>
-                    <img src={f.avatar} alt={f.name} style={{ width: '16px', height: '16px', borderRadius: '50%', objectFit: 'cover' }} />
-                    <span style={{ fontSize: '0.65rem', color: '#666' }}>{f.name.split(' ')[0]}</span>
-                  </div>
+            {/* RATINGS & FOLLOWERS */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', color: '#666', marginTop: '12px' }}>
+              <div style={{ display: 'flex', gap: '2px' }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <Star 
+                    key={star} 
+                    size={11} 
+                    fill={avgRating > 0 && star <= Math.round(avgRating) ? "#f28d1a" : "#ddd"} 
+                    stroke="none" 
+                  />
                 ))}
               </div>
+              <span style={{ color: '#2d2d2d', fontWeight: 500 }}>
+                {avgRating > 0 ? avgRating.toFixed(1) : '0'} ({totalReviewsCount} {totalReviewsCount === 1 ? 'avaliação' : 'avaliações'})
+              </span>
+              <span>•</span>
+              <span style={{ fontWeight: 500 }}>
+                {followers.length} {followers.length === 1 ? 'seguidor' : 'seguidores'}
+              </span>
             </div>
 
           </div>
-        </div>
-
-        {/* Store Categories filter tabs */}
-        <div 
-          style={{ padding: '12px 16px 0 16px', display: 'flex', gap: '8px', overflowX: 'auto' }} 
-          className="hide-scrollbar"
-          onMouseDown={handleMouseDown}
-          onMouseLeave={handleMouseLeave}
-          onMouseUp={handleMouseUp}
-          onMouseMove={handleMouseMove}
-        >
-          {storeCategories.map(cat => (
-            <button
-              key={cat}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '99px',
-                border: '1px solid #eee',
-                backgroundColor: '#ffffff',
-                color: '#666',
-                fontSize: '0.72rem',
-                fontWeight: 500,
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {cat}
-            </button>
-          ))}
         </div>
 
         {/* Products Grid (Client View Layout with edit trigger) */}
@@ -804,7 +954,7 @@ export default function SellerArea({ onOpenChat }) {
               Nenhum produto cadastrado. Vá em "Produtos" para cadastrar, sô!
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px' }}>
+            <div className="responsive-profile-grid" style={{ gap: '12px' }}>
               {storeProducts.map(p => {
                 const hasDiscount = p.originalPrice && p.price < p.originalPrice;
                 const discountPercent = hasDiscount ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100) : 0;
@@ -1086,17 +1236,6 @@ export default function SellerArea({ onOpenChat }) {
 
           <div style={{ display: 'flex', gap: '12px' }}>
             <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
-              <label>Quantidade (un.)</label>
-              <input 
-                type="number" 
-                placeholder="1" 
-                value={prodQuantity}
-                onChange={(e) => setProdQuantity(e.target.value)}
-                className="input-field"
-              />
-            </div>
-
-            <div className="form-group" style={{ flex: 1, marginBottom: 0 }}>
               <label>Taxa de Frete (R$)</label>
               <input 
                 type="number" 
@@ -1142,7 +1281,7 @@ export default function SellerArea({ onOpenChat }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
                 {prodVariations.map(v => (
                   <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', backgroundColor: '#ffffff', padding: '6px 10px', borderRadius: '10px', border: '1px solid #eee' }}>
-                    <img src={v.image} alt={v.text} style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover' }} />
+                    {v.image && <img src={v.image} alt={v.text} style={{ width: '28px', height: '28px', borderRadius: '6px', objectFit: 'cover' }} />}
                     <span style={{ fontSize: '0.75rem', flex: 1, color: '#333' }}>{v.text}</span>
                     <button 
                       type="button" 
@@ -1618,8 +1757,8 @@ export default function SellerArea({ onOpenChat }) {
                 }}>
                   {order.status === 'pending' ? 'Novo Pedido' : 
                    order.status === 'preparing' ? 'Preparando' : 
-                   order.status === 'calling_rider' ? 'Chamando Motoboy' : 
-                   order.status === 'rider_assigned' ? 'Rider no Local' : 
+                   order.status === 'calling_rider' ? 'Chamando Entregador' : 
+                   order.status === 'rider_assigned' ? 'Entregador no Local' : 
                    order.status === 'delivering' ? 'Em Rota de Entrega' : 
                    order.status === 'delivered' ? 'Concluído' : 'Recusado'}
                 </span>
@@ -1687,7 +1826,7 @@ export default function SellerArea({ onOpenChat }) {
                     <button
                       onClick={() => {
                         if (isPending) updateOrderStatus(order.id, 'preparing');
-                        callRider(order.id);
+                        setSelectedOrderForRider(order);
                       }}
                       style={{
                         padding: '8px 14px',
@@ -1703,14 +1842,30 @@ export default function SellerArea({ onOpenChat }) {
                         gap: '4px'
                       }}
                     >
-                      <Truck size={14} /> Chamar Motoboy
+                      <Truck size={14} /> Chamar Entregador
                     </button>
                   )}
 
                   {isCallingRider && (
-                    <span style={{ fontSize: '0.7rem', color: '#d4730d', fontStyle: 'italic', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: 500 }}>
-                      Chamando motoboy... 🛵
-                    </span>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                      <span style={{ fontSize: '0.68rem', color: '#d4730d', fontStyle: 'italic', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {order.assignedRiderName ? `Chamando ${order.assignedRiderName}...` : 'Chamando entregador...'} 🚗🛵
+                      </span>
+                      <button
+                        onClick={() => cancelCallRider(order.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          color: '#ff5e5b',
+                          fontSize: '0.62rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          padding: 0
+                        }}
+                      >
+                        Cancelar Chamada
+                      </button>
+                    </div>
                   )}
 
                   {isRiderAssigned && (
@@ -1727,7 +1882,7 @@ export default function SellerArea({ onOpenChat }) {
                         cursor: 'pointer'
                       }}
                     >
-                      Entregar ao Motoboy ({order.riderName})
+                      Entregar ao Entregador ({order.riderName})
                     </button>
                   )}
 
@@ -1771,7 +1926,7 @@ export default function SellerArea({ onOpenChat }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             {renderOrderList(pendingOrders, 'Pendentes')}
             {renderOrderList(approvedOrders, 'Aprovado')}
-            {renderOrderList(awaitingRiderOrders, 'Aguardando Motoboy')}
+            {renderOrderList(awaitingRiderOrders, 'Aguardando Entregador')}
             {renderOrderList(deliveredOrders, 'Entregue')}
           </div>
         )}
@@ -2034,10 +2189,11 @@ export default function SellerArea({ onOpenChat }) {
 
       <button
         type="submit"
+        disabled={isUploadingVideo}
         className="btn btn-primary"
-        style={{ width: '100%', height: '44px', marginTop: '6px', backgroundColor: '#f28d1a' }}
+        style={{ width: '100%', height: '44px', marginTop: '6px', backgroundColor: '#f28d1a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
       >
-        Publicar Vídeo no ForYou
+        {isUploadingVideo ? 'Publicando vídeo...' : 'Publicar Vídeo no ForYou'}
       </button>
     </form>
   );
@@ -2052,6 +2208,101 @@ export default function SellerArea({ onOpenChat }) {
       position: 'relative'
     }} className="animate-fade-in">
       
+      {/* Desktop Header */}
+      <header className="desktop-header">
+        <div className="desktop-header-inner">
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }}>
+            <img 
+              src="/logo-full.png" 
+              alt="Connecta+" 
+              className="header-logo-img"
+              style={{ objectFit: 'contain' }} 
+            />
+          </div>
+
+          {/* Nav links */}
+          <nav className="desktop-nav">
+            {[
+              { id: 'dashboard', label: 'Painel', icon: <Home size={18} /> },
+              { id: 'profile', label: 'Loja', icon: <StoreIcon size={18} /> },
+              { id: 'products', label: 'Produtos', icon: <ShoppingBag size={18} /> },
+              { id: 'categories', label: 'Categorias', icon: <Layers size={18} /> },
+              { id: 'orders', label: 'Pedidos', icon: <ClipboardList size={18} /> },
+              { id: 'foryou', label: 'ForYou', icon: <Play size={18} /> }
+            ].map(item => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => {
+                  setEditingProductId(null);
+                  setActiveTab(item.id);
+                }}
+                className={`desktop-nav-item ${activeTab === item.id ? 'active' : ''}`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* Right actions (Chat, Notifications, Logout) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={onOpenChat}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: '#fff7e6', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title="Chat Suporte"
+            >
+              <MessageSquare size={16} style={{ color: '#f28d1a' }} />
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleNotifications}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: 'white', border: '1px solid #eee',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', position: 'relative'
+              }}
+              title="Notificações"
+            >
+              <Bell size={16} style={{ color: '#f28d1a' }} />
+              {unreadNotificationsCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: '-2px', right: '-2px',
+                  backgroundColor: '#ff5e5b', width: '12px', height: '12px',
+                  borderRadius: '50%', fontSize: '0.55rem', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  {unreadNotificationsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: '#ff5e5b15', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title="Sair da Conta"
+            >
+              <LogOut size={16} style={{ color: '#ff5e5b' }} />
+            </button>
+          </div>
+        </div>
+      </header>
+
       {/* Main Area Body */}
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: '16px', paddingBottom: '90px' }} className="custom-scroll">
         {activeTab === 'dashboard' && renderDashboard()}
@@ -2086,6 +2337,362 @@ export default function SellerArea({ onOpenChat }) {
           </button>
         ))}
       </div>
+
+      {selectedOrderForRider && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '480px',
+            padding: '24px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            maxHeight: '85vh',
+            overflowY: 'auto'
+          }} className="animate-fade-in custom-scroll">
+            
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Chamar Entregador</h3>
+                <span style={{ fontSize: '0.7rem', color: '#888' }}>Pedido #{selectedOrderForRider.id} • Total: R$ {selectedOrderForRider.total.toFixed(2)}</span>
+              </div>
+              <button 
+                type="button"
+                onClick={() => setSelectedOrderForRider(null)}
+                style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', display: 'flex', padding: 0 }}
+              >
+                <X size={20} style={{ color: '#666' }} />
+              </button>
+            </div>
+
+            {/* List of active couriers */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f28d1a', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Entregadores Online
+              </div>
+
+              {(() => {
+                const onlineRiders = users.filter(u => u.role === 'motoboy' && u.online);
+                if (onlineRiders.length === 0) {
+                  return (
+                    <div style={{ textAlign: 'center', padding: '24px', backgroundColor: '#fdfdfd', borderRadius: '16px', border: '1px solid #eee', color: '#999', fontSize: '0.8rem' }}>
+                      Nenhum entregador parceiro online no momento, sô. Tente novamente mais tarde.
+                    </div>
+                  );
+                }
+
+                return onlineRiders.map(rider => {
+                  // Count completed deliveries for this rider
+                  const completedCount = orders.filter(o => o.riderId === rider.id && o.status === 'delivered').length;
+                  
+                  return (
+                    <div 
+                      key={rider.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        backgroundColor: '#ffffff',
+                        padding: '12px',
+                        borderRadius: '16px',
+                        border: '1px solid #eee',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.01)'
+                      }}
+                    >
+                      {/* Avatar */}
+                      <div style={{ width: '48px', height: '48px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0, backgroundColor: '#f5f5f5' }}>
+                        <img 
+                          src={rider.avatar || rider.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'} 
+                          alt={rider.name}
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                      </div>
+
+                      {/* Details */}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>{rider.name}</span>
+                          <span style={{ fontSize: '0.62rem', backgroundColor: '#e6f7f0', color: '#2ec4b6', padding: '1px 6px', borderRadius: '99px', fontWeight: 600 }}>Online</span>
+                        </div>
+                        <div style={{ fontSize: '0.7rem', color: '#777', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span>{rider.category || 'Entregador'}</span>
+                          <span>•</span>
+                          <span>{completedCount} entregas</span>
+                        </div>
+                      </div>
+
+                      {/* Rate & Call Action */}
+                      <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f28d1a' }}>R$ {(rider.deliveryRate || 7.00).toFixed(2)}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            callRider(selectedOrderForRider.id, rider.id);
+                            setSelectedOrderForRider(null);
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            borderRadius: '8px',
+                            backgroundColor: '#f28d1a',
+                            color: 'white',
+                            border: 'none',
+                            fontSize: '0.65rem',
+                            fontWeight: 600,
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Chamar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
+            </div>
+            
+            {/* Broadcast Option */}
+            <div style={{ borderTop: '1px solid #eee', paddingTop: '14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ flex: 1, paddingRight: '12px' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#333' }}>Chamada Geral (Rádio)</div>
+                <div style={{ fontSize: '0.65rem', color: '#777', marginTop: '2px' }}>Dispare para todos os entregadores online. Quem aceitar primeiro leva.</div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  callRider(selectedOrderForRider.id);
+                  setSelectedOrderForRider(null);
+                }}
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '12px',
+                  backgroundColor: 'white',
+                  border: '1.5px solid #f28d1a',
+                  color: '#f28d1a',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Disparar Geral
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {showWithdrawModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '440px',
+            padding: '24px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }} className="animate-fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Sacar Saldo</h3>
+              <button 
+                type="button"
+                onClick={() => setShowWithdrawModal(false)}
+                style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', display: 'flex', padding: 0 }}
+              >
+                <X size={20} style={{ color: '#666' }} />
+              </button>
+            </div>
+
+            {withdrawSuccess ? (
+              <div style={{ textAlign: 'center', padding: '16px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  backgroundColor: '#e6f7f0',
+                  color: '#2ec4b6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold'
+                }}>
+                  ✓
+                </div>
+                <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Solicitação de Saque Enviada!</h4>
+                <p style={{ fontSize: '0.8rem', color: '#777', margin: 0, lineHeight: 1.4 }}>
+                  Seu saque de <strong>R$ {parseFloat(withdrawAmount).toFixed(2)}</strong> está em processamento e será depositado em sua conta Pix cadastrada em breve.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowWithdrawModal(false)}
+                  style={{
+                    marginTop: '12px',
+                    padding: '10px 24px',
+                    backgroundColor: '#f28d1a',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    width: '100%'
+                  }}
+                >
+                  Fechar
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const amt = parseFloat(withdrawAmount);
+                if (isNaN(amt) || amt <= 0) {
+                  setWithdrawError('Digite um valor de saque válido.');
+                  return;
+                }
+                if (amt > withdrawableBalance) {
+                  setWithdrawError(`Saldo insuficiente. Seu saldo disponível é R$ ${withdrawableBalance.toFixed(2)}.`);
+                  return;
+                }
+                if (!withdrawPixKey.trim()) {
+                  setWithdrawError('A chave PIX é obrigatória.');
+                  return;
+                }
+                if (!withdrawAccount.trim()) {
+                  setWithdrawError('O número da conta é obrigatório.');
+                  return;
+                }
+
+                // Success simulation
+                setWithdrawError('');
+                setWithdrawSuccess(true);
+              }} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                
+                <div style={{ backgroundColor: '#fffdf4', padding: '12px', borderRadius: '14px', border: '1px solid #f28d1a15' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#888' }}>Saldo disponível para saque</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f28d1a' }}>R$ {withdrawableBalance.toFixed(2)}</div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#555' }}>Chave PIX</label>
+                  <input
+                    type="text"
+                    placeholder="CPF, E-mail, Celular ou Chave Aleatória"
+                    value={withdrawPixKey}
+                    onChange={(e) => setWithdrawPixKey(e.target.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      backgroundColor: '#fcfcfc'
+                    }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#555' }}>Número da Conta</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Agência 0001, Conta 12345-6"
+                    value={withdrawAccount}
+                    onChange={(e) => setWithdrawAccount(e.target.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      backgroundColor: '#fcfcfc'
+                    }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#555' }}>Valor do Saque (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={withdrawableBalance}
+                    placeholder="0,00"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      backgroundColor: '#fcfcfc'
+                    }}
+                    required
+                  />
+                </div>
+
+                {withdrawError && (
+                  <div style={{ color: '#ff5e5b', fontSize: '0.75rem', fontWeight: 500 }}>{withdrawError}</div>
+                )}
+
+                <button
+                  type="submit"
+                  style={{
+                    marginTop: '8px',
+                    padding: '12px',
+                    backgroundColor: '#f28d1a',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(242,141,26,0.2)'
+                  }}
+                >
+                  Solicitar Saque
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

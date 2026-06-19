@@ -5,7 +5,7 @@ import { auth } from '../../firebase/config';
 import { ShieldCheck, AlertCircle, Upload, Clock } from 'lucide-react';
 
 export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'login' }) {
-  const { login, signup } = useFirebaseMock();
+  const { login, signup, categories } = useFirebaseMock();
   const [tab, setTab] = useState(initialTab); // 'login' or 'register'
   
   // Registration Role selector
@@ -24,7 +24,20 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
   const [cpf, setCpf] = useState('');
   const [companyName, setCompanyName] = useState('');
   const [serviceCategory, setServiceCategory] = useState('Guia Turístico');
+  const [storeCategory, setStoreCategory] = useState('Artesanato');
   const [licenseFileName, setLicenseFileName] = useState('');
+
+  // Sync category once loaded
+  useEffect(() => {
+    const storeCategories = (categories || []).filter(c => c.type === 'lojas');
+    if (storeCategories.length > 0 && !storeCategories.some(c => (c.key || c.label) === storeCategory)) {
+      setStoreCategory(storeCategories[0].key || storeCategories[0].label);
+    }
+    const serviceCategories = (categories || []).filter(c => c.type === 'servicos');
+    if (serviceCategories.length > 0 && !serviceCategories.some(c => (c.key || c.label) === serviceCategory)) {
+      setServiceCategory(serviceCategories[0].key || serviceCategories[0].label);
+    }
+  }, [categories]);
 
   const [rememberMe, setRememberMe] = useState(false);
   const [showRecovery, setShowRecovery] = useState(false);
@@ -66,6 +79,18 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
     return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
   };
 
+  const formatCPFOrCNPJ = (val) => {
+    const digits = val.replace(/\D/g, '').slice(0, 14);
+    if (digits.length <= 11) {
+      if (digits.length <= 3) return digits;
+      if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+      if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+      return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
+    } else {
+      return `${digits.slice(0, 2)}.${digits.slice(2, 5)}.${digits.slice(5, 8)}/${digits.slice(8, 12)}-${digits.slice(12)}`;
+    }
+  };
+
   const formatCEP = (val) => {
     const digits = val.replace(/\D/g, '').slice(0, 8);
     if (digits.length <= 5) return digits;
@@ -105,7 +130,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
     }
     const res = await login(email, password);
     if (res.success) {
-      showToast('Bem-vindo de volta, lindeza!');
+      showToast('Bem-vindo de volta!');
       onAuthSuccess(res.user);
     } else {
       setErrorMsg(res.message);
@@ -129,25 +154,25 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
     let extraData = {};
     if (selectedRole === 'seller') {
       if (!cnpj || !companyName || !address) {
-        setErrorMsg('Preencha CNPJ, Nome da Empresa e Endereço da loja!');
+        setErrorMsg('Preencha CPF ou CNPJ, Nome da Empresa e Endereço da loja!');
         return;
       }
-      extraData = { cnpj, companyName, address };
+      extraData = { cnpj, companyName, address, category: storeCategory };
     } else if (selectedRole === 'provider') {
       if (!cpf || !address) {
-        setErrorMsg('Preencha o CPF e seu Endereço para atendimento!');
+        setErrorMsg('Preencha CPF ou CNPJ e seu Endereço para atendimento!');
         return;
       }
       extraData = { cpf, address, serviceCategory };
     } else if (selectedRole === 'organizer') {
       if (!cnpj || !companyName || !address) {
-        setErrorMsg('Preencha CNPJ, Nome da República e Endereço!');
+        setErrorMsg('Preencha CPF ou CNPJ, Nome da Produtora e Endereço!');
         return;
       }
       extraData = { cnpj, companyName, address };
     } else if (selectedRole === 'motoboy') {
       if (!cpf || !address || !licenseFileName) {
-        setErrorMsg('Preencha CPF, Endereço e anexe sua carteira de habilitação!');
+        setErrorMsg('Preencha CPF ou CNPJ, Endereço e anexe sua carteira de habilitação!');
         return;
       }
       extraData = { cpf, address, licenseFileName };
@@ -176,6 +201,9 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
       showToast('Documento anexado!');
     }
   };
+
+  const storeCategories = (categories || []).filter(c => c.type === 'lojas');
+  const serviceCategories = (categories || []).filter(c => c.type === 'servicos');
 
   return (
     <div style={{
@@ -237,7 +265,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
         }
         .form-group label.auth-card-label {
           display: block;
-          font-weight: 500;
+          font-weight: 400;
           font-size: 0.88rem;
           color: #ffffff !important;
           margin-bottom: 6px;
@@ -249,7 +277,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
           border-radius: 24px;
           background-color: #ffffff;
           color: #f28d1a;
-          font-weight: 700;
+          font-weight: 400;
           font-size: 0.95rem;
           border: none;
           cursor: pointer;
@@ -297,7 +325,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             <img 
               src="/logo.png" 
               alt="Connecta+" 
-              style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }} 
+              style={{ width: '100%', height: '100%', objectFit: 'contain', padding: '12px' }} 
             />
           </div>
         </div>
@@ -305,9 +333,9 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
         {/* Greetings Header */}
         {!showRecovery && (
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#ffffff', margin: '0 0 6px 0', letterSpacing: '-0.5px' }}>
+            <h2 style={{ fontSize: '1.6rem', fontWeight: 400, color: '#ffffff', margin: '0 0 6px 0', letterSpacing: '-0.5px' }}>
               {tab === 'login' ? (
-                <EditableText textId="auth_login_title" defaultText="Oi, lindeza!" />
+                <EditableText textId="auth_login_title" defaultText="Olá! Seja bem-vindo!" />
               ) : (
                 <EditableText textId="auth_register_title" defaultText="Crie sua conta" />
               )}
@@ -339,7 +367,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               borderRadius: '20px',
               backgroundColor: tab === 'login' && !showRecovery ? '#ffffff' : 'transparent',
               color: tab === 'login' && !showRecovery ? '#f28d1a' : '#ffffff',
-              fontWeight: 700,
+              fontWeight: 400,
               cursor: 'pointer',
               fontSize: '0.9rem',
               transition: 'all 0.2s ease'
@@ -356,7 +384,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               borderRadius: '20px',
               backgroundColor: tab === 'register' && !showRecovery ? '#ffffff' : 'transparent',
               color: tab === 'register' && !showRecovery ? '#f28d1a' : '#ffffff',
-              fontWeight: 700,
+              fontWeight: 400,
               cursor: 'pointer',
               fontSize: '0.9rem',
               transition: 'all 0.2s ease'
@@ -405,7 +433,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               }
             }
           }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#ffffff', textAlign: 'center', marginBottom: '2px' }}>
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 400, color: '#ffffff', textAlign: 'center', marginBottom: '2px' }}>
               Recuperar senha
             </h3>
             <p style={{ fontSize: '0.82rem', color: '#ffffff', opacity: 0.9, textAlign: 'center', marginBottom: '8px', lineHeight: 1.3 }}>
@@ -413,7 +441,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             </p>
             
             <div className="form-group">
-              <label className="auth-card-label">Seu e-mail</label>
+              <label className="auth-card-label">E-mail</label>
               <input
                 type="email"
                 placeholder="nome@exemplo.com"
@@ -436,7 +464,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                 border: 'none',
                 color: '#ffffff',
                 fontSize: '0.82rem',
-                fontWeight: 700,
+                fontWeight: 400,
                 alignSelf: 'center',
                 marginTop: '12px',
                 cursor: 'pointer',
@@ -451,7 +479,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
           /* LOGIN FORM */
           <form onSubmit={handleLoginSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             <div className="form-group">
-              <label className="auth-card-label">Seu e-mail</label>
+              <label className="auth-card-label">E-mail</label>
               <input
                 type="email"
                 placeholder="nome@exemplo.com"
@@ -463,7 +491,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             </div>
 
             <div className="form-group">
-              <label className="auth-card-label">Senha secreta</label>
+              <label className="auth-card-label">Senha</label>
               <input
                 type="password"
                 placeholder="••••••"
@@ -499,7 +527,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   border: 'none',
                   color: '#ffffff',
                   fontSize: '0.82rem',
-                  fontWeight: 600,
+                  fontWeight: 400,
                   cursor: 'pointer',
                   textDecoration: 'none',
                   padding: 0
@@ -529,13 +557,13 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                 <option value="seller">Loja (Vendedor)</option>
                 <option value="provider">Prestador de Serviços</option>
                 <option value="organizer">Organizador de Eventos</option>
-                <option value="motoboy">Entregador (Motoboy)</option>
+                <option value="motoboy">Entregador</option>
               </select>
             </div>
 
             {/* Common Registration fields */}
             <div className="form-group">
-              <label className="auth-card-label">Nome completo ou apelido bão</label>
+              <label className="auth-card-label">Nome completo</label>
               <input
                 type="text"
                 placeholder="Como quer ser chamado?"
@@ -547,7 +575,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             </div>
 
             <div className="form-group">
-              <label className="auth-card-label">E-mail para contato</label>
+              <label className="auth-card-label">E-mail</label>
               <input
                 type="email"
                 placeholder="nome@exemplo.com"
@@ -560,7 +588,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
 
             {selectedRole !== 'client' && (
               <div className="form-group">
-                <label className="auth-card-label">Telefone com ddd</label>
+                <label className="auth-card-label">Telefone</label>
                 <input
                   type="tel"
                   placeholder="(31) 99999-9999"
@@ -578,12 +606,12 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             {selectedRole === 'seller' && (
               <>
                 <div className="form-group">
-                  <label className="auth-card-label">CNPJ da Empresa</label>
+                  <label className="auth-card-label">CPF ou CNPJ</label>
                   <input
                     type="text"
-                    placeholder="00.000.000/0001-00"
+                    placeholder="Digite aqui..."
                     value={cnpj}
-                    onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
+                    onChange={(e) => setCnpj(formatCPFOrCNPJ(e.target.value))}
                     className="auth-card-input"
                     required
                   />
@@ -600,7 +628,32 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   />
                 </div>
                 <div className="form-group">
-                  <label className="auth-card-label">CEP da Loja</label>
+                  <label className="auth-card-label">Categoria da Loja</label>
+                  <select
+                    value={storeCategory}
+                    onChange={(e) => setStoreCategory(e.target.value)}
+                    className="auth-card-select"
+                    required
+                  >
+                    {storeCategories.map(cat => (
+                      <option key={cat.id} value={cat.key || cat.label}>
+                        {cat.label}
+                      </option>
+                    ))}
+                    {storeCategories.length === 0 && (
+                      <>
+                        <option value="Artesanato">Artesanato</option>
+                        <option value="Lembranças">Lembranças</option>
+                        <option value="Gastronomia">Gastronomia</option>
+                        <option value="Alimentos">Alimentos</option>
+                        <option value="Bebidas">Bebidas</option>
+                        <option value="Outros">Outros</option>
+                      </>
+                    )}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="auth-card-label">CEP</label>
                   <input
                     type="text"
                     placeholder="35400-000"
@@ -611,7 +664,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   />
                 </div>
                 <div className="form-group">
-                  <label className="auth-card-label">Endereço Físico (Ouro Preto)</label>
+                  <label className="auth-card-label">Endereço</label>
                   <input
                     type="text"
                     placeholder="Rua, número, Centro..."
@@ -631,9 +684,9 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">CPF ou CNPJ</label>
                   <input
                     type="text"
-                    placeholder="000.000.000-00"
+                    placeholder="Digite aqui..."
                     value={cpf}
-                    onChange={(e) => setCpf(formatCPF(e.target.value))}
+                    onChange={(e) => setCpf(formatCPFOrCNPJ(e.target.value))}
                     className="auth-card-input"
                     required
                   />
@@ -644,12 +697,22 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                      value={serviceCategory}
                      onChange={(e) => setServiceCategory(e.target.value)}
                      className="auth-card-select"
+                     required
                   >
-                    <option value="Guia Turístico">Guia Turístico / Roteiros</option>
-                    <option value="Fotógrafo">Fotógrafo</option>
-                    <option value="Diarista">Diarista / Faxina</option>
-                    <option value="Marido de Aluguel">Manutenção Geral</option>
-                    <option value="Fretes">Entregas Grandes / Mudanças</option>
+                    {serviceCategories.map(cat => (
+                      <option key={cat.id} value={cat.key || cat.label}>
+                        {cat.label}
+                      </option>
+                    ))}
+                    {serviceCategories.length === 0 && (
+                      <>
+                        <option value="Guia Turístico">Guia Turístico / Roteiros</option>
+                        <option value="Fotógrafo">Fotógrafo</option>
+                        <option value="Diarista">Diarista / Faxina</option>
+                        <option value="Marido de Aluguel">Manutenção Geral</option>
+                        <option value="Fretes">Entregas Grandes / Mudanças</option>
+                      </>
+                    )}
                   </select>
                 </div>
                 <div className="form-group">
@@ -664,7 +727,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   />
                 </div>
                 <div className="form-group">
-                  <label className="auth-card-label">Bairro principal de atuação</label>
+                  <label className="auth-card-label">Endereço</label>
                   <input
                     type="text"
                     placeholder="Ex: Centro, Barra, Bauxita..."
@@ -681,18 +744,18 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             {selectedRole === 'organizer' && (
               <>
                 <div className="form-group">
-                  <label className="auth-card-label">CNPJ da República ou Empresa</label>
+                  <label className="auth-card-label">CPF ou CNPJ</label>
                   <input
                     type="text"
-                    placeholder="00.000.000/0001-00"
+                    placeholder="Digite aqui..."
                     value={cnpj}
-                    onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
+                    onChange={(e) => setCnpj(formatCPFOrCNPJ(e.target.value))}
                     className="auth-card-input"
                     required
                   />
                 </div>
                 <div className="form-group">
-                  <label className="auth-card-label">Nome da República / Produtora</label>
+                  <label className="auth-card-label">Nome da Produtora</label>
                   <input
                     type="text"
                     placeholder="Ex: República Pasárgada"
@@ -714,7 +777,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   />
                 </div>
                 <div className="form-group">
-                  <label className="auth-card-label">Endereço da Sede</label>
+                  <label className="auth-card-label">Endereço</label>
                   <input
                     type="text"
                     placeholder="Rua, número, bairro..."
@@ -731,16 +794,17 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             {selectedRole === 'motoboy' && (
               <>
                 <div className="form-group">
-                  <label className="auth-card-label">CPF do Entregador</label>
+                  <label className="auth-card-label">CPF ou CNPJ</label>
                   <input
                     type="text"
-                    placeholder="000.000.000-00"
+                    placeholder="Digite aqui..."
                     value={cpf}
-                    onChange={(e) => setCpf(formatCPF(e.target.value))}
+                    onChange={(e) => setCpf(formatCPFOrCNPJ(e.target.value))}
                     className="auth-card-input"
                     required
                   />
                 </div>
+
                 <div className="form-group">
                   <label className="auth-card-label">CEP</label>
                   <input
@@ -753,7 +817,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   />
                 </div>
                 <div className="form-group">
-                  <label className="auth-card-label">Endereço Residencial</label>
+                  <label className="auth-card-label">Endereço</label>
                   <input
                     type="text"
                     placeholder="Rua, número, Ouro Preto..."
@@ -777,7 +841,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                       backgroundColor: 'rgba(255, 255, 255, 0.1)',
                       cursor: 'pointer',
                       color: '#ffffff',
-                      fontWeight: 600,
+                      fontWeight: 400,
                       fontSize: '0.88rem',
                       transition: 'all 0.2s ease'
                     }}
@@ -796,7 +860,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             )}
 
             <div className="form-group">
-              <label className="auth-card-label">Senha de acesso</label>
+              <label className="auth-card-label">Senha</label>
               <input
                 type="password"
                 placeholder="Mínimo 6 caracteres"
@@ -822,7 +886,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                 }}
                 required
               />
-              <label htmlFor="accept-terms-checkbox" style={{ cursor: 'pointer', display: 'inline', color: '#ffffff', fontWeight: 600, paddingLeft: 0, margin: 0 }}>
+              <label htmlFor="accept-terms-checkbox" style={{ cursor: 'pointer', display: 'inline', color: '#ffffff', fontWeight: 400, paddingLeft: 0, margin: 0 }}>
                 Li e aceito os{' '}
                 <button
                   type="button"
@@ -834,7 +898,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                     textDecoration: 'underline',
                     padding: 0,
                     fontSize: 'inherit',
-                    fontWeight: 600,
+                    fontWeight: 400,
                     cursor: 'pointer',
                     display: 'inline'
                   }}
@@ -858,7 +922,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               border: 'none',
               color: '#ffffff',
               fontSize: '0.82rem',
-              fontWeight: 700,
+              fontWeight: 400,
               alignSelf: 'center',
               marginTop: '14px',
               cursor: 'pointer',
@@ -899,7 +963,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
             boxSizing: 'border-box'
           }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#2d2d2d', marginBottom: '16px', borderBottom: '1px solid #eaeaea', paddingBottom: '12px', textAlign: 'center' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '16px', borderBottom: '1px solid #eaeaea', paddingBottom: '12px', textAlign: 'center' }}>
               Termos de Uso - Connecta+
             </h2>
             
@@ -914,30 +978,30 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               textAlign: 'left'
             }} className="custom-scroll">
               <p style={{ marginBottom: '12px' }}>
-                Bem-vindo ao <strong>Connecta+</strong>, o marketplace e rede social oficial de Ouro Preto - MG. Ao se cadastrar em nossa plataforma, você concorda com as seguintes condições:
+                Bem-vindo ao <span style={{ fontWeight: 500 }}>Connecta+</span>, o marketplace e rede social oficial de Ouro Preto - MG. Ao se cadastrar em nossa plataforma, você concorda com as seguintes condições:
               </p>
               
-              <h4 style={{ color: '#2d2d2d', fontWeight: 700, margin: '14px 0 6px 0' }}>1. Descrição do Serviço</h4>
+              <h4 style={{ color: '#2d2d2d', fontWeight: 500, margin: '14px 0 6px 0' }}>1. Descrição do Serviço</h4>
               <p style={{ marginBottom: '12px' }}>
                 O Connecta+ é uma plataforma que conecta consumidores, comerciantes locais, prestadores de serviços, organizadores de eventos e entregadores parceiros na cidade de Ouro Preto e região.
               </p>
 
-              <h4 style={{ color: '#2d2d2d', fontWeight: 700, margin: '14px 0 6px 0' }}>2. Comissões e Taxas</h4>
+              <h4 style={{ color: '#2d2d2d', fontWeight: 500, margin: '14px 0 6px 0' }}>2. Comissões e Taxas</h4>
               <p style={{ marginBottom: '12px' }}>
                 A intermediação de vendas e ingressos está sujeita a uma taxa de comissão administrativa retida automaticamente sobre o valor total de cada pedido aprovado. Prestadores de serviços e organizadores de eventos também concordam com a retenção conforme as taxas acordadas previamente.
               </p>
 
-              <h4 style={{ color: '#2d2d2d', fontWeight: 700, margin: '14px 0 6px 0' }}>3. Moderação e Segurança</h4>
+              <h4 style={{ color: '#2d2d2d', fontWeight: 500, margin: '14px 0 6px 0' }}>3. Moderação e Segurança</h4>
               <p style={{ marginBottom: '12px' }}>
                 A administração do Connecta+ reserva-se o direito de moderar, suspender ou banir contas que infrinjam a segurança, publiquem conteúdo inadequado ou prestem serviços em desacordo com as leis locais. Novos cadastros comerciais passam por auditoria documental (CNPJ/CPF).
               </p>
 
-              <h4 style={{ color: '#2d2d2d', fontWeight: 700, margin: '14px 0 6px 0' }}>4. Responsabilidade de Entrega</h4>
+              <h4 style={{ color: '#2d2d2d', fontWeight: 500, margin: '14px 0 6px 0' }}>4. Responsabilidade de Entrega</h4>
               <p style={{ marginBottom: '12px' }}>
                 As entregas são realizadas por entregadores autônomos parceiros. A plataforma atua apenas como facilitadora de conexão e rastreamento de entregas.
               </p>
               
-              <p style={{ marginTop: '16px', fontWeight: 600, color: '#f28d1a' }}>
+              <p style={{ marginTop: '16px', fontWeight: 400, color: '#f28d1a' }}>
                 Última atualização: Junho de 2026.
               </p>
             </div>
@@ -945,14 +1009,14 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             <button
               onClick={() => { setShowTerms(false); setAcceptTerms(true); }}
               className="btn btn-primary"
-              style={{ width: '100%', height: '48px', borderRadius: '24px', fontWeight: 700, cursor: 'pointer' }}
+              style={{ width: '100%', height: '48px', borderRadius: '24px', fontWeight: 500, cursor: 'pointer' }}
             >
               Li e Aceito os Termos
             </button>
             
             <button
               onClick={() => setShowTerms(false)}
-              style={{ width: '100%', alignSelf: 'center', marginTop: '8px', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem', color: '#888888', border: 'none', background: 'transparent' }}
+              style={{ width: '100%', alignSelf: 'center', marginTop: '8px', cursor: 'pointer', fontWeight: 400, fontSize: '0.85rem', color: '#888888', border: 'none', background: 'transparent' }}
             >
               Fechar
             </button>
@@ -996,7 +1060,7 @@ export function AuthStatus({ user, onBackToLogin }) {
           <Clock size={40} />
         </div>
 
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#2d2d2d', marginBottom: '12px' }}>
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
           Analisando seu cadastro, sô!
         </h2>
         
@@ -1015,10 +1079,10 @@ export function AuthStatus({ user, onBackToLogin }) {
           color: '#555',
           textAlign: 'left'
         }}>
-          <strong>Dados enviados:</strong>
-          <div style={{ marginTop: '6px' }}><strong>Nome:</strong> {user.name}</div>
-          <div><strong>E-mail:</strong> {user.email}</div>
-          <div><strong>Tipo de conta:</strong> {user.role === 'seller' ? 'Loja Vendedora' : user.role === 'provider' ? 'Prestador de Serviço' : user.role === 'organizer' ? 'Organizador de Eventos' : 'Entregador'}</div>
+          <span style={{ fontWeight: 500 }}>Dados enviados:</span>
+          <div style={{ marginTop: '6px' }}><span style={{ fontWeight: 500 }}>Nome:</span> {user.name}</div>
+          <div><span style={{ fontWeight: 500 }}>E-mail:</span> {user.email}</div>
+          <div><span style={{ fontWeight: 500 }}>Tipo de conta:</span> {user.role === 'seller' ? 'Loja Vendedora' : user.role === 'provider' ? 'Prestador de Serviço' : user.role === 'organizer' ? 'Organizador de Eventos' : 'Entregador'}</div>
         </div>
 
         <button onClick={onBackToLogin} className="btn btn-secondary" style={{ width: '100%' }}>
@@ -1031,7 +1095,7 @@ export function AuthStatus({ user, onBackToLogin }) {
           paddingTop: '16px',
           fontSize: '0.78rem',
           color: '#d4730d',
-          fontWeight: 600
+          fontWeight: 400
         }}>
           Dica de Teste: Vá no Painel Admin lateral, aprove este cadastro e faça login novamente!
         </div>
@@ -1068,12 +1132,12 @@ export function AuthStatus({ user, onBackToLogin }) {
           <AlertCircle size={40} />
         </div>
 
-        <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#2d2d2d', marginBottom: '12px' }}>
+        <h2 style={{ fontSize: '1.4rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
           Deu ruim no cadastro...
         </h2>
         
         <p style={{ fontSize: '0.9rem', color: '#666', lineHeight: 1.5, marginBottom: '24px' }}>
-          Eita, lindeza. Alguma informação não bateu na nossa revisão de segurança. Mas não desanima não, uai! Dá uma olhada e tente de novo.
+          Eita! Alguma informação não bateu na nossa revisão de segurança. Mas não desanima não, uai! Dá uma olhada e tente de novo.
         </p>
 
         <div style={{
@@ -1087,7 +1151,7 @@ export function AuthStatus({ user, onBackToLogin }) {
           color: '#ff5e5b',
           textAlign: 'left'
         }}>
-          <strong>Motivo da recusa:</strong>
+          <span style={{ fontWeight: 500 }}>Motivo da recusa:</span>
           <div style={{ marginTop: '6px' }}>Documentos ilegíveis ou CNPJ/CPF com divergência cadastral. Por favor, crie uma nova solicitação com dados válidos.</div>
         </div>
 
@@ -1126,7 +1190,7 @@ export function AuthStatus({ user, onBackToLogin }) {
         <ShieldCheck size={40} />
       </div>
 
-      <h2 style={{ fontSize: '1.4rem', fontWeight: 800, color: '#2d2d2d', marginBottom: '12px' }}>
+      <h2 style={{ fontSize: '1.4rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
         Cadastro Aprovado!
       </h2>
       

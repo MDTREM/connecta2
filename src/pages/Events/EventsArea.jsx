@@ -1,14 +1,33 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
 import { 
   Calendar, MessageSquare, Home, Play, Upload, X, 
-  User, MapPin, Phone, Clock, Star, Users, Camera, Save, Edit 
+  User, MapPin, Phone, Clock, Star, Users, Camera, Save, Edit, Trash2,
+  Bell, LogOut
 } from 'lucide-react';
+import { uploadAvatar, uploadCover, uploadEventImage, uploadVideoFile } from '../../firebase/storage';
 
-export default function EventsArea({ onOpenChat }) {
-  const { currentUser, events, addEvent, addCommissioner, addVideo, setUsers } = useFirebaseMock();
+export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout }) {
+  const { currentUser, events, addEvent, updateEvent, addCommissioner, addVideo, setUsers, deleteEvent, visualLayoutSettings, updateUserProfile, categories, users } = useFirebaseMock();
 
-  const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, profile, events, add_event, commissioners, foryou
+  const eventCategoriesFromDb = categories ? categories.filter(c => c.type === 'eventos').map(c => c.label) : [];
+  const eventCategoriesList = eventCategoriesFromDb.length > 0 ? eventCategoriesFromDb : ['Eventos - Festas e Shows', 'Eventos - Universitários e Repúblicas', 'Eventos - Culturais e Festivais'];
+
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('connecta_organizer_active_tab') || 'dashboard';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('connecta_organizer_active_tab', activeTab);
+  }, [activeTab]);
+
+  // Saque modal states
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawPixKey, setWithdrawPixKey] = useState('');
+  const [withdrawAccount, setWithdrawAccount] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawError, setWithdrawError] = useState('');
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
 
   // Edit profile states
   const [editingField, setEditingField] = useState(null); // 'name', 'description', 'phone', 'address', 'category', 'openingHours'
@@ -18,8 +37,37 @@ export default function EventsArea({ onOpenChat }) {
   const [evName, setEvName] = useState('');
   const [evDate, setEvDate] = useState('');
   const [evLocation, setEvLocation] = useState('');
-  const [evImage, setEvImage] = useState('https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500');
+  const [evImages, setEvImages] = useState(Array(10).fill(''));
   const [evDescription, setEvDescription] = useState('');
+
+  // Handlers for event images
+  const handleEventImageUpload = async (idx, e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const eventId = selectedEventId || 'temp_' + Date.now();
+        const url = await uploadEventImage(file, currentUser.id, eventId);
+        setEvImages(prev => {
+          const updated = [...prev];
+          updated[idx] = url;
+          return updated;
+        });
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao fazer upload da imagem do evento.');
+      }
+    }
+  };
+
+
+  const handleRemoveEventImage = (idx, e) => {
+    if (e) e.stopPropagation();
+    setEvImages(prev => {
+      const updated = [...prev];
+      updated[idx] = '';
+      return updated;
+    });
+  };
   
   // Batch states
   const [batch1Name, setBatch1Name] = useState('1º Lote');
@@ -33,6 +81,7 @@ export default function EventsArea({ onOpenChat }) {
   const [commName, setCommName] = useState('');
   const [commCode, setCommCode] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('');
+  const [editingEventId, setEditingEventId] = useState(null);
 
   // Reels upload states
   const [vidTitle, setVidTitle] = useState('');
@@ -41,6 +90,9 @@ export default function EventsArea({ onOpenChat }) {
   const [reelsVideoName, setReelsVideoName] = useState('');
   const [reelsEventId, setReelsEventId] = useState('');
   const [isLinkDropdownOpen, setIsLinkDropdownOpen] = useState(false);
+  const [showTaxInfoModal, setShowTaxInfoModal] = useState(false);
+  const [reelsFile, setReelsFile] = useState(null);
+  const [isUploadingVideo, setIsUploadingVideo] = useState(false);
 
 
   const handleVideoUpload = (e) => {
@@ -49,6 +101,7 @@ export default function EventsArea({ onOpenChat }) {
       const url = URL.createObjectURL(file);
       setReelsVideoUrl(url);
       setReelsVideoName(file.name);
+      setReelsFile(file);
     }
   };
 
@@ -58,40 +111,85 @@ export default function EventsArea({ onOpenChat }) {
   let totalTicketsSold = 0;
   let grossSales = 0;
   myEvents.forEach(e => {
-    e.batches.forEach(b => {
-      totalTicketsSold += b.sold;
-      grossSales += b.sold * b.price;
-    });
+    if (e.batches && Array.isArray(e.batches)) {
+      e.batches.forEach(b => {
+        const soldQty = parseInt(b.sold || 0, 10);
+        const ticketPrice = parseFloat(b.price || 0);
+        if (!isNaN(soldQty) && soldQty > 0) {
+          totalTicketsSold += soldQty;
+        }
+        if (!isNaN(soldQty) && !isNaN(ticketPrice) && soldQty > 0) {
+          grossSales += soldQty * ticketPrice;
+        }
+      });
+    }
   });
 
-  const netEarnings = grossSales * 0.90; // 10% Connecta+ commission fee
-  const withdrawableBalance = netEarnings + 800.00; // Simulated historical balance
+  const ticketsCommRate = (visualLayoutSettings?.commissions?.tickets !== undefined ? visualLayoutSettings.commissions.tickets : 10);
+  const netEarnings = grossSales * (1 - ticketsCommRate / 100);
+  const withdrawableBalance = netEarnings; // Real withdrawable balance from ticket sales
 
   const handleEventSubmit = (e) => {
     e.preventDefault();
     if (!evName || !evDate || !evLocation) return;
 
-    addEvent({
-      organizerId: currentUser.id,
-      organizerName: currentUser.name,
-      name: evName,
-      date: evDate,
-      location: evLocation,
-      image: evImage,
-      cover: evImage,
-      description: evDescription,
-      batches: [
-        { name: batch1Name || '1º Lote', price: parseFloat(batch1Price), limit: parseInt(batch1Limit) },
-        { name: batch2Name || '2º Lote', price: parseFloat(batch2Price), limit: parseInt(batch2Limit) }
-      ]
-    });
+    const filteredImages = evImages.filter(img => img !== '');
+    const mainImage = filteredImages[0] || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500';
+
+    const rawBatches = [
+      { name: batch1Name || '1º Lote', price: parseFloat(batch1Price), limit: parseInt(batch1Limit) },
+      { name: batch2Name || '2º Lote', price: parseFloat(batch2Price), limit: parseInt(batch2Limit) }
+    ];
+    // Filter only valid batches
+    const batchesData = rawBatches.filter(b => !isNaN(b.price) && !isNaN(b.limit) && b.limit > 0);
+
+    if (editingEventId) {
+      const originalEv = events.find(ev => ev.id === editingEventId);
+      const updatedBatches = batchesData.map((newB, idx) => {
+        const origB = originalEv?.batches?.[idx];
+        return {
+          ...newB,
+          sold: origB ? parseInt(origB.sold || 0) : 0
+        };
+      });
+
+      updateEvent(editingEventId, {
+        name: evName,
+        date: evDate,
+        location: evLocation,
+        image: mainImage,
+        cover: mainImage,
+        images: filteredImages,
+        description: evDescription,
+        batches: updatedBatches
+      });
+      setEditingEventId(null);
+    } else {
+      addEvent({
+        organizerId: currentUser.id,
+        organizerName: currentUser.name,
+        name: evName,
+        date: evDate,
+        location: evLocation,
+        image: mainImage,
+        cover: mainImage,
+        images: filteredImages,
+        description: evDescription,
+        batches: batchesData
+      });
+    }
 
     setEvName('');
     setEvDate('');
     setEvLocation('');
     setEvDescription('');
+    setEvImages(Array(10).fill(''));
     setBatch1Name('1º Lote');
+    setBatch1Price('40.00');
+    setBatch1Limit('100');
     setBatch2Name('2º Lote');
+    setBatch2Price('60.00');
+    setBatch2Limit('150');
     setActiveTab('events');
   };
 
@@ -114,31 +212,41 @@ export default function EventsArea({ onOpenChat }) {
   };
 
   const handleSaveField = (field) => {
-    setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, [field]: editValue } : u));
+    if (field === 'name') {
+      setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, name: editValue, companyName: editValue } : u));
+      updateUserProfile(currentUser.id, { name: editValue, companyName: editValue });
+    } else {
+      setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, [field]: editValue } : u));
+      updateUserProfile(currentUser.id, { [field]: editValue });
+    }
     setEditingField(null);
   };
 
-  const handleLogoUpload = (e) => {
+  const handleLogoUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target.result;
-        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, logo: base64 } : u));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const url = await uploadAvatar(file, currentUser.id);
+        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, logo: url, avatar: url } : u));
+        updateUserProfile(currentUser.id, { logo: url, avatar: url });
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao enviar foto de perfil. Tente novamente, sô!');
+      }
     }
   };
 
-  const handleCoverUpload = (e) => {
+  const handleCoverUpload = async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64 = event.target.result;
-        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, cover: base64 } : u));
-      };
-      reader.readAsDataURL(file);
+      try {
+        const url = await uploadCover(file, currentUser.id);
+        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, cover: url, banner: url } : u));
+        updateUserProfile(currentUser.id, { cover: url, banner: url });
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao enviar imagem de capa. Tente novamente, sô!');
+      }
     }
   };
 
@@ -174,49 +282,60 @@ export default function EventsArea({ onOpenChat }) {
     container.scrollLeft = scrollLeft - walk;
   };
 
-  const handleReelsSubmit = (e) => {
+  const handleReelsSubmit = async (e) => {
     e.preventDefault();
     if (!vidTitle || !reelsVideoUrl) {
       alert('Adicione um vídeo e uma legenda, sô!');
       return;
     }
+    setIsUploadingVideo(true);
+    try {
+      let finalVideoUrl = reelsVideoUrl;
+      if (reelsFile) {
+        finalVideoUrl = await uploadVideoFile(reelsFile, currentUser.id);
+      }
 
-    const linkedEv = events.find(ev => ev.id === reelsEventId);
+      const linkedEv = events.find(ev => ev.id === reelsEventId);
 
-    addVideo({
-      title: vidTitle,
-      description: reelsDesc,
-      creatorId: currentUser.id,
-      creatorName: currentUser.name,
-      videoUrl: reelsVideoUrl,
-      poster: linkedEv ? linkedEv.image : currentUser.logo || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500',
-      linkedType: linkedEv ? 'event' : null,
-      linkedId: linkedEv ? linkedEv.id : null,
-      linkedName: linkedEv ? linkedEv.name : null,
-      linkedPrice: linkedEv ? (linkedEv.batches[0]?.price || 0) : null
-    });
+      addVideo({
+        title: vidTitle,
+        description: reelsDesc,
+        creatorId: currentUser.id,
+        creatorName: currentUser.name,
+        videoUrl: finalVideoUrl,
+        poster: linkedEv ? linkedEv.image : currentUser.logo || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500',
+        linkedType: linkedEv ? 'event' : null,
+        linkedId: linkedEv ? linkedEv.id : null,
+        linkedName: linkedEv ? linkedEv.name : null,
+        linkedPrice: linkedEv ? (linkedEv.batches[0]?.price || 0) : null
+      });
 
-    setVidTitle('');
-    setReelsDesc('');
-    setReelsVideoUrl('');
-    setReelsVideoName('');
-    setReelsEventId('');
-    setActiveTab('dashboard');
-    alert('Vídeo publicado com sucesso no ForYou!');
+      setVidTitle('');
+      setReelsDesc('');
+      setReelsVideoUrl('');
+      setReelsVideoName('');
+      setReelsEventId('');
+      setReelsFile(null);
+      setActiveTab('dashboard');
+      alert('Vídeo publicado com sucesso!');
+    } catch (error) {
+      console.error(error);
+      alert('Erro ao enviar vídeo. Tente novamente.');
+    } finally {
+      setIsUploadingVideo(false);
+    }
   };
 
   // --- SUBVIEW 2: PROFILE VIEW (EVENTOS - SEM BOLD) ---
   const renderProfileView = () => {
-    const followers = [
-      { name: 'Mateus Oliveira', phone: '(31) 98888-7777', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100' }
-    ];
+    const followers = (users || []).filter(u => u.role === 'client' && u.following && u.following.includes(currentUser.id));
 
     return (
       <div style={{ backgroundColor: '#ffffff', minHeight: '100%', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box', overflowX: 'hidden' }} className="animate-fade-in">
         {/* Cover */}
-        <div style={{ width: '100%', aspectRatio: '21/9', position: 'relative', backgroundColor: '#fafafa', borderRadius: '16px', overflow: 'hidden' }}>
+        <div style={{ width: '100%', height: '140px', position: 'relative', backgroundColor: '#fafafa', borderRadius: '16px', overflow: 'hidden' }}>
           <img 
-            src={currentUser.cover || 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600'} 
+            src={currentUser.cover || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 35"><rect width="100" height="35" fill="%23eaeaea"/></svg>'} 
             alt="cover" 
             style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
           />
@@ -264,7 +383,7 @@ export default function EventsArea({ onOpenChat }) {
             backgroundColor: 'white'
           }}>
             <img 
-              src={currentUser.logo || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=150'} 
+              src={currentUser.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'} 
               alt="logo" 
               style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
             />
@@ -319,8 +438,8 @@ export default function EventsArea({ onOpenChat }) {
               </div>
             ) : (
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>{currentUser.name}</h3>
-                <button type="button" onClick={() => startEditing('name', currentUser.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><Edit size={12} /></button>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>{currentUser.companyName || currentUser.name}</h3>
+                <button type="button" onClick={() => startEditing('name', currentUser.companyName || currentUser.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><Edit size={12} /></button>
               </div>
             )}
 
@@ -339,17 +458,17 @@ export default function EventsArea({ onOpenChat }) {
                     fontWeight: 500
                   }}
                 >
-                  <option value="Eventos - Festas e Shows">Eventos - Festas e Shows</option>
-                  <option value="Eventos - Universitários e Repúblicas">Eventos - Universitários e Repúblicas</option>
-                  <option value="Eventos - Culturais e Festivais">Eventos - Culturais e Festivais</option>
+                  {eventCategoriesList.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
                 </select>
                 <button type="button" onClick={() => handleSaveField('category')} className="btn btn-primary" style={{ padding: '4px 12px', fontSize: '0.72rem', height: '34px', width: 'auto', backgroundColor: '#f28d1a' }}><Save size={14} /></button>
                 <button type="button" onClick={() => setEditingField(null)} className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: '0.72rem', height: '34px', width: 'auto' }}><X size={14} /></button>
               </div>
             ) : (
               <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span>{currentUser.category || 'Eventos - Universitários e Repúblicas'}</span>
-                <button type="button" onClick={() => startEditing('category', currentUser.category || 'Eventos - Universitários e Repúblicas')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><Edit size={12} /></button>
+                <span>{currentUser.category || eventCategoriesList[0]}</span>
+                <button type="button" onClick={() => startEditing('category', currentUser.category || eventCategoriesList[0])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><Edit size={12} /></button>
               </div>
             )}
 
@@ -369,7 +488,7 @@ export default function EventsArea({ onOpenChat }) {
               </div>
             ) : (
               <div style={{ marginTop: '8px', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
-                <p style={{ fontSize: '0.75rem', color: '#666', margin: 0, lineHeight: 1.35, flex: 1 }}>{currentUser.description || 'Nenhuma descrição informada.'}</p>
+                <p style={{ fontSize: '0.75rem', color: '#666', margin: 0, lineHeight: 1.35, flex: 1, whiteSpace: 'pre-wrap' }}>{currentUser.description || 'Nenhuma descrição informada.'}</p>
                 <button type="button" onClick={() => startEditing('description', currentUser.description || '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: '2px 0 0 0' }}><Edit size={12} /></button>
               </div>
             )}
@@ -398,15 +517,7 @@ export default function EventsArea({ onOpenChat }) {
               )}
             </div>
 
-            {/* RATINGS */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '12px' }}>
-              <div style={{ display: 'flex', gap: '2px' }}>
-                {[1, 2, 3, 4, 5].map(star => (
-                  <Star key={star} size={12} fill="#f28d1a" stroke="none" />
-                ))}
-              </div>
-              <span style={{ fontSize: '0.72rem', color: '#2d2d2d', fontWeight: 500 }}>4.9 (42 avaliações)</span>
-            </div>
+
 
             {/* FOLLOWERS */}
             <div style={{ marginTop: '14px', borderTop: '1px solid #f2f2f2', paddingTop: '10px' }}>
@@ -424,9 +535,9 @@ export default function EventsArea({ onOpenChat }) {
                 onMouseMove={handleMouseMove}
               >
                 {followers.map(f => (
-                  <div key={f.name} style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#f9f9f9', padding: '4px 10px', borderRadius: '12px', border: '1px solid #eee', flexShrink: 0 }}>
-                    <img src={f.avatar} alt={f.name} style={{ width: '16px', height: '16px', borderRadius: '50%', objectFit: 'cover' }} />
-                    <span style={{ fontSize: '0.65rem', color: '#666' }}>{f.name.split(' ')[0]}</span>
+                  <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#f9f9f9', padding: '4px 10px', borderRadius: '12px', border: '1px solid #eee', flexShrink: 0 }}>
+                    <img src={f.avatar || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'} alt={f.name} style={{ width: '16px', height: '16px', borderRadius: '50%', objectFit: 'cover' }} />
+                    <span style={{ fontSize: '0.65rem', color: '#666' }}>{(f.name || '').split(' ')[0]}</span>
                   </div>
                 ))}
               </div>
@@ -444,11 +555,13 @@ export default function EventsArea({ onOpenChat }) {
               Nenhum evento cadastrado ainda.
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px' }}>
+            <div className="responsive-profile-grid" style={{ gap: '12px' }}>
               {myEvents.map(ev => {
-                const activeBatch = ev.batches ? ev.batches.find(b => b.sold < b.limit) || ev.batches[ev.batches.length - 1] : null;
-                const isSoldOut = !ev.batches || !ev.batches.some(b => b.sold < b.limit);
-                const percent = activeBatch ? Math.round((activeBatch.sold / activeBatch.limit) * 100) : 0;
+                const activeBatch = ev.batches ? ev.batches.find(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) < parseInt(b.limit || 0, 10)) || ev.batches[0] : null;
+                const isSoldOut = ev.batches && ev.batches.length > 0 ? ev.batches.every(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) >= parseInt(b.limit || 0, 10)) : false;
+                const activeBatchSold = activeBatch ? parseInt(activeBatch.sold || 0, 10) : 0;
+                const activeBatchLimit = activeBatch ? parseInt(activeBatch.limit || 0, 10) : 0;
+                const percent = activeBatchLimit > 0 ? Math.round((activeBatchSold / activeBatchLimit) * 100) : 0;
                 return (
                   <div 
                     key={ev.id}
@@ -505,7 +618,7 @@ export default function EventsArea({ onOpenChat }) {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h2 style={{ fontSize: '1.2rem', fontWeight: 500, color: '#2d2d2d' }}>{currentUser.name}</h2>
+          <h2 style={{ fontSize: '1.2rem', fontWeight: 500, color: '#2d2d2d' }}>{currentUser.companyName || currentUser.name}</h2>
           <p style={{ fontSize: '0.78rem', color: '#777' }}>Organizador de Eventos | Ouro Preto</p>
         </div>
       </div>
@@ -516,7 +629,7 @@ export default function EventsArea({ onOpenChat }) {
           { label: 'Saldo Disponível', val: `R$ ${withdrawableBalance.toFixed(2)}`, desc: 'Líquido para saque', color: '#fffdf4', btn: 'Sacar' },
           { label: 'Ingressos Vendidos', val: `${totalTicketsSold} un.`, desc: 'Total geral acumulado', color: '#fcf6ed' },
           { label: 'Receita Bruta', val: `R$ ${grossSales.toFixed(2)}`, desc: 'Sem dedução da comissão', color: '#f3faf8' },
-          { label: 'Taxa Connecta+', val: '10%', desc: 'Por ingresso vendido', color: '#fef3f3' }
+          { label: 'Eventos Cadastrados', val: `${myEvents.length} ev.`, desc: 'Ativos e finalizados', color: '#fef3f3' }
         ].map(st => (
           <div
             key={st.label}
@@ -532,17 +645,27 @@ export default function EventsArea({ onOpenChat }) {
             <div style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0' }}>{st.val}</div>
             <div style={{ fontSize: '0.62rem', color: '#999' }}>{st.desc}</div>
             {st.btn && (
-              <button style={{
-                marginTop: '8px',
-                padding: '2px 10px',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: '#f28d1a',
-                color: 'white',
-                fontWeight: 500,
-                fontSize: '0.62rem',
-                cursor: 'pointer'
-              }}>
+              <button 
+                onClick={() => {
+                  setWithdrawAmount(withdrawableBalance.toString());
+                  setWithdrawPixKey('');
+                  setWithdrawAccount('');
+                  setWithdrawError('');
+                  setWithdrawSuccess(false);
+                  setShowWithdrawModal(true);
+                }}
+                style={{
+                  marginTop: '8px',
+                  padding: '2px 10px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#f28d1a',
+                  color: 'white',
+                  fontWeight: 500,
+                  fontSize: '0.62rem',
+                  cursor: 'pointer'
+                }}
+              >
                 {st.btn}
               </button>
             )}
@@ -598,6 +721,105 @@ export default function EventsArea({ onOpenChat }) {
         </button>
       </div>
 
+      {/* Informações sobre Taxas (discreto) */}
+      <div style={{ textAlign: 'center', marginTop: '6px' }}>
+        <button
+          type="button"
+          onClick={() => setShowTaxInfoModal(true)}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#888',
+            fontSize: '0.65rem',
+            textDecoration: 'underline',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          <span>Informações sobre taxas e comissões</span>
+        </button>
+      </div>
+
+      {showTaxInfoModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '440px',
+            padding: '24px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }} className="animate-fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Taxas e Comissões</h3>
+              <button 
+                type="button"
+                onClick={() => setShowTaxInfoModal(false)}
+                style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', display: 'flex', padding: 0 }}
+              >
+                <X size={20} style={{ color: '#666' }} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '0.82rem', color: '#555', lineHeight: 1.5 }}>
+              <p style={{ margin: 0 }}>Como funcionam nossas taxas:</p>
+              
+              <div style={{ backgroundColor: '#fffdf4', padding: '14px', borderRadius: '16px', border: '1px solid #f28d1a15' }}>
+                <strong style={{ color: '#d4730d', display: 'block', marginBottom: '4px' }}>Taxa de Intermediação</strong>
+                A taxa cobrada pelo Conecta+ para venda de ingressos é de <strong>{visualLayoutSettings?.commissions?.tickets !== undefined ? visualLayoutSettings.commissions.tickets : 10}%</strong> sobre o valor de cada ingresso vendido.
+              </div>
+
+              <div style={{ backgroundColor: '#f3faf8', padding: '14px', borderRadius: '16px', border: '1px solid #2ec4b615' }}>
+                <strong style={{ color: '#2ec4b6', display: 'block', marginBottom: '4px' }}>Saldo Líquido</strong>
+                O valor líquido das vendas é liberado no seu saldo disponível assim que a transação for confirmada.
+              </div>
+
+              <div style={{ backgroundColor: '#fcf6ed', padding: '14px', borderRadius: '16px', border: '1px solid #f28d1a15' }}>
+                <strong style={{ color: '#f28d1a', display: 'block', marginBottom: '4px' }}>Saques Rápidos</strong>
+                Você pode solicitar o saque do seu saldo disponível via Pix diretamente no painel a qualquer momento!
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setShowTaxInfoModal(false)}
+              style={{
+                padding: '12px',
+                backgroundColor: '#f28d1a',
+                color: 'white',
+                border: 'none',
+                borderRadius: '16px',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                textAlign: 'center',
+                marginTop: '6px'
+              }}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 
@@ -623,37 +845,101 @@ export default function EventsArea({ onOpenChat }) {
         </button>
       </div>
 
-      {myEvents.map(ev => (
-        <div
-          key={ev.id}
-          style={{
-            backgroundColor: 'white',
-            borderRadius: '20px',
-            padding: '14px',
-            border: '1px solid #eee',
-            boxShadow: 'var(--shadow-sm)'
-          }}
-        >
-          <img src={ev.image} alt={ev.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '12px', marginBottom: '10px' }} />
-          <h4 style={{ fontSize: '0.85rem', fontWeight: 500 }}>{ev.name}</h4>
-          <div style={{ fontSize: '0.7rem', color: '#777', margin: '4px 0', display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} /> {ev.date}</div>
-          <div style={{ borderTop: '1px solid #f9f9f9', paddingTop: '6px', marginTop: '6px', fontSize: '0.72rem', color: '#666' }}>
-            {ev.batches.map(b => (
-              <div key={b.name} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span>{b.name} (limite {b.limit}):</span>
-                <span>{b.sold} vendidos / R$ {b.price.toFixed(2)}</span>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: '16px' }}>
+        {myEvents.map(ev => (
+          <div
+            key={ev.id}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '20px',
+              padding: '14px',
+              border: '1px solid #eee',
+              boxShadow: 'var(--shadow-sm)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between'
+            }}
+          >
+            <div>
+              <div style={{ width: '100%', aspectRatio: '16/9', overflow: 'hidden', borderRadius: '12px', marginBottom: '10px' }}>
+                <img src={ev.image} alt={ev.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
               </div>
-            ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <h4 style={{ fontSize: '0.85rem', fontWeight: 500, margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '65%' }}>{ev.name}</h4>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  <button
+                    onClick={() => {
+                      setEditingEventId(ev.id);
+                      setEvName(ev.name || '');
+                      setEvDate(ev.date || '');
+                      setEvLocation(ev.location || '');
+                      setEvDescription(ev.description || '');
+                      
+                      const imagesArray = Array(10).fill('');
+                      if (ev.images && ev.images.length > 0) {
+                        ev.images.forEach((img, idx) => {
+                          if (idx < 10) imagesArray[idx] = img;
+                        });
+                      } else if (ev.image) {
+                        imagesArray[0] = ev.image;
+                      }
+                      setEvImages(imagesArray);
+
+                      if (ev.batches && ev.batches.length > 0) {
+                        const b1 = ev.batches[0];
+                        setBatch1Name(b1.name || '1º Lote');
+                        setBatch1Price(b1.price?.toString() || '0.00');
+                        setBatch1Limit(b1.limit?.toString() || '0');
+                        
+                        if (ev.batches.length > 1) {
+                          const b2 = ev.batches[1];
+                          setBatch2Name(b2.name || '2º Lote');
+                          setBatch2Price(b2.price?.toString() || '0.00');
+                          setBatch2Limit(b2.limit?.toString() || '0');
+                        }
+                      }
+                      setActiveTab('new_event');
+                    }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a', padding: '4px' }}
+                    title="Editar Evento"
+                  >
+                    <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (window.confirm(`Quer mesmo excluir o evento "${ev.name}"?`)) {
+                        deleteEvent(ev.id);
+                      }
+                    }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ff5e5b', padding: '4px' }}
+                    title="Excluir Evento"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              <div style={{ fontSize: '0.7rem', color: '#777', margin: '4px 0', display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} /> {ev.date}</div>
+            </div>
+            <div style={{ borderTop: '1px solid #f9f9f9', paddingTop: '6px', marginTop: '6px', fontSize: '0.72rem', color: '#666' }}>
+              {ev.batches.map(b => (
+                <div key={b.name} style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span>{b.name} (limite {b.limit}):</span>
+                  <span>{b.sold} vendidos / R$ {b.price.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 
   // --- SUBVIEW 3: CREATE EVENT ---
   const renderAddEvent = () => (
     <form onSubmit={handleEventSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="animate-fade-in">
-      <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d' }}>Cadastrar Novo Evento</h3>
+      <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d' }}>
+        {editingEventId ? 'Editar Evento' : 'Cadastrar Novo Evento'}
+      </h3>
       
       <div className="form-group" style={{ marginBottom: 0 }}>
         <label>Nome da Festa / Evento</label>
@@ -729,14 +1015,82 @@ export default function EventsArea({ onOpenChat }) {
         </div>
       </div>
 
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label>URL da Foto de Capa (Unsplash)</label>
-        <input 
-          type="text" 
-          value={evImage} 
-          onChange={(e) => setEvImage(e.target.value)} 
-          className="input-field" 
-        />
+      <div className="form-group" style={{ marginBottom: 4 }}>
+        <label style={{ fontSize: '0.72rem', color: '#666', marginBottom: '4px', display: 'block' }}>Fotos do Evento (Até 10 slots - Primeira é a Capa)</label>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
+          {evImages.map((img, idx) => (
+            <div 
+              key={idx}
+              onClick={() => document.getElementById(`ev-img-file-${idx}`).click()}
+              style={{
+                width: '100%',
+                height: '60px',
+                borderRadius: '12px',
+                border: '1.5px dashed #ccc',
+                position: 'relative',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#fafafa',
+                cursor: 'pointer'
+              }}
+            >
+              {img ? (
+                <>
+                  <img src={img} alt={`img-${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button
+                    type="button"
+                    onClick={(e) => handleRemoveEventImage(idx, e)}
+                    style={{
+                      position: 'absolute',
+                      top: '2px',
+                      right: '2px',
+                      backgroundColor: 'rgba(255, 94, 91, 0.85)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '14px',
+                      height: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                  >
+                    <X size={8} />
+                  </button>
+                </>
+              ) : (
+                <Camera size={14} style={{ color: '#999' }} />
+              )}
+              {idx === 0 && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  width: '100%',
+                  backgroundColor: 'rgba(242, 141, 26, 0.9)',
+                  color: 'white',
+                  fontSize: '0.52rem',
+                  textAlign: 'center',
+                  padding: '1px 0',
+                  fontWeight: 500
+                }}>
+                  Capa
+                </div>
+              )}
+              <input 
+                type="file" 
+                id={`ev-img-file-${idx}`} 
+                accept="image/*" 
+                onChange={(e) => handleEventImageUpload(idx, e)}
+                style={{ display: 'none' }}
+              />
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1011,11 +1365,11 @@ export default function EventsArea({ onOpenChat }) {
 
       <button
         type="submit"
-        disabled={myEvents.length === 0}
+        disabled={isUploadingVideo}
         className="btn btn-primary"
-        style={{ width: '100%', height: '48px', marginTop: '10px', backgroundColor: '#f28d1a' }}
+        style={{ width: '100%', height: '48px', marginTop: '10px', backgroundColor: '#f28d1a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
       >
-        Publicar Vídeo no ForYou
+        {isUploadingVideo ? 'Publicando vídeo...' : 'Publicar Vídeo no ForYou'}
       </button>
     </form>
   );
@@ -1095,6 +1449,98 @@ export default function EventsArea({ onOpenChat }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#ffffff', position: 'relative' }} className="animate-fade-in">
+      
+      {/* Desktop Header */}
+      <header className="desktop-header">
+        <div className="desktop-header-inner">
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }}>
+            <img 
+              src="/logo-full.png" 
+              alt="Connecta+" 
+              className="header-logo-img"
+              style={{ objectFit: 'contain' }} 
+            />
+          </div>
+
+          {/* Nav links */}
+          <nav className="desktop-nav">
+            {[
+              { id: 'dashboard', label: 'Painel', icon: <Home size={18} /> },
+              { id: 'profile', label: 'Perfil', icon: <User size={18} /> },
+              { id: 'events', label: 'Eventos', icon: <Calendar size={18} /> },
+              { id: 'commissioners', label: 'Comissários', icon: <Users size={18} /> },
+              { id: 'foryou', label: 'ForYou', icon: <Play size={18} /> }
+            ].map(item => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                className={`desktop-nav-item ${(activeTab === item.id || (item.id === 'events' && activeTab === 'add_event')) ? 'active' : ''}`}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+              </button>
+            ))}
+          </nav>
+
+          {/* Right actions (Chat, Notifications, Logout) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={onOpenChat}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: '#fff7e6', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title="Chat Suporte"
+            >
+              <MessageSquare size={16} style={{ color: '#f28d1a' }} />
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleNotifications}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: 'white', border: '1px solid #eee',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', position: 'relative'
+              }}
+              title="Notificações"
+            >
+              <Bell size={16} style={{ color: '#f28d1a' }} />
+              {unreadNotificationsCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: '-2px', right: '-2px',
+                  backgroundColor: '#ff5e5b', width: '12px', height: '12px',
+                  borderRadius: '50%', fontSize: '0.55rem', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  {unreadNotificationsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: '#ff5e5b15', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title="Sair da Conta"
+            >
+              <LogOut size={16} style={{ color: '#ff5e5b' }} />
+            </button>
+          </div>
+        </div>
+      </header>
+
       {/* Body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px', paddingBottom: '90px' }} className="custom-scroll">
         {activeTab === 'dashboard' && renderDashboard()}
@@ -1125,6 +1571,201 @@ export default function EventsArea({ onOpenChat }) {
           </button>
         ))}
       </div>
+
+      {showWithdrawModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '440px',
+            padding: '24px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }} className="animate-fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Sacar Saldo</h3>
+              <button 
+                type="button"
+                onClick={() => setShowWithdrawModal(false)}
+                style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', display: 'flex', padding: 0 }}
+              >
+                <X size={20} style={{ color: '#666' }} />
+              </button>
+            </div>
+
+            {withdrawSuccess ? (
+              <div style={{ textAlign: 'center', padding: '16px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  backgroundColor: '#e6f7f0',
+                  color: '#2ec4b6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold'
+                }}>
+                  ✓
+                </div>
+                <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Solicitação de Saque Enviada!</h4>
+                <p style={{ fontSize: '0.8rem', color: '#777', margin: 0, lineHeight: 1.4 }}>
+                  Seu saque de <strong>R$ {parseFloat(withdrawAmount).toFixed(2)}</strong> está em processamento e será depositado em sua conta Pix cadastrada em breve.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowWithdrawModal(false)}
+                  style={{
+                    marginTop: '12px',
+                    padding: '10px 24px',
+                    backgroundColor: '#f28d1a',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    width: '100%'
+                  }}
+                >
+                  Fechar
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const amt = parseFloat(withdrawAmount);
+                if (isNaN(amt) || amt <= 0) {
+                  setWithdrawError('Digite um valor de saque válido.');
+                  return;
+                }
+                if (amt > withdrawableBalance) {
+                  setWithdrawError(`Saldo insuficiente. Seu saldo disponível é R$ ${withdrawableBalance.toFixed(2)}.`);
+                  return;
+                }
+                if (!withdrawPixKey.trim()) {
+                  setWithdrawError('A chave PIX é obrigatória.');
+                  return;
+                }
+                if (!withdrawAccount.trim()) {
+                  setWithdrawError('O número da conta é obrigatório.');
+                  return;
+                }
+
+                // Success simulation
+                setWithdrawError('');
+                setWithdrawSuccess(true);
+              }} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                
+                <div style={{ backgroundColor: '#fffdf4', padding: '12px', borderRadius: '14px', border: '1px solid #f28d1a15' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#888' }}>Saldo disponível para saque</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f28d1a' }}>R$ {withdrawableBalance.toFixed(2)}</div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#555' }}>Chave PIX</label>
+                  <input
+                    type="text"
+                    placeholder="CPF, E-mail, Celular ou Chave Aleatória"
+                    value={withdrawPixKey}
+                    onChange={(e) => setWithdrawPixKey(e.target.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      backgroundColor: '#fcfcfc'
+                    }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#555' }}>Número da Conta</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Agência 0001, Conta 12345-6"
+                    value={withdrawAccount}
+                    onChange={(e) => setWithdrawAccount(e.target.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      backgroundColor: '#fcfcfc'
+                    }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#555' }}>Valor do Saque (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={withdrawableBalance}
+                    placeholder="0,00"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      backgroundColor: '#fcfcfc'
+                    }}
+                    required
+                  />
+                </div>
+
+                {withdrawError && (
+                  <div style={{ color: '#ff5e5b', fontSize: '0.75rem', fontWeight: 500 }}>{withdrawError}</div>
+                )}
+
+                <button
+                  type="submit"
+                  style={{
+                    marginTop: '8px',
+                    padding: '12px',
+                    backgroundColor: '#f28d1a',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(242,141,26,0.2)'
+                  }}
+                >
+                  Solicitar Saque
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

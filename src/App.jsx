@@ -13,7 +13,7 @@ import AdminArea from './pages/Admin/AdminArea';
 import { Home, Search, Play, Heart, Layers, Bell, LogOut, User, ShoppingCart, MapPin, Coins, Ticket } from 'lucide-react';
 
 function AppContent() {
-  const { currentUser, logout, notifications, markNotificationsRead, categories, cart } = useFirebaseMock();
+  const { currentUser, logout, notifications, markNotificationsRead, categories, cart, isAuthLoading, isDataLoading } = useFirebaseMock();
   
   // Navigation subviews
   const [clientView, setClientView] = useState('client_home');
@@ -50,6 +50,36 @@ function AppContent() {
   // Unread notifications count
   const unreadNotifications = currentUser ? notifications.filter(n => n.userId === currentUser.id && !n.read) : [];
   const cartCount = cart ? cart.reduce((acc, item) => acc + item.quantity, 0) : 0;
+
+  if (isAuthLoading || isDataLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        width: '100vw',
+        backgroundColor: '#ffffff',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        gap: '16px'
+      }}>
+        <div className="spinner-loader" style={{
+          width: '32px',
+          height: '32px',
+          borderRadius: '50%',
+          border: '3px solid #f28d1a30',
+          borderTopColor: '#f28d1a',
+          animation: 'spin 1s linear infinite'
+        }} />
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
   
   // Render Login & Registration status if not fully logged in and approved
   if (!currentUser && showAuthScreen) {
@@ -362,17 +392,21 @@ function AppContent() {
         {renderPartnerHeader()}
 
         {/* Core Screen */}
-        <div className="main-content" style={{
+        <div className="main-content custom-scroll" style={{
           flex: 1,
           minWidth: 0,
-          overflowY: 'auto',
+          overflowY: clientView === 'client_foryou' ? 'hidden' : 'auto',
           overflowX: 'hidden',
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
-          paddingBottom: (!isDesktop && showBottomBar) ? '88px' : '0px'
-        }} className="custom-scroll">
-          <div className="content-container">
+          paddingBottom: (!isDesktop && showBottomBar && clientView !== 'client_foryou') ? '88px' : '0px'
+        }}>
+          <div className="content-container" style={{
+            height: clientView === 'client_foryou' ? (isDesktop ? 'calc(100vh - 64px)' : 'calc(100vh - 72px)') : 'auto',
+            display: clientView === 'client_foryou' ? 'flex' : 'block',
+            flexDirection: 'column'
+          }}>
             {renderRoleScreen()}
           </div>
         </div>

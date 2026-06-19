@@ -119,6 +119,15 @@ service cloud.firestore {
     }
 
     // ========================================
+    // SERVICE REVIEWS (Avaliações de serviços)
+    // ========================================
+    match /serviceReviews/{reviewId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
+
+    // ========================================
     // CATEGORIES (Categorias do app)
     // ========================================
     match /categories/{categoryId} {
@@ -144,6 +153,22 @@ service cloud.firestore {
       allow write: if request.auth != null && (
         isSeller() || isAdmin()
       );
+    }
+
+    // ========================================
+    // BANNERS (Carrossel inicial)
+    // ========================================
+    match /banners/{bannerId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ========================================
+    // HOME SECTIONS (Seções Dinâmicas)
+    // ========================================
+    match /homeSections/{sectionId} {
+      allow read: if true;
+      allow write: if isAdmin();
     }
 
     // ========================================

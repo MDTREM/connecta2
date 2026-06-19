@@ -1,9 +1,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
-import { Send, ArrowLeft, MessageSquare } from 'lucide-react';
+import { Send, ArrowLeft, MessageSquare, Bell, LogOut } from 'lucide-react';
 
-export default function Chat({ onCloseChat }) {
-  const { currentUser, chats, addMessage, users } = useFirebaseMock();
+export default function Chat({ onCloseChat, onToggleNotifications }) {
+  const { currentUser, chats, addMessage, users, deletedUsers, logout, notifications } = useFirebaseMock();
   const [activeRoom, setActiveRoom] = useState(null); // roomKey string
   const [text, setText] = useState('');
   const chatEndRef = useRef(null);
@@ -13,92 +13,22 @@ export default function Chat({ onCloseChat }) {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chats, activeRoom]);
 
+  const unreadNotifications = (notifications || []).filter(n => !n.read && n.userId === currentUser?.id);
+  const isPartner = currentUser && currentUser.role !== 'client' && currentUser.role !== 'admin';
+
   // Derive rooms for the current user
   // A roomKey is "userA_userB". Let's scan chats to find keys that include current user ID,
   // or define default rooms to ensure they are available even if empty.
   const getAvailableRooms = () => {
     const defaultRooms = [];
     
-    if (currentUser.role === 'client') {
-      defaultRooms.push({
-        key: `${currentUser.id}_v1`,
-        title: 'Artesanatos do Aleijadinho',
-        subtitle: 'Loja Local',
-        avatar: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=150',
-        role: 'seller'
-      });
-      defaultRooms.push({
-        key: `${currentUser.id}_p1`,
-        title: 'Ana Cláudia Guia',
-        subtitle: 'Guia de Turismo',
-        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150',
-        role: 'provider'
-      });
+    // Every partner/client can chat with support
+    if (currentUser.role !== 'admin') {
       defaultRooms.push({
         key: `${currentUser.id}_admin`,
         title: 'Suporte Connecta+',
         subtitle: 'Suporte Oficial 24h',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        role: 'admin'
-      });
-    } else if (currentUser.role === 'seller') {
-      defaultRooms.push({
-        key: `c1_${currentUser.id}`,
-        title: 'Mateus Oliveira',
-        subtitle: 'Cliente',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        role: 'client'
-      });
-      defaultRooms.push({
-        key: `${currentUser.id}_m1`,
-        title: 'Juninho Entregas (Motoboy)',
-        subtitle: 'Parceiro de Entregas',
-        avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-        role: 'motoboy'
-      });
-      defaultRooms.push({
-        key: `${currentUser.id}_admin`,
-        title: 'Suporte Connecta+',
-        subtitle: 'Suporte Oficial 24h',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        role: 'admin'
-      });
-    } else if (currentUser.role === 'provider') {
-      defaultRooms.push({
-        key: `c1_${currentUser.id}`,
-        title: 'Mateus Oliveira',
-        subtitle: 'Cliente',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        role: 'client'
-      });
-      defaultRooms.push({
-        key: `${currentUser.id}_admin`,
-        title: 'Suporte Connecta+',
-        subtitle: 'Suporte Oficial 24h',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        role: 'admin'
-      });
-    } else if (currentUser.role === 'motoboy') {
-      defaultRooms.push({
-        key: `v1_${currentUser.id}`,
-        title: 'Artesanatos do Aleijadinho',
-        subtitle: 'Loja Solicitante',
-        avatar: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=150',
-        role: 'seller'
-      });
-      defaultRooms.push({
-        key: `${currentUser.id}_admin`,
-        title: 'Suporte Connecta+',
-        subtitle: 'Suporte Oficial 24h',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-        role: 'admin'
-      });
-    } else if (currentUser.role === 'organizer') {
-      defaultRooms.push({
-        key: `${currentUser.id}_admin`,
-        title: 'Suporte Connecta+',
-        subtitle: 'Suporte Oficial 24h',
-        avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+        avatar: '/support-avatar.png',
         role: 'admin'
       });
     } else if (currentUser.role === 'admin') {
@@ -107,55 +37,31 @@ export default function Chat({ onCloseChat }) {
       
       chats.forEach(c => {
         if (c.roomKey && c.roomKey.endsWith('_admin')) {
-          const uId = c.roomKey.split('_')[0];
+          const uId = c.roomKey.replace(/_admin$/, '');
           userIdsInChats.add(uId);
         }
       });
 
-      userIdsInChats.add('c1');
-      userIdsInChats.add('v1');
-      userIdsInChats.add('m1');
-
       userIdsInChats.forEach(uId => {
-        const targetUser = users?.find(u => u.id === uId);
+        let targetUser = users?.find(u => u.id === uId);
+        let isDeleted = false;
+        if (!targetUser) {
+          targetUser = deletedUsers?.find(u => u.id === uId);
+          isDeleted = true;
+        }
         if (targetUser) {
           const roleLabel = targetUser.role === 'client' ? 'Cliente' :
                             targetUser.role === 'seller' ? 'Loja' :
                             targetUser.role === 'provider' ? 'Prestador' :
-                            targetUser.role === 'motoboy' ? 'Motoboy' : targetUser.role;
+                            targetUser.role === 'motoboy' ? 'Entregador' : targetUser.role;
+          const deletedLabel = isDeleted ? ' - Excluído' : '';
           adminRooms.push({
             key: `${uId}_admin`,
-            title: `${targetUser.name} (${roleLabel})`,
+            title: `${targetUser.role === 'seller' ? (targetUser.companyName || targetUser.name) : targetUser.name} (${roleLabel})${deletedLabel}`,
             subtitle: 'Suporte',
-            avatar: targetUser.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+            avatar: targetUser.avatar || targetUser.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>',
             role: targetUser.role
           });
-        } else {
-          if (uId === 'c1') {
-            adminRooms.push({
-              key: 'c1_admin',
-              title: 'Mateus Oliveira (Cliente)',
-              subtitle: 'Suporte',
-              avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-              role: 'client'
-            });
-          } else if (uId === 'v1') {
-            adminRooms.push({
-              key: 'v1_admin',
-              title: 'Artesanatos do Aleijadinho (Loja)',
-              subtitle: 'Suporte',
-              avatar: 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=500',
-              role: 'seller'
-            });
-          } else if (uId === 'm1') {
-            adminRooms.push({
-              key: 'm1_admin',
-              title: 'Juninho Entregas (Motoboy)',
-              subtitle: 'Suporte',
-              avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-              role: 'motoboy'
-            });
-          }
         }
       });
       return adminRooms;
@@ -214,7 +120,7 @@ export default function Chat({ onCloseChat }) {
           (() => {
             const isAdminRoom = currentRoomDetails.role === 'admin' || currentRoomDetails.key.endsWith('_admin');
             const roomTitle = (isAdminRoom && currentUser.role !== 'admin') ? 'Suporte Connecta' : currentRoomDetails.title;
-            const roomAvatar = (isAdminRoom && currentUser.role !== 'admin') ? '/logo.png' : currentRoomDetails.avatar;
+            const roomAvatar = (isAdminRoom && currentUser.role !== 'admin') ? '/support-avatar.png' : currentRoomDetails.avatar;
 
             return (
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -224,7 +130,7 @@ export default function Chat({ onCloseChat }) {
                   style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #f28d1a' }}
                 />
                 <div>
-                  <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: /suporte\s+connecta/i.test(roomTitle) ? 400 : 700, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     {roomTitle}
                     {isAdminRoom && currentUser.role !== 'admin' && (
                       <svg viewBox="0 0 24 24" width="12" height="12">
@@ -238,11 +144,44 @@ export default function Chat({ onCloseChat }) {
             );
           })()
         ) : (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <MessageSquare size={20} style={{ color: '#f28d1a' }} />
-            <h2 style={{ fontSize: '1.1rem', fontWeight: 800, color: '#2d2d2d', margin: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 400, color: '#2d2d2d', margin: 0 }}>
               Mensagens
             </h2>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              {isPartner && onToggleNotifications && (
+                <button
+                  onClick={onToggleNotifications}
+                  style={{
+                    width: '32px', height: '32px', borderRadius: '50%',
+                    backgroundColor: 'white', border: '1px solid #eee',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', position: 'relative'
+                  }}
+                  title="Notificações"
+                >
+                  <Bell size={14} style={{ color: '#f28d1a' }} />
+                  {unreadNotifications.length > 0 && (
+                    <span style={{ position: 'absolute', top: '-2px', right: '-2px', backgroundColor: '#ff5e5b', width: '12px', height: '12px', borderRadius: '50%', fontSize: '0.55rem', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {unreadNotifications.length}
+                    </span>
+                  )}
+                </button>
+              )}
+              {isPartner && (
+                <button
+                  onClick={logout}
+                  style={{
+                    width: '32px', height: '32px', borderRadius: '50%',
+                    backgroundColor: '#ff5e5b15', border: 'none',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer'
+                  }}
+                  title="Sair da Conta"
+                >
+                  <LogOut size={14} style={{ color: '#ff5e5b' }} />
+                </button>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -252,14 +191,12 @@ export default function Chat({ onCloseChat }) {
         {!activeRoom ? (
           /* ROOMS LIST VIEW */
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <p style={{ fontSize: '0.82rem', color: '#777', fontStyle: 'italic', marginBottom: '8px' }}>
-              Bata um papo amigável com lojistas, prestadores ou suporte:
-            </p>
+            {/* Removed description */}
             {roomsList.map(room => {
               const lastMsg = chats.filter(c => c.roomKey === room.key).pop();
               const isAdminRoom = room.role === 'admin' || room.key.endsWith('_admin');
               const roomTitle = (isAdminRoom && currentUser.role !== 'admin') ? 'Suporte Connecta' : room.title;
-              const roomAvatar = (isAdminRoom && currentUser.role !== 'admin') ? '/logo.png' : room.avatar;
+              const roomAvatar = (isAdminRoom && currentUser.role !== 'admin') ? '/support-avatar.png' : room.avatar;
 
               return (
                 <div
@@ -287,7 +224,7 @@ export default function Chat({ onCloseChat }) {
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: /suporte\s+connecta/i.test(roomTitle) ? 400 : 700, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>
                         {roomTitle}
                         {isAdminRoom && currentUser.role !== 'admin' && (
                           <svg viewBox="0 0 24 24" width="12" height="12" style={{ flexShrink: 0 }}>

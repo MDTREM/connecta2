@@ -1,15 +1,230 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useFirebaseMock, EditableText } from '../../context/FirebaseMockContext';
 import { 
   MapPin, ShoppingCart, Heart, Search, Clock, 
   Store as StoreIcon, Calendar, Award, ArrowLeft, 
   Trash, Ticket, Check, X, Flame, Sparkles, Play, 
   Coins, Star, Palette, Gift, Wrench, Phone, MessageSquare, Layers, User,
-  Plus, Camera, Edit, Bell, LogOut, ChevronRight,
-  Tag, Truck, CreditCard, Receipt
+  Plus, Camera, Edit, Bell, LogOut, ChevronRight, Share2,
+  Tag, Truck, CreditCard, Receipt,
+  Music, Coffee, Book, Gem, Scissors, Brush, Utensils, Wine, Mountain, Sun, Umbrella, Zap, Leaf
 } from 'lucide-react';
 
-export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVisitor, onTriggerLogin }) {
+const compressImage = (file, maxWidth, maxHeight, callback) => {
+  const reader = new FileReader();
+  reader.readAsDataURL(file);
+  reader.onload = (event) => {
+    const img = new Image();
+    img.src = event.target.result;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > maxWidth) {
+          height = Math.round((height * maxWidth) / width);
+          width = maxWidth;
+        }
+      } else {
+        if (height > maxHeight) {
+          width = Math.round((width * maxHeight) / height);
+          height = maxHeight;
+        }
+      }
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      const compressedBase64 = canvas.toDataURL('image/jpeg', 0.7);
+      callback(compressedBase64);
+    };
+  };
+};
+
+const SectionWrapper = ({ sectionId, children }) => {
+  const { isVisualEditorActive, reorderSections } = useFirebaseMock();
+  if (isVisualEditorActive) {
+    return (
+      <div style={{
+        border: '1px dashed #f28d1a',
+        borderRadius: '16px',
+        padding: '12px',
+        marginBottom: '28px',
+        position: 'relative',
+        backgroundColor: '#fff9ee15'
+      }}>
+        {/* Controles de reordenação flutuantes */}
+        <div style={{
+          position: 'absolute',
+          top: '-12px',
+          right: '10px',
+          display: 'flex',
+          gap: '4px',
+          zIndex: 10
+        }}>
+          <button 
+            type="button"
+            onClick={() => reorderSections(sectionId, 'up')}
+            style={{
+              padding: '2px 8px',
+              fontSize: '0.62rem',
+              backgroundColor: '#f28d1a',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+          >
+            ⬆️ Subir
+          </button>
+          <button 
+            type="button"
+            onClick={() => reorderSections(sectionId, 'down')}
+            style={{
+              padding: '2px 8px',
+              fontSize: '0.62rem',
+              backgroundColor: '#f28d1a',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 600
+            }}
+          >
+            ⬇️ Descer
+          </button>
+          <span style={{
+            fontSize: '0.58rem',
+            backgroundColor: '#fff',
+            border: '1px solid #f28d1a',
+            color: '#f28d1a',
+            padding: '2px 6px',
+            borderRadius: '6px',
+            fontWeight: 700,
+            textTransform: 'uppercase'
+          }}>
+            Seção: {sectionId}
+          </span>
+        </div>
+        {children}
+      </div>
+    );
+  }
+  return <>{children}</>;
+};
+
+const BannerCarousel = ({ bannersList, isMobile, onSwitchView, setSelectedCategory }) => {
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    let interval;
+    if (bannersList && bannersList.length > 1) {
+      interval = setInterval(() => {
+        setCurrentIndex(prev => (prev + 1) % bannersList.length);
+      }, 5000);
+    }
+    return () => clearInterval(interval);
+  }, [bannersList]);
+
+  if (!bannersList || bannersList.length === 0) return null;
+  const bannerItem = bannersList[currentIndex < bannersList.length ? currentIndex : 0];
+
+  return (
+    <div style={{
+      width: '100%',
+      aspectRatio: isMobile ? '1.64/1' : '3/1',
+      borderRadius: '20px',
+      overflow: 'hidden',
+      position: 'relative',
+      marginBottom: '20px',
+      boxShadow: '0 8px 24px rgba(242,141,26,0.06)'
+    }}>
+      <img 
+        src={(isMobile && bannerItem.imgMobile) ? bannerItem.imgMobile : bannerItem.img} 
+        alt={bannerItem.title || 'Banner'}
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+      />
+      {(bannerItem.title?.trim() || bannerItem.desc?.trim()) && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          background: 'linear-gradient(to right, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.1) 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          padding: '20px',
+          color: 'white',
+          zIndex: 2
+        }}>
+          {bannerItem.title && <h3 style={{ fontSize: '1rem', fontWeight: 500, margin: 0, color: '#f9bb1a' }}>{bannerItem.title}</h3>}
+          {bannerItem.desc && <p style={{ fontSize: '0.75rem', marginTop: '4px', opacity: 0.9, maxWidth: '60%' }}>{bannerItem.desc}</p>}
+          <button
+            onClick={() => {
+              const linkVal = bannerItem.link || 'Artesanato';
+              if (linkVal === 'lojas' || linkVal === 'servicos' || linkVal === 'eventos') {
+                setSelectedCategory('Todos');
+                if (linkVal === 'lojas') onSwitchView('client_home');
+                else onSwitchView('client_categories');
+              } else {
+                setSelectedCategory(linkVal);
+                onSwitchView('client_categories');
+              }
+            }}
+            style={{
+              marginTop: '10px',
+              padding: '4px 12px',
+              borderRadius: '99px',
+              backgroundColor: 'white',
+              color: '#f28d1a',
+              border: 'none',
+              fontWeight: 500,
+              fontSize: '0.68rem',
+              width: 'fit-content',
+              cursor: 'pointer'
+            }}
+          >
+            Ver Mais
+          </button>
+        </div>
+      )}
+
+      {bannersList.length > 1 && (
+        <div style={{
+          position: 'absolute',
+          bottom: '10px',
+          right: '20px',
+          display: 'flex',
+          gap: '6px',
+          zIndex: 3
+        }}>
+          {bannersList.map((_, i) => (
+            <div
+              key={i}
+              onClick={(e) => {
+                e.stopPropagation();
+                setCurrentIndex(i);
+              }}
+              style={{
+                width: currentIndex === i ? '12px' : '6px',
+                height: '6px',
+                borderRadius: '99px',
+                backgroundColor: currentIndex === i ? '#ffffff' : 'rgba(255,255,255,0.4)',
+                cursor: 'pointer',
+                transition: 'all 0.3s ease'
+              }}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVisitor, onTriggerLogin, isEditingProfile, setIsEditingProfile }) {
   const { 
     currentUser, products, events, services, videos, orders, coupons,
     cart, addToCart, updateCartQty, removeFromCart, placeOrder, buyTicket,
@@ -17,7 +232,9 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     servicesHired, updateUserProfile, logout, notifications, markNotificationsRead,
     isVisualEditorActive, visualLayoutSettings, updateVisualText,
     updateAvatarOffset, reorderSections,
-    productReviews, addProductReview, getCoinsUsedInPeriod, categories
+    productReviews, addProductReview, getCoinsUsedInPeriod, categories,
+    banners, homeSections, serviceReviews, addServiceReview,
+    videoComments, addVideoComment, isDataLoading
   } = useFirebaseMock();
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
@@ -27,87 +244,48 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  const SectionWrapper = ({ sectionId, children }) => {
-    if (isVisualEditorActive) {
-      return (
+  if (isDataLoading) {
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100vh',
+        backgroundColor: '#2d2d2d',
+        color: '#ffffff',
+        fontFamily: 'Outfit, sans-serif'
+      }}>
         <div style={{
-          border: '1px dashed #f28d1a',
-          borderRadius: '16px',
-          padding: '12px',
-          marginBottom: '28px',
-          position: 'relative',
-          backgroundColor: '#fff9ee15'
-        }}>
-          {/* Controles de reordenação flutuantes */}
-          <div style={{
-            position: 'absolute',
-            top: '-12px',
-            right: '10px',
-            display: 'flex',
-            gap: '4px',
-            zIndex: 10
-          }}>
-            <button 
-              type="button"
-              onClick={() => reorderSections(sectionId, 'up')}
-              style={{
-                padding: '2px 8px',
-                fontSize: '0.62rem',
-                backgroundColor: '#f28d1a',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: 600
-              }}
-            >
-              ⬆️ Subir
-            </button>
-            <button 
-              type="button"
-              onClick={() => reorderSections(sectionId, 'down')}
-              style={{
-                padding: '2px 8px',
-                fontSize: '0.62rem',
-                backgroundColor: '#f28d1a',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontWeight: 600
-              }}
-            >
-              ⬇️ Descer
-            </button>
-            <span style={{
-              fontSize: '0.58rem',
-              backgroundColor: '#fff',
-              border: '1px solid #f28d1a',
-              color: '#f28d1a',
-              padding: '2px 6px',
-              borderRadius: '6px',
-              fontWeight: 700,
-              textTransform: 'uppercase'
-            }}>
-              Seção: {sectionId}
-            </span>
-          </div>
-          {children}
-        </div>
-      );
-    }
-    return <>{children}</>;
+          width: '50px',
+          height: '50px',
+          border: '3px solid rgba(242, 141, 26, 0.1)',
+          borderTop: '3px solid #f28d1a',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+          marginBottom: '16px'
+        }} />
+        <span style={{ fontSize: '0.9rem', fontWeight: 500, letterSpacing: '0.5px' }}>Carregando dados...</span>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  const iconComponents = {
+    MapPin, ShoppingCart, Heart, Search, Clock, Calendar, Award, 
+    Ticket, Flame, Sparkles, Play, Coins, Star, Palette, Gift, 
+    Wrench, Phone, MessageSquare, Layers, User, Camera, Truck,
+    Music, Coffee, Book, Gem, Scissors, Brush, Utensils, Wine, Mountain, Sun, Umbrella, Zap, Leaf
   };
 
-  const renderCategoryIcon = (key) => {
-    switch (key) {
-      case 'Artesanato': return <Palette size={20} style={{ color: '#f28d1a' }} />;
-      case 'Lembranças': return <Gift size={20} style={{ color: '#f28d1a' }} />;
-      case 'Eventos': return <Ticket size={20} style={{ color: '#f28d1a' }} />;
-      case 'Serviços': return <Wrench size={20} style={{ color: '#f28d1a' }} />;
-      case 'Moeda': return <Coins size={20} style={{ color: '#f28d1a' }} />;
-      default: return <Sparkles size={20} style={{ color: '#f28d1a' }} />;
-    }
+  const renderCategoryIcon = (iconName) => {
+    const IconComp = iconComponents[iconName] || Sparkles;
+    return <IconComp size={20} style={{ color: '#f28d1a' }} />;
   };
 
   // Local navigation state for client details
@@ -116,9 +294,37 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [selectedProviderId, setSelectedProviderId] = useState(null);
   const [selectedOrganizerId, setSelectedOrganizerId] = useState(null);
+  const [selectedServiceIdForHire, setSelectedServiceIdForHire] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [favorites, setFavorites] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isEventDescExpanded, setIsEventDescExpanded] = useState(false);
+  const [isServiceDescExpanded, setIsServiceDescExpanded] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (banners && banners.length > 1) {
+      const timer = setInterval(() => {
+        setCurrentBannerIndex(prev => (prev + 1) % banners.length);
+      }, 5000);
+      return () => clearInterval(timer);
+    }
+  }, [banners]);
+
+  useEffect(() => {
+    const scrollContainer = document.querySelector('.main-content');
+    if (scrollContainer) {
+      scrollContainer.scrollTop = 0;
+    }
+    window.scrollTo(0, 0);
+  }, [currentView, selectedProductId, selectedEventId, selectedProviderId, selectedCategory, selectedStoreId]);
   
   // Location pop-up and shipping recalculation states
   const [showLocationModal, setShowLocationModal] = useState(false);
@@ -133,6 +339,14 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   
   // Service scheduling
   const [serviceHours, setServiceHours] = useState(2);
+  useEffect(() => {
+    if (selectedServiceIdForHire) {
+      const serv = services.find(s => s.id === selectedServiceIdForHire);
+      if (serv) {
+        setServiceHours(serv.minHours || 1);
+      }
+    }
+  }, [selectedServiceIdForHire, services]);
   const [serviceDate, setServiceDate] = useState('2026-06-15');
   const [serviceTime, setServiceTime] = useState('14:00');
   const [serviceNotes, setServiceNotes] = useState('');
@@ -140,7 +354,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   // Event buying
   const [ticketQty, setTicketQty] = useState(1);
   const [commissionerCode, setCommissionerCode] = useState('');
-  const [selectedServiceIdForHire, setSelectedServiceIdForHire] = useState(null);
 
   // ForYou state
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
@@ -148,6 +361,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const videoRef = useRef(null);
   const touchStartYRef = useRef(0);
   const mouseDownYRef = useRef(0);
+  const lastWheelTimeRef = useRef(0);
   const [videoLikes, setVideoLikes] = useState({});
   const [likedVideoIds, setLikedVideoIds] = useState([]);
   const [descExpanded, setDescExpanded] = useState(false);
@@ -156,8 +370,10 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const [followingIds, setFollowingIds] = useState([]);
   const [forYouTab, setForYouTab] = useState('foryou');
   const [selectedStoreCategory, setSelectedStoreCategory] = useState('Todos');
+  const [currentEventIndex, setCurrentEventIndex] = useState(0);
   const [toastMessage, setToastMessage] = useState('');
   const [activeStorePage, setActiveStorePage] = useState(0);
+  const [activeEventPage, setActiveEventPage] = useState(0);
 
   // Detail View Thumbnail states
   const [activeProductImageIdx, setActiveProductImageIdx] = useState(0);
@@ -166,6 +382,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
   // Variation and Rating states
   const [selectedVariation, setSelectedVariation] = useState(null);
+  const [selectedServiceVariation, setSelectedServiceVariation] = useState(null);
   const [ratingProductId, setRatingProductId] = useState(null);
   const [reviewRating, setReviewRating] = useState(5);
   const [reviewComment, setReviewComment] = useState('');
@@ -193,17 +410,54 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const [paymentModalType, setPaymentModalType] = useState('product');
   const [couponError, setCouponError] = useState('');
 
-  // nearbyStores are now dynamically loaded from users with role 'seller'
-  const nearbyStores = users.filter(u => u.role === 'seller' || u.role === 'provider' || u.role === 'organizer').map(u => ({
-    id: u.id,
-    name: u.name || u.companyName || 'Loja',
-    desc: u.role === 'seller' ? (u.description || 'Loja Parceira').substring(0, 40) : u.role === 'provider' ? (u.serviceCategory || 'Prestador') : 'Organizador de Eventos',
-    rating: 4.8,
-    distance: '',
-    time: '',
-    shipping: 0,
-    logo: u.avatar || u.logo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150'
-  }));
+  // Load followingIds from currentUser on mount/change
+  useEffect(() => {
+    if (currentUser && currentUser.following && Array.isArray(currentUser.following)) {
+      setFollowingIds(currentUser.following);
+    }
+  }, [currentUser?.id, currentUser?.following?.length]);
+
+  // Redirect detail views to home when required IDs are missing (e.g., page reload)
+  useEffect(() => {
+    const detailViews = ['client_store', 'client_product', 'client_event', 'client_organizer', 'client_provider', 'client_service'];
+    if (detailViews.includes(currentView)) {
+      if (
+        (currentView === 'client_store' && !selectedStoreId) ||
+        (currentView === 'client_product' && !selectedProductId) ||
+        (currentView === 'client_event' && !selectedEventId) ||
+        (currentView === 'client_organizer' && !selectedOrganizerId) ||
+        (currentView === 'client_provider' && !selectedProviderId) ||
+        (currentView === 'client_service' && !selectedServiceIdForHire)
+      ) {
+        onSwitchView('client_home');
+      }
+    }
+  }, []);
+
+  const nearbyStores = (users || []).filter(u => u.role === 'seller' && u.registrationStatus === 'approved' && !u.banned).map(u => {
+    // Dynamic rating based on store's products reviews
+    const storeProds = (products || []).filter(p => p.storeId === u.id || p.sellerId === u.id);
+    const storeProdIds = storeProds.map(p => p.id);
+    const storeReviews = productReviews?.filter(r => storeProdIds.includes(r.productId)) || [];
+    
+    let avgRating = null;
+    if (storeReviews.length > 0) {
+      const sum = storeReviews.reduce((acc, r) => acc + (parseFloat(r.rating) || 5), 0);
+      avgRating = parseFloat((sum / storeReviews.length).toFixed(1));
+    }
+
+    return {
+      id: u.id,
+      name: u.companyName || u.name || 'Loja',
+      desc: (u.category || u.description || 'Loja Parceira').substring(0, 40),
+      rating: avgRating,
+      ratingCount: storeReviews.length,
+      distance: u.distance || '',
+      time: u.deliveryTimeEstimate || '',
+      shipping: 0,
+      logo: u.avatar || u.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'
+    };
+  });
 
   // --- HOISTED CHECKOUT & PAYMENT LOGIC ---
   const getEventTotal = () => {
@@ -218,7 +472,9 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const getServiceTotal = () => {
     const serv = services.find(s => s.id === selectedServiceIdForHire);
     if (!serv) return 0;
-    return serv.pricePerHour * serviceHours;
+    const base = serv.pricePerHour || serv.price || 0;
+    if (serv.priceType === 'total') return base;
+    return base * serviceHours;
   };
 
   const calculateOuroCoinsDiscount = (subtotalVal, discountVal = 0) => {
@@ -322,7 +578,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     if (e && e.preventDefault) e.preventDefault();
     const serv = services.find(s => s.id === selectedServiceIdForHire);
     if (!serv) return;
-    const res = hireServiceProvider(serv.id, serviceHours, serviceDate, serviceTime, serviceNotes, useCoins);
+    const res = hireServiceProvider(serv.id, serviceHours, serviceDate, serviceTime, serviceNotes, useCoins, selectedServiceVariation);
     if (res.success) {
       setPlacedOrderId(res.hiring.id);
       setShowPaymentModal(false);
@@ -342,11 +598,17 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       alert('Por favor, escolha a data e o horário para o agendamento!');
       return;
     }
-    setPreCheckoutType('service');
-    setPreCheckoutName(currentUser?.name || '');
-    setPreCheckoutPhone(currentUser?.phone || '');
-    setPreCheckoutCpf(currentUser?.cpf || '');
-    setShowPreCheckoutModal(true);
+    if (currentUser?.phone && currentUser?.cpf && currentUser?.name) {
+      setPaymentModalType('service');
+      setActivePaymentTab('pix');
+      setShowPaymentModal(true);
+    } else {
+      setPreCheckoutType('service');
+      setPreCheckoutName(currentUser?.name || '');
+      setPreCheckoutPhone(currentUser?.phone || '');
+      setPreCheckoutCpf(currentUser?.cpf || '');
+      setShowPreCheckoutModal(true);
+    }
   };
 
   const handlePaymentSubmit = () => {
@@ -362,11 +624,11 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   useEffect(() => {
     if (currentUser) {
       setCheckoutPhone(currentUser.phone || '');
-      setCheckoutCpf(currentUser.cpf || '123.456.789-00');
+      setCheckoutCpf(currentUser.cpf || '');
       setTempAddress(currentUser.address || userLocation);
     } else {
-      setCheckoutPhone('(31) 98888-7777');
-      setCheckoutCpf('123.456.789-00');
+      setCheckoutPhone('');
+      setCheckoutCpf('');
       setTempAddress(userLocation);
     }
   }, [currentUser, userLocation]);
@@ -403,14 +665,25 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
   useEffect(() => {
     // Scroll the main content container to the top when navigating
-    const scrollContainer = document.querySelector('.custom-scroll');
-    if (scrollContainer) {
-      scrollContainer.scrollTop = 0;
-    }
+    const resetScroll = () => {
+      const scrollContainers = document.querySelectorAll('.custom-scroll');
+      scrollContainers.forEach(el => {
+        el.scrollTop = 0;
+      });
+    };
+    resetScroll();
+    // Run again in next ticks to ensure newly rendered containers are caught
+    const t1 = setTimeout(resetScroll, 20);
+    const t2 = setTimeout(resetScroll, 100);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, [currentView, selectedProductId, selectedEventId, selectedServiceIdForHire]);
 
   useEffect(() => {
     if (currentView === 'client_foryou' && videoRef.current) {
+      videoRef.current.load();
       if (isVideoPlaying) {
         videoRef.current.play().catch(err => console.log("Video play interrupted or muted: ", err));
       } else {
@@ -424,13 +697,17 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   // Profile management states
   const [selectedProfileUserId, setSelectedProfileUserId] = useState(null);
   const [profileSubSection, setProfileSubSection] = useState(null);
-  const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState('');
   const [editBio, setEditBio] = useState('');
   const [editAvatar, setEditAvatar] = useState('');
   const [editBanner, setEditBanner] = useState('');
   const [editAddress, setEditAddress] = useState('');
   const [editPhone, setEditPhone] = useState('');
+  const [editCpf, setEditCpf] = useState('');
+  const [editCep, setEditCep] = useState('');
+  const [editStreet, setEditStreet] = useState('');
+  const [editNumber, setEditNumber] = useState('');
+  const [editNeighborhood, setEditNeighborhood] = useState('');
   const userReviews = productReviews?.filter(r => r.userName === currentUser?.name).map(r => {
     const product = products.find(p => p.id === r.productId);
     return {
@@ -444,8 +721,10 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   }) || [];
 
   const [reviewImages, setReviewImages] = useState([]);
-  const [isEventDescExpanded, setIsEventDescExpanded] = useState(false);
-  const [isServiceDescExpanded, setIsServiceDescExpanded] = useState(false);
+  const [ratingServiceHiredId, setRatingServiceHiredId] = useState(null);
+  const [serviceReviewRating, setServiceReviewRating] = useState(5);
+  const [serviceReviewComment, setServiceReviewComment] = useState('');
+  const [serviceReviewImages, setServiceReviewImages] = useState([]);
   const [showPreCheckoutModal, setShowPreCheckoutModal] = useState(false);
   const [preCheckoutType, setPreCheckoutType] = useState('');
   const [preCheckoutName, setPreCheckoutName] = useState('');
@@ -461,11 +740,11 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
   const handleAddToCart = (product, variation = null) => {
     addToCart(product, variation);
-    triggerToast(`"${product.name}" adicionado ao carrinho!`);
   };
 
   // Drag to scroll handlers for horizontal lists
   const handleMouseDown = (e) => {
+    if (!isDesktop) return; // Ignore on mobile
     const container = e.currentTarget;
     container.dataset.isDown = 'true';
     container.dataset.startX = e.pageX - container.offsetLeft;
@@ -474,16 +753,19 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   };
 
   const handleMouseLeave = (e) => {
+    if (!isDesktop) return; // Ignore on mobile
     const container = e.currentTarget;
     container.dataset.isDown = 'false';
   };
 
   const handleMouseUp = (e) => {
+    if (!isDesktop) return; // Ignore on mobile
     const container = e.currentTarget;
     container.dataset.isDown = 'false';
   };
 
   const handleMouseMove = (e) => {
+    if (!isDesktop) return; // Ignore on mobile
     const container = e.currentTarget;
     if (container.dataset.isDown !== 'true') return;
     e.preventDefault();
@@ -500,29 +782,58 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const handleStoreScroll = (e) => {
     const container = e.currentTarget;
     const pageIndex = Math.round(container.scrollLeft / (container.clientWidth * 0.85));
-    setActiveStorePage(Math.max(0, Math.min(3, pageIndex)));
+    setActiveStorePage(Math.max(0, pageIndex));
+  };
+
+  const handleEventScroll = (e) => {
+    const container = e.currentTarget;
+    const pageIndex = Math.round(container.scrollLeft / (container.clientWidth * 0.85));
+    setActiveEventPage(Math.max(0, pageIndex));
   };
 
   const toggleFollow = (id, e) => {
     if (e) e.stopPropagation();
-    setFollowingIds(prev => 
-      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
-    );
+    if (isVisitor) {
+      onTriggerLogin();
+      return;
+    }
+    const updated = followingIds.includes(id) 
+      ? followingIds.filter(item => item !== id) 
+      : [...followingIds, id];
+    setFollowingIds(updated);
+    if (currentUser) {
+      updateUserProfile(currentUser.id, { following: updated });
+    }
   };
 
-  const [videoCommentsList, setVideoCommentsList] = useState({
-    vid1: [
-      { name: 'Juliana S.', text: 'Nossa, que caneca perfeita! Quero uma!' },
-      { name: 'Lucas B.', text: 'Comprei e a qualidade é sensacional.' }
-    ],
-    vid2: [
-      { name: 'Mariana P.', text: 'O festival do ano passado foi incrível!' },
-      { name: 'Pedro H.', text: 'Confirmadíssimo no 2º lote uai!' }
-    ],
-    vid3: [
-      { name: 'Mateus O.', text: 'Excelente passeio histórico. Super recomendo a Ana Cláudia!' }
-    ]
-  });
+  const videoCommentsList = useMemo(() => {
+    const map = {
+      vid1: [
+        { name: 'Juliana S.', text: 'Nossa, que caneca perfeita! Quero uma!', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100' },
+        { name: 'Lucas B.', text: 'Comprei e a qualidade é sensacional.', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100' }
+      ],
+      vid2: [
+        { name: 'Mariana P.', text: 'O festival do ano passado foi incrível!', avatar: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100' },
+        { name: 'Pedro H.', text: 'Confirmadíssimo no 2º lote uai!', avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=100' }
+      ],
+      vid3: [
+        { name: 'Mateus O.', text: 'Excelente passeio histórico. Super recomendo a Ana Cláudia!', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100' }
+      ]
+    };
+    if (videoComments && videoComments.length > 0) {
+      videoComments.forEach(c => {
+        if (!map[c.videoId]) {
+          map[c.videoId] = [];
+        }
+        map[c.videoId].push({
+          name: c.userName || 'Cliente',
+          text: c.text,
+          avatar: c.userAvatar || ''
+        });
+      });
+    }
+    return map;
+  }, [videoComments]);
 
   // Reset profile selection when leaving the profile tab
   useEffect(() => {
@@ -566,10 +877,19 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
   const cartCount = cart.reduce((acc, item) => acc + item.quantity, 0);
 
-  // Filter products by selected category
   const filteredProducts = selectedCategory 
-    ? products.filter(p => p.category.toLowerCase() === selectedCategory.toLowerCase() && p.active)
-    : products.filter(p => p.active);
+    ? products.filter(p => {
+        if (p.category.toLowerCase() !== selectedCategory.toLowerCase() || !p.active) return false;
+        const store = users?.find(u => u.id === p.storeId || u.id === p.sellerId);
+        if (!store || store.registrationStatus !== 'approved' || store.banned) return false;
+        return true;
+      })
+    : products.filter(p => {
+        if (!p.active) return false;
+        const store = users?.find(u => u.id === p.storeId || u.id === p.sellerId);
+        if (!store || store.registrationStatus !== 'approved' || store.banned) return false;
+        return true;
+      });
 
   // --- SUBVIEW 1: CLIENT HOME ---
   const renderHome = () => {
@@ -581,93 +901,63 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     };
 
     // Top buyers dynamically from users with most orders
-    const clientUsers = users.filter(u => u.role === 'client');
+    const clientUsers = (users || []).filter(u => u.role === 'client');
     const topBuyers = clientUsers
       .map(u => {
-        const userOrders = orders.filter(o => o.customerId === u.id && o.type !== 'ticket');
+        const userOrders = (orders || []).filter(o => o.customerId === u.id && o.type !== 'ticket');
         return {
           id: u.id,
           rank: 0,
           name: currentUser && u.id === currentUser.id ? `${u.name} (Você)` : u.name,
           orders: userOrders.length,
           coins: u.ouroCoins || 0,
-          avatar: u.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80'
+          avatar: u.avatar || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'
         };
       })
       .sort((a, b) => b.orders - a.orders || b.coins - a.coins)
       .slice(0, 5)
       .map((b, i) => ({ ...b, rank: i + 1 }));
 
-    const section_banner = (
-      <SectionWrapper key="banner" sectionId="banner">
-        {/* Carousel Banner */}
-        <div style={{
-          width: '100%',
-          height: '140px',
-          borderRadius: '20px',
-          overflow: 'hidden',
-          position: 'relative',
-          marginBottom: '20px',
-          boxShadow: '0 8px 24px rgba(242,141,26,0.06)'
-        }}>
-          <img 
-            src={activeBanner.img} 
-            alt={activeBanner.title}
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-          />
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            background: 'linear-gradient(to right, rgba(0,0,0,0.6) 40%, rgba(0,0,0,0.1) 100%)',
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'center',
-            padding: '20px',
-            color: 'white'
-          }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 500, margin: 0, color: '#f9bb1a' }}>{activeBanner.title}</h3>
-            <p style={{ fontSize: '0.75rem', marginTop: '4px', opacity: 0.9, maxWidth: '60%' }}>{activeBanner.desc}</p>
-            <button
-              onClick={() => {
-                const linkVal = activeBanner.link || 'Artesanato';
-                if (linkVal === 'lojas' || linkVal === 'servicos' || linkVal === 'eventos') {
-                  // Direct tab redirect
-                  setSelectedCategory('Todos');
-                  if (linkVal === 'lojas') onSwitchView('client_home');
-                  else onSwitchView('client_categories'); // Or appropriate view
-                } else {
-                  setSelectedCategory(linkVal);
-                  onSwitchView('client_categories');
-                }
-              }}
-              style={{
-                marginTop: '10px',
-                padding: '4px 12px',
-                borderRadius: '99px',
-                backgroundColor: 'white',
-                color: '#f28d1a',
-                border: 'none',
-                fontWeight: 500,
-                fontSize: '0.68rem',
-                width: 'fit-content',
-                cursor: 'pointer'
-              }}
-            >
-              Ver Mais
-            </button>
-          </div>
-        </div>
-      </SectionWrapper>
-    );
 
-    const section_categories = (
-      <SectionWrapper key="categories" sectionId="categories">
+
+    const getActiveBannersForSection = (blockId) => {
+      const selectedId = visualLayoutSettings?.[`active_banner_id_${blockId}`];
+      if (selectedId && selectedId !== 'all') {
+        const found = (banners || []).find(b => b.id === selectedId);
+        if (found) return [found];
+      }
+      return banners && banners.length > 0 ? banners : [
+        {
+          id: 'default_banner',
+          title: visualLayoutSettings?.homeBanner?.title || 'Artesanato & Tradição',
+          desc: visualLayoutSettings?.homeBanner?.desc || 'Peças em Pedra-Sabão direto de Ouro Preto',
+          img: visualLayoutSettings?.homeBanner?.img || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=500',
+          link: visualLayoutSettings?.homeBanner?.link || 'Artesanato'
+        }
+      ];
+    };
+
+    const section_banner = (blockId = 'banner') => {
+      const activeBanners = getActiveBannersForSection(blockId);
+      return (
+        <SectionWrapper key={blockId} sectionId={blockId}>
+          <BannerCarousel 
+            bannersList={activeBanners}
+            isMobile={isMobile}
+            onSwitchView={onSwitchView}
+            setSelectedCategory={setSelectedCategory}
+          />
+        </SectionWrapper>
+      );
+    };
+
+    const section_categories = (blockId = 'categories') => (
+      <SectionWrapper key={blockId} sectionId={blockId}>
         {/* Categories Quick Filter with Dot Indicators */}
         {(() => {
           const homeCategories = [
-            { label: 'Tudo', key: null },
-            ...categories.filter(c => c.active !== false).map(c => ({ label: c.label, key: c.key || c.label })),
-            { label: 'Moeda Local', key: 'Moeda' }
+            { label: 'Tudo', key: null, icon: 'Sparkles' },
+            ...(categories || []).filter(c => c.active !== false && c.type !== 'entregadores').map(c => ({ label: c.label, key: c.key || c.label, icon: c.icon }))
           ];
           const itemsPerPage = 5;
           const totalPages = Math.ceil(homeCategories.length / itemsPerPage);
@@ -679,16 +969,11 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   gap: '14px',
                   overflowX: 'auto',
                   paddingBottom: '8px',
-                  scrollSnapType: 'x mandatory',
                   WebkitOverflowScrolling: 'touch',
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none'
                 }}
                 className="hide-scrollbar"
-                onMouseDown={handleMouseDown}
-                onMouseLeave={handleMouseLeave}
-                onMouseUp={handleMouseUp}
-                onMouseMove={handleMouseMove}
               >
                 {homeCategories.map(cat => (
                   <button
@@ -705,8 +990,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       } else if (cat.key === 'Serviços') {
                         const el = document.getElementById('services-section');
                         if (el) el.scrollIntoView({ behavior: 'smooth' });
-                      } else if (cat.key === 'Moeda') {
-                        onSwitchView('client_ourocoins');
                       } else {
                         setSelectedCategory(cat.key);
                         onSwitchView('client_categories');
@@ -721,8 +1004,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       border: 'none',
                       cursor: 'pointer',
                       flexShrink: 0,
-                      scrollSnapAlign: 'start',
-                      width: '64px'
+                      width: '80px'
                     }}
                   >
                     <div style={{
@@ -736,9 +1018,24 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       boxShadow: '0 4px 10px rgba(242,141,26,0.04)',
                       transition: 'transform 0.2s'
                     }}>
-                      {renderCategoryIcon(cat.key || 'Tudo')}
+                      {renderCategoryIcon(cat.icon || 'Sparkles')}
                     </div>
-                    <span style={{ fontSize: '0.68rem', fontWeight: 500, color: '#666', textAlign: 'center', whiteSpace: 'nowrap' }}>{cat.label}</span>
+                    <span style={{ 
+                      fontSize: '0.65rem', 
+                      fontWeight: 500, 
+                      color: '#666', 
+                      textAlign: 'center', 
+                      whiteSpace: 'normal', 
+                      wordBreak: 'break-word',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      lineHeight: '1.2',
+                      height: '24px',
+                      width: '100%'
+                    }}>{cat.label}</span>
                   </button>
                 ))}
               </div>
@@ -764,8 +1061,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       </SectionWrapper>
     );
 
-    const section_flashDeals = (
-      <SectionWrapper key="flashDeals" sectionId="flashDeals">
+    const section_flashDeals = (blockId = 'flashDeals') => (
+      <SectionWrapper key={blockId} sectionId={blockId}>
         {/* SECTION: Ofertas Relampago */}
         <div style={{
           background: 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)',
@@ -798,15 +1095,28 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
           {/* Flash Deals Horizontal Scroller */}
           <div 
-            style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '2px' }} 
-            className="custom-scroll"
+            style={{ 
+              display: 'flex', 
+              gap: '12px', 
+              overflowX: 'auto', 
+              paddingBottom: '8px',
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch'
+            }} 
+            className="hide-scrollbar"
             onMouseDown={handleMouseDown}
             onMouseLeave={handleMouseLeave}
             onMouseUp={handleMouseUp}
             onMouseMove={handleMouseMove}
           >
-            {products.filter(p => p.inFlashDeal && p.active).map(prod => {
-              const discountPercent = prod.flashDealDiscount || Math.round(((prod.originalPrice - prod.price) / prod.originalPrice) * 100);
+            {(products || []).filter(p => {
+              if (!p.inFlashDeal || !p.active) return false;
+              const store = users?.find(u => u.id === p.storeId || u.id === p.sellerId);
+              if (!store || store.registrationStatus !== 'approved' || store.banned) return false;
+              return true;
+            }).map(prod => {
+              const discountPercent = prod.flashDealDiscount || (prod.originalPrice ? Math.round(((prod.originalPrice - prod.price) / prod.originalPrice) * 100) : 0);
               const limit = prod.flashDealLimit || 10;
               const sold = prod.flashDealSold || 0;
               const soldPercentage = Math.round((sold / limit) * 100) || 0;
@@ -887,6 +1197,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                     <img 
                       src={prod.image} 
                       alt={prod.name}
+                      draggable="false"
                       style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '12px', marginBottom: '8px' }}
                     />
                     <div style={{ 
@@ -1003,26 +1314,24 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       </SectionWrapper>
     );
 
-    const section_nearbyStores = (
-      <SectionWrapper key="nearbyStores" sectionId="nearbyStores">
+    const section_nearbyStores = (blockId = 'nearbyStores') => (
+      <SectionWrapper key={blockId} sectionId={blockId}>
         {/* SECTION: Lojas Perto de Você */}
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
             <EditableText textId="home_nearby_stores_title" defaultText="Lojas Perto de Você" />
           </h3>
           
-          {/* Carousel: 2 rows grid, scroll horizontal */}
+          {/* Carousel: horizontal layout scroll */}
           <div 
             style={{ 
-              display: 'grid', 
-              gridTemplateRows: 'auto auto', 
-              gridAutoFlow: 'column',
-              gridAutoColumns: '85%',
-              gap: '10px', 
+              display: 'flex',
+              gap: '12px', 
               overflowX: 'auto',
-              paddingBottom: '4px',
+              paddingBottom: '8px',
               scrollbarWidth: 'none',
-              msOverflowStyle: 'none'
+              msOverflowStyle: 'none',
+              width: '100%'
             }} 
             className="hide-scrollbar"
             onMouseDown={handleMouseDown}
@@ -1044,7 +1353,9 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   borderRadius: '20px',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
                   cursor: 'pointer',
-                  minWidth: 0
+                  minWidth: '240px',
+                  flex: '0 0 80%',
+                  border: '1px solid #f7f7f7'
                 }}
               >
                 <img 
@@ -1055,11 +1366,26 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{store.name}</div>
                   <div style={{ fontSize: '0.72rem', color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{store.desc}</div>
-                  <div style={{ display: 'flex', gap: '10px', fontSize: '0.68rem', color: '#666', marginTop: '4px', fontWeight: 500, alignItems: 'center' }}>
-                    <span style={{ color: '#f9bb1a', display: 'flex', alignItems: 'center', gap: '2px' }}><Star size={12} fill="#f9bb1a" color="#f9bb1a" /> {store.rating}</span>
-                    <span>• {store.distance}</span>
-                    <span>• {store.time}</span>
-                    <span style={{ color: '#f28d1a' }}>R$ {(store.shipping * shippingFactor).toFixed(2)}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
+                    <div style={{ display: 'flex', gap: '6px', fontSize: '0.68rem', color: '#666', fontWeight: 500, alignItems: 'center', flexWrap: 'wrap' }}>
+                      {store.distance ? <span>{store.distance}</span> : null}
+                      {store.time ? <span>{store.distance ? ' • ' : ''}{store.time}</span> : null}
+                      <span> • </span>
+                      {store.shipping > 0 ? <span style={{ color: '#f28d1a' }}>R$ {(store.shipping * shippingFactor).toFixed(2)}</span> : <span style={{ color: '#27ae60' }}>Frete Grátis</span>}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.68rem' }}>
+                      {[1, 2, 3, 4, 5].map(star => (
+                        <Star 
+                          key={star} 
+                          size={11} 
+                          fill={store.rating !== null && store.rating > 0 && star <= Math.round(store.rating) ? "#f9bb1a" : "#ddd"} 
+                          stroke="none" 
+                        />
+                      ))}
+                      <span style={{ color: '#666', marginLeft: '4px', fontWeight: 500 }}>
+                        {store.rating !== null && store.rating > 0 ? `${store.rating.toFixed(1)} (${store.ratingCount})` : '0 (0)'}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1067,33 +1393,121 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           </div>
 
           {/* Dot Indicators para Lojas */}
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '10px' }}>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div
-                key={i}
-                style={{
-                  width: activeStorePage === i ? '18px' : '6px',
-                  height: '6px',
-                  borderRadius: '99px',
-                  backgroundColor: activeStorePage === i ? '#f28d1a' : '#e0e0e0',
-                  transition: 'all 0.3s ease'
-                }}
-              />
-            ))}
-          </div>
+          {nearbyStores.length > 1 && (
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '10px' }}>
+              {Array.from({ length: nearbyStores.length }).map((_, i) => (
+                <div
+                  key={i}
+                  style={{
+                    width: activeStorePage === i ? '18px' : '6px',
+                    height: '6px',
+                    borderRadius: '99px',
+                    backgroundColor: activeStorePage === i ? '#f28d1a' : '#e0e0e0',
+                    transition: 'all 0.3s ease'
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </SectionWrapper>
     );
 
-    const section_products = (
-      <SectionWrapper key="products" sectionId="products">
+    const section_products = (blockId = 'products') => (
+      <SectionWrapper key={blockId} sectionId={blockId}>
         {/* SECTION: Produtos para Você */}
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
-            Produtos para Você
+            {visualLayoutSettings?.customTexts?.[`section_title_${blockId}`] || 'Produtos para Você'}
           </h3>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
-            {products.filter(p => p.active).map(prod => {
+          <div style={{ display: 'grid', gridTemplateColumns: isDesktop ? 'repeat(auto-fill, minmax(180px, 1fr))' : 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+            {(() => {
+              const activeProds = (products || []).filter(p => {
+                if (!p.active) return false;
+                const store = users?.find(u => u.id === p.storeId || u.id === p.sellerId);
+                if (!store || store.registrationStatus !== 'approved' || store.banned) return false;
+                return true;
+              });
+
+              const getProductRating = (p) => {
+                const reviews = (productReviews || []).filter(r => r.productId === p.id) || [];
+                if (reviews.length > 0) {
+                  return reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length;
+                }
+                const store = users?.find(u => u.id === p.storeId || u.id === p.sellerId);
+                return p.rating || store?.rating || 4.5;
+              };
+
+              const getProximityScore = (p) => {
+                const store = users?.find(u => u.id === p.storeId || u.id === p.sellerId);
+                if (!currentUser || !store) return 0.5;
+                const userAddr = (currentUser.address || '').toLowerCase();
+                const storeAddr = (store.address || '').toLowerCase();
+                if (currentUser.neighborhood && store.address && store.address.toLowerCase().includes(currentUser.neighborhood.toLowerCase())) {
+                  return 1.0;
+                }
+                const commonNeighborhoods = ['centro', 'cabeças', 'bauxita', 'barra', 'pilar', 'antônio dias', 'saramenha'];
+                for (const nb of commonNeighborhoods) {
+                  if (userAddr.includes(nb) && storeAddr.includes(nb)) {
+                    return 1.0;
+                  }
+                }
+                if (userAddr.includes('ouro preto') && storeAddr.includes('ouro preto')) {
+                  return 0.7;
+                }
+                return 0.4;
+              };
+
+              const getRotationIndex = (listLen, storeId) => {
+                if (listLen <= 1) return 0;
+                let hash = 0;
+                const str = storeId || '';
+                for (let i = 0; i < str.length; i++) {
+                  hash = str.charCodeAt(i) + ((hash << 5) - hash);
+                }
+                const seed = new Date().getDate() + new Date().getHours();
+                return Math.abs(hash + seed) % listLen;
+              };
+
+              const getRotationBoost = (storeId) => {
+                let hash = 0;
+                const str = storeId || '';
+                for (let i = 0; i < str.length; i++) {
+                  hash = str.charCodeAt(i) + ((hash << 5) - hash);
+                }
+                const seed = new Date().getDate() + new Date().getHours();
+                return (((hash + seed) % 100) / 100) * 0.3 - 0.15;
+              };
+
+              const storeGroups = {};
+              activeProds.forEach(p => {
+                const sId = p.storeId || p.sellerId;
+                if (!storeGroups[sId]) storeGroups[sId] = [];
+                storeGroups[sId].push(p);
+              });
+
+              const selectedProducts = [];
+              Object.keys(storeGroups).forEach(sId => {
+                const group = storeGroups[sId];
+                const rotIdx = getRotationIndex(group.length, sId);
+                const chosen = group[rotIdx];
+                if (chosen) selectedProducts.push(chosen);
+              });
+
+              return selectedProducts
+                .map(p => {
+                  const rScore = getProductRating(p) / 5.0;
+                  const sScore = Math.min(p.soldCount || 0, 100) / 100;
+                  const pScore = getProximityScore(p);
+                  const baseRelevance = (rScore * 0.4) + (sScore * 0.3) + (pScore * 0.3);
+                  const sId = p.storeId || p.sellerId;
+                  const finalScore = baseRelevance + getRotationBoost(sId);
+                  return { p, finalScore };
+                })
+                .sort((a, b) => b.finalScore - a.finalScore)
+                .map(item => item.p)
+                .slice(0, 12);
+            })().map(prod => {
               const hasDiscount = prod.originalPrice && prod.price < prod.originalPrice;
               const discountPercent = hasDiscount ? Math.round(((prod.originalPrice - prod.price) / prod.originalPrice) * 100) : 0;
               return (
@@ -1195,8 +1609,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       </SectionWrapper>
     );
 
-    const section_buyers = (
-      <SectionWrapper key="buyers" sectionId="buyers">
+    const section_buyers = (blockId = 'buyers') => (
+      <SectionWrapper key={blockId} sectionId={blockId}>
         {/* SECTION: Top Compradores do Mês (Ranking 1 a 5) */}
         <div style={{
           background: 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)',
@@ -1214,7 +1628,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {topBuyers.map(buyer => (
+            {(topBuyers || []).map(buyer => (
               <div
                 key={buyer.rank}
                 onClick={() => {
@@ -1261,82 +1675,232 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       </SectionWrapper>
     );
 
-    const section_events = (
-      <SectionWrapper key="events" sectionId="events">
-        {/* SECTION: Eventos da Cidade */}
-        <div id="events-section" style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
-            <EditableText textId="home_events_title" defaultText="Eventos e Festas na Cidade" />
-          </h3>
-          {events.map(ev => {
-            const activeBatch = ev.batches ? ev.batches.find(b => b.sold < b.limit) || ev.batches[ev.batches.length - 1] : null;
-            const isSoldOut = !ev.batches || !ev.batches.some(b => b.sold < b.limit);
-            const percent = activeBatch ? Math.round((activeBatch.sold / activeBatch.limit) * 100) : 0;
-            return (
-              <div
-                key={ev.id}
-                onClick={() => { setSelectedEventId(ev.id); onSwitchView('client_event'); }}
-                style={{
-                  border: '1px solid #eee',
-                  borderRadius: '16px',
-                  padding: '10px',
-                  position: 'relative',
-                  backgroundColor: '#ffffff',
-                  cursor: 'pointer',
-                  marginBottom: '14px'
-                }}
-              >
-                <img 
-                  src={ev.image} 
-                  alt={ev.name} 
-                  style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '12px', marginBottom: '8px' }}
-                />
-                <div style={{ padding: '4px' }}>
-                  <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Calendar size={12} />
-                    <span>{ev.date}</span>
-                  </div>
-                  <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</h4>
-                  <div style={{ fontSize: '0.72rem', color: '#777' }}>Local: {ev.location}</div>
-                  <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '2px' }}>Organizador: {ev.organizerName}</div>
+    const section_events = (blockId = 'events') => {
+      if (!events || events.length === 0) return null;
+      
+      // DESKTOP: Grid (more columns, 1 row)
+      if (isDesktop) {
+        return (
+          <SectionWrapper key={blockId} sectionId={blockId}>
+            <div id="events-section" style={{ marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+                {visualLayoutSettings?.customTexts?.[`section_title_${blockId}`] || 'Eventos e Festas na Cidade'}
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
+                {(events || []).map(ev => {
+                  const activeBatch = ev.batches && ev.batches.length > 0
+                    ? ev.batches.find(b => parseInt(b.limit || 0) > 0 && parseInt(b.sold || 0) < parseInt(b.limit || 0)) || ev.batches[0]
+                    : null;
+                  const isSoldOut = ev.batches && ev.batches.length > 0 
+                    ? ev.batches.every(b => parseInt(b.limit || 0) > 0 && parseInt(b.sold || 0) >= parseInt(b.limit || 0)) 
+                    : false;
                   
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid #f9f9f9', paddingTop: '6px' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#888' }}>Ingressos por Lote ({activeBatch?.name || 'Lote'})</span>
-                    <strong style={{ fontSize: '0.82rem', color: isVisitor ? '#ff5e5b' : '#f28d1a', fontWeight: 500 }}>
-                      {isVisitor ? 'Bloqueado' : (isSoldOut ? 'Esgotado' : `R$ ${activeBatch.price.toFixed(2)}`)}
-                    </strong>
-                  </div>
-
-                  {activeBatch && (
-                    <div style={{ marginTop: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#777', marginBottom: '2px' }}>
-                        <span>Progresso do lote:</span>
-                        <span>{percent}% ({activeBatch.sold}/{activeBatch.limit})</span>
+                  const parsedSold = activeBatch ? parseInt(activeBatch.sold || 0) : 0;
+                  const parsedLimit = activeBatch ? parseInt(activeBatch.limit || 0) : 0;
+                  const percent = parsedLimit > 0 ? Math.round((parsedSold / parsedLimit) * 100) : 0;
+                  return (
+                    <div
+                      key={ev.id}
+                      onClick={() => { setSelectedEventId(ev.id); onSwitchView('client_event'); }}
+                      style={{
+                        border: '1px solid #eee',
+                        borderRadius: '16px',
+                        padding: '10px',
+                        position: 'relative',
+                        backgroundColor: '#ffffff',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        transition: 'transform 0.2s ease-in-out'
+                      }}
+                    >
+                      <div>
+                        <div style={{ width: '100%', aspectRatio: '16/10', overflow: 'hidden', borderRadius: '12px', marginBottom: '8px' }}>
+                          <img 
+                            src={ev.image} 
+                            alt={ev.name} 
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                          />
+                        </div>
+                        <div style={{ padding: '4px' }}>
+                          <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <Calendar size={12} />
+                            <span>{ev.date}</span>
+                          </div>
+                          <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</h4>
+                          <div style={{ fontSize: '0.72rem', color: '#777' }}>Local: {ev.location}</div>
+                          <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '2px' }}>Organizador: {ev.organizerName}</div>
+                        </div>
                       </div>
-                      <div style={{ width: '100%', height: '5px', backgroundColor: '#eee', borderRadius: '2.5px', overflow: 'hidden' }}>
-                        <div style={{ width: `${percent}%`, height: '100%', backgroundColor: '#f28d1a', borderRadius: '2.5px' }} />
+
+                      <div style={{ padding: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid #f9f9f9', paddingTop: '6px' }}>
+                          <span style={{ fontSize: '0.72rem', color: '#888' }}>Lote: {activeBatch?.name || 'Lote'}</span>
+                          <strong style={{ fontSize: '0.8rem', color: isVisitor ? '#ff5e5b' : '#f28d1a', fontWeight: 500 }}>
+                            {isVisitor ? 'Bloqueado' : (isSoldOut ? 'Esgotado' : `R$ ${activeBatch ? parseFloat(activeBatch.price || 0).toFixed(2) : '0.00'}`)}
+                          </strong>
+                        </div>
+
+                        {activeBatch && (
+                          <div style={{ marginTop: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#777', marginBottom: '2px' }}>
+                              <span>Progresso:</span>
+                              <span>{percent}% ({parsedSold}/{parsedLimit})</span>
+                            </div>
+                            <div style={{ width: '100%', height: '5px', backgroundColor: '#eee', borderRadius: '2.5px', overflow: 'hidden' }}>
+                              <div style={{ width: `${percent}%`, height: '100%', backgroundColor: '#f28d1a', borderRadius: '2.5px' }} />
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  )}
-                </div>
+                  );
+                })}
               </div>
-            );
-          })}
-        </div>
-      </SectionWrapper>
-    );
+            </div>
+          </SectionWrapper>
+        );
+      }
 
-    const section_services = (
-      <SectionWrapper key="services" sectionId="services">
+      // MOBILE: Horizontal scrollable carousel
+      return (
+        <SectionWrapper key={blockId} sectionId={blockId}>
+          <div id="events-section" style={{ marginBottom: '24px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+              {visualLayoutSettings?.customTexts?.[`section_title_${blockId}`] || 'Eventos na Cidade'}
+            </h3>
+            
+            <div
+              style={{
+                display: 'flex',
+                gap: '12px',
+                overflowX: 'auto',
+                paddingBottom: '8px',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                WebkitOverflowScrolling: 'touch'
+              }}
+              className="hide-scrollbar"
+              onMouseDown={handleMouseDown}
+              onMouseLeave={handleMouseLeave}
+              onMouseUp={handleMouseUp}
+              onMouseMove={handleMouseMove}
+              onScroll={handleEventScroll}
+            >
+              {(events || []).map(ev => {
+                const evActiveBatch = ev.batches && ev.batches.length > 0
+                  ? ev.batches.find(b => parseInt(b.limit || 0) > 0 && parseInt(b.sold || 0) < parseInt(b.limit || 0)) || ev.batches[0]
+                  : null;
+                const evIsSoldOut = ev.batches && ev.batches.length > 0 
+                  ? ev.batches.every(b => parseInt(b.limit || 0) > 0 && parseInt(b.sold || 0) >= parseInt(b.limit || 0)) 
+                  : false;
+                const evSold = evActiveBatch ? parseInt(evActiveBatch.sold || 0) : 0;
+                const evLimit = evActiveBatch ? parseInt(evActiveBatch.limit || 0) : 0;
+                const evPercent = evLimit > 0 ? Math.round((evSold / evLimit) * 100) : 0;
+                
+                return (
+                  <div
+                    key={ev.id}
+                    onClick={(e) => {
+                      const container = e.currentTarget.parentElement;
+                      if (container && container.dataset.hasDragged === 'true') {
+                        container.dataset.hasDragged = 'false';
+                        return;
+                      }
+                      setSelectedEventId(ev.id); onSwitchView('client_event');
+                    }}
+                    style={{
+                      border: '1px solid #eee',
+                      borderRadius: '16px',
+                      padding: '10px',
+                      backgroundColor: '#ffffff',
+                      cursor: 'pointer',
+                      flex: '0 0 80%',
+                      minWidth: '240px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between'
+                    }}
+                  >
+                    <div>
+                      <div style={{ width: '100%', aspectRatio: '16/10', overflow: 'hidden', borderRadius: '12px', marginBottom: '8px' }}>
+                        <img src={ev.image} alt={ev.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable="false" />
+                      </div>
+                      <div style={{ padding: '4px' }}>
+                        <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                          <Calendar size={12} />
+                          <span>{ev.date}</span>
+                        </div>
+                        <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</h4>
+                        <div style={{ fontSize: '0.72rem', color: '#777' }}>Local: {ev.location}</div>
+                        <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '2px' }}>Organizador: {ev.organizerName}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ padding: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid #f9f9f9', paddingTop: '6px' }}>
+                        <span style={{ fontSize: '0.75rem', color: '#888' }}>Lote ({evActiveBatch?.name || 'Lote'})</span>
+                        <strong style={{ fontSize: '0.82rem', color: isVisitor ? '#ff5e5b' : '#f28d1a', fontWeight: 500 }}>
+                          {isVisitor ? 'Bloqueado' : (evIsSoldOut ? 'Esgotado' : `R$ ${evActiveBatch ? parseFloat(evActiveBatch.price || 0).toFixed(2) : '0.00'}`)}
+                        </strong>
+                      </div>
+                      {evActiveBatch && (
+                        <div style={{ marginTop: '6px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: '#777', marginBottom: '2px' }}>
+                            <span>Progresso:</span>
+                            <span>{evPercent}% ({evSold}/{evLimit})</span>
+                          </div>
+                          <div style={{ width: '100%', height: '5px', backgroundColor: '#eee', borderRadius: '2.5px', overflow: 'hidden' }}>
+                            <div style={{ width: `${evPercent}%`, height: '100%', backgroundColor: '#f28d1a', borderRadius: '2.5px' }} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {(events || []).length > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '8px' }}>
+                {(events || []).map((_, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      width: activeEventPage === idx ? '18px' : '6px',
+                      height: '6px',
+                      borderRadius: '3px',
+                      backgroundColor: activeEventPage === idx ? '#f28d1a' : '#ddd',
+                      transition: 'all 0.2s ease'
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </SectionWrapper>
+      );
+    };
+
+
+    const section_services = (blockId = 'services') => (
+      <SectionWrapper key={blockId} sectionId={blockId}>
         {/* SECTION: Serviços em Destaque */}
         <div id="services-section" style={{ marginBottom: '24px' }}>
           <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
-            <EditableText textId="home_services_title" defaultText="Serviços em Destaque" />
+            {visualLayoutSettings?.customTexts?.[`section_title_${blockId}`] || 'Serviços em Destaque'}
           </h3>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
-            {services.map(serv => {
-              const hasDiscount = serv.originalPrice && serv.pricePerHour < serv.originalPrice;
-              const discountPercent = hasDiscount ? Math.round(((serv.originalPrice - serv.pricePerHour) / serv.originalPrice) * 100) : 0;
+            {(services || []).filter(serv => {
+              if (serv.active === false) return false;
+              const provider = users?.find(u => u.id === serv.providerId);
+              if (!provider || provider.registrationStatus !== 'approved' || provider.banned) return false;
+              return true;
+            }).map(serv => {
+              const sPrice = serv.pricePerHour || serv.price || 0;
+              const hasDiscount = serv.originalPrice && sPrice < serv.originalPrice;
+              const discountPercent = hasDiscount ? Math.round(((serv.originalPrice - sPrice) / serv.originalPrice) * 100) : 0;
               return (
                 <div
                   key={serv.id}
@@ -1380,7 +1944,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       <span style={{ fontSize: '0.75rem', color: '#ff5e5b' }}>Bloqueado</span>
                     ) : (
                       <>
-                        <strong style={{ fontSize: '0.8rem', color: '#f28d1a', fontWeight: 500 }}>R$ {serv.pricePerHour.toFixed(2)}/h</strong>
+                        <strong style={{ fontSize: '0.8rem', color: '#f28d1a', fontWeight: 500 }}>R$ {(serv.pricePerHour || serv.price || 0).toFixed(2)}{serv.priceType === 'total' ? '' : '/h'}</strong>
                         {hasDiscount && (
                           <span style={{ fontSize: '0.68rem', textDecoration: 'line-through', color: '#bbb' }}>R$ {serv.originalPrice.toFixed(2)}</span>
                         )}
@@ -1388,7 +1952,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                     )}
                   </div>
                   <div style={{ fontSize: '0.65rem', color: '#888', marginTop: '2px' }}>
-                    {serv.completedCount || 0} serviços realizados
+                    {(servicesHired || []).filter(sh => sh.serviceId === serv.id && sh.status === 'completed').length} serviços realizados
                   </div>
                 </div>
               );
@@ -1397,6 +1961,320 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         </div>
       </SectionWrapper>
     );
+
+    const renderDynamicSection = (sec, blockIdParam = null) => {
+      const blockId = blockIdParam || `dynamic_${sec.id}`;
+      if (!sec.itemIds || sec.itemIds.length === 0) return null;
+
+      if (sec.type === 'products') {
+        const secProducts = (products || []).filter(p => {
+          if (!p.active || !sec.itemIds.includes(p.id)) return false;
+          const store = users?.find(u => u.id === p.storeId || u.id === p.sellerId);
+          if (!store || store.registrationStatus !== 'approved' || store.banned) return false;
+          return true;
+        });
+        if (secProducts.length === 0) return null;
+        return (
+          <div key={blockId} style={{ marginBottom: '24px' }} className="animate-fade-in">
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+              {visualLayoutSettings?.customTexts?.[`section_title_${blockId}`] || sec.name}
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+              {secProducts.map(prod => {
+                const hasDiscount = prod.originalPrice && prod.price < prod.originalPrice;
+                const discountPercent = hasDiscount ? Math.round(((prod.originalPrice - prod.price) / prod.originalPrice) * 100) : 0;
+                return (
+                  <div
+                    key={prod.id}
+                    onClick={() => handleProductClick(prod.id)}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '16px',
+                      padding: '8px',
+                      border: '1px solid #eee',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      minWidth: 0
+                    }}
+                  >
+                    {hasDiscount && (
+                      <span style={{
+                        position: 'absolute',
+                        top: '8px',
+                        left: '8px',
+                        backgroundColor: '#ff5e5b',
+                        color: 'white',
+                        fontSize: '0.65rem',
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: '8px',
+                        zIndex: 2
+                      }}>
+                        {discountPercent}%
+                      </span>
+                    )}
+                    <button
+                      onClick={(e) => handleFavoriteToggle(prod.id, e)}
+                      style={{
+                        position: 'absolute',
+                        top: '8px',
+                        right: '8px',
+                        background: 'white',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '26px',
+                        height: '26px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                        cursor: 'pointer',
+                        zIndex: 2
+                      }}
+                    >
+                      <Heart 
+                        size={13} 
+                        className={favorites.includes(prod.id) ? 'heart-active' : ''}
+                        style={{ 
+                          fill: favorites.includes(prod.id) ? '#f9bb1a' : 'none', 
+                          color: favorites.includes(prod.id) ? '#f9bb1a' : '#999',
+                          transition: 'transform 0.2s ease-in-out'
+                        }} 
+                      />
+                    </button>
+                    <img 
+                      src={prod.image} 
+                      alt={prod.name} 
+                      style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '12px', marginBottom: '8px' }}
+                    />
+                    <h4 style={{ 
+                      fontSize: '0.75rem', 
+                      fontWeight: 500, 
+                      color: '#2d2d2d', 
+                      margin: 0, 
+                      whiteSpace: 'nowrap', 
+                      overflow: 'hidden', 
+                      textOverflow: 'ellipsis' 
+                    }}>
+                      {prod.name}
+                    </h4>
+                    <span style={{ fontSize: '0.68rem', color: '#999' }}>{prod.storeName}</span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '4px' }}>
+                      {isVisitor ? (
+                        <span style={{ fontSize: '0.78rem', color: '#ff5e5b' }}>Bloqueado</span>
+                      ) : (
+                        <>
+                          <strong style={{ fontSize: '0.82rem', fontWeight: 500, color: '#f28d1a' }}>R$ {prod.price.toFixed(2)}</strong>
+                          {hasDiscount && (
+                            <span style={{ fontSize: '0.68rem', textDecoration: 'line-through', color: '#bbb' }}>R$ {prod.originalPrice.toFixed(2)}</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <div style={{ fontSize: '0.65rem', color: '#888', marginTop: '2px' }}>
+                      {prod.soldCount || 0} vendidos
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+
+      if (sec.type === 'stores') {
+        const secStores = (users || []).filter(u => u.role === 'seller' && u.registrationStatus === 'approved' && sec.itemIds.includes(u.id));
+        if (secStores.length === 0) return null;
+        return (
+          <div key={blockId} style={{ marginBottom: '24px' }} className="animate-fade-in">
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+              {visualLayoutSettings?.customTexts?.[`section_title_${blockId}`] || sec.name}
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {secStores.map(store => (
+                <div
+                  key={store.id}
+                  onClick={() => { setSelectedStoreId(store.id); onSwitchView('client_store'); }}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    backgroundColor: '#ffffff',
+                    padding: '12px',
+                    borderRadius: '20px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+                    cursor: 'pointer',
+                    border: '1px solid #eee'
+                  }}
+                >
+                  <img 
+                    src={store.logo || 'https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=150'} 
+                    alt={store.name} 
+                    style={{ width: '50px', height: '50px', borderRadius: '14px', objectFit: 'cover', flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{store.name}</div>
+                    <div style={{ fontSize: '0.72rem', color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{store.desc || 'Loja parceira Connecta+'}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
+
+      if (sec.type === 'services') {
+        const secServices = (services || []).filter(s => {
+          if (sec.itemIds && !sec.itemIds.includes(s.id)) return false;
+          if (s.active === false) return false;
+          const provider = users?.find(u => u.id === s.providerId);
+          if (!provider || provider.registrationStatus !== 'approved' || provider.banned) return false;
+          return true;
+        });
+        if (secServices.length === 0) return null;
+        return (
+          <div key={blockId} style={{ marginBottom: '24px' }} className="animate-fade-in">
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+              {visualLayoutSettings?.customTexts?.[`section_title_${blockId}`] || sec.name}
+            </h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+              {secServices.map(serv => {
+                const sPrice = serv.pricePerHour || serv.price || 0;
+                const hasDiscount = serv.originalPrice && sPrice < serv.originalPrice;
+                const discountPercent = hasDiscount ? Math.round(((serv.originalPrice - sPrice) / serv.originalPrice) * 100) : 0;
+                return (
+                  <div
+                    key={serv.id}
+                    onClick={() => { setSelectedServiceIdForHire(serv.id); setSelectedProviderId(serv.providerId); onSwitchView('client_service'); }}
+                    style={{
+                      border: '1px solid #eee',
+                      borderRadius: '16px',
+                      padding: '8px',
+                      cursor: 'pointer',
+                      position: 'relative',
+                      backgroundColor: '#ffffff',
+                      minWidth: 0
+                    }}
+                  >
+                    {hasDiscount && (
+                      <span style={{
+                        position: 'absolute',
+                        top: '8px',
+                        left: '8px',
+                        backgroundColor: '#ff5e5b',
+                        color: 'white',
+                        fontSize: '0.65rem',
+                        fontWeight: 700,
+                        padding: '2px 6px',
+                        borderRadius: '8px',
+                        zIndex: 2
+                      }}>
+                        {discountPercent}%
+                      </span>
+                    )}
+                    <img 
+                      src={serv.image} 
+                      alt={serv.name} 
+                      style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '12px', marginBottom: '8px' }}
+                    />
+                    <h4 style={{ fontSize: '0.75rem', fontWeight: 500, marginTop: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#2d2d2d', margin: 0 }}>{serv.name}</h4>
+                    <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{serv.category}</div>
+                    <div style={{ fontSize: '0.65rem', color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Profissional: {serv.providerName}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginTop: '4px' }}>
+                      {isVisitor ? (
+                        <span style={{ fontSize: '0.75rem', color: '#ff5e5b' }}>Bloqueado</span>
+                      ) : (
+                        <>
+                          <strong style={{ fontSize: '0.8rem', color: '#f28d1a', fontWeight: 500 }}>R$ {(serv.pricePerHour || serv.price || 0).toFixed(2)}{serv.priceType === 'total' ? '' : '/h'}</strong>
+                          {hasDiscount && (
+                            <span style={{ fontSize: '0.68rem', textDecoration: 'line-through', color: '#bbb' }}>R$ {serv.originalPrice.toFixed(2)}</span>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      }
+
+      if (sec.type === 'events') {
+        const secEvents = (events || []).filter(ev => ev.published && sec.itemIds.includes(ev.id));
+        if (secEvents.length === 0) return null;
+        return (
+          <div key={blockId} style={{ marginBottom: '24px' }} className="animate-fade-in">
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+              {visualLayoutSettings?.customTexts?.[`section_title_${blockId}`] || sec.name}
+            </h3>
+            {secEvents.map(ev => {
+              return (
+                <div
+                  key={ev.id}
+                  onClick={() => { setSelectedEventId(ev.id); onSwitchView('client_event'); }}
+                  style={{
+                    border: '1px solid #eee',
+                    borderRadius: '16px',
+                    padding: '10px',
+                    position: 'relative',
+                    backgroundColor: '#ffffff',
+                    cursor: 'pointer',
+                    marginBottom: '14px'
+                  }}
+                >
+                  <img 
+                    src={ev.image} 
+                    alt={ev.name} 
+                    style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '12px', marginBottom: '8px' }}
+                  />
+                  <div style={{ padding: '4px' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Calendar size={12} />
+                      <span>{ev.date}</span>
+                    </div>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</h4>
+                    <div style={{ fontSize: '0.72rem', color: '#777' }}>Local: {ev.location}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        );
+      }
+      
+      if (sec.type === 'banners') {
+        const selectedId = visualLayoutSettings?.[`active_banner_id_${blockId}`];
+        
+        let secBanners = [];
+        if (selectedId && selectedId !== 'all') {
+          const found = (banners || []).find(b => b.id === selectedId);
+          if (found) {
+            secBanners = [found];
+          }
+        } else {
+          secBanners = (banners || []).filter(b => sec.itemIds && sec.itemIds.includes(b.id));
+        }
+
+        if (secBanners.length === 0) return null;
+
+        return (
+          <div key={blockId} style={{ marginBottom: '24px' }} className="animate-fade-in">
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+              {visualLayoutSettings?.customTexts?.[`section_title_${blockId}`] || sec.name}
+            </h3>
+            <BannerCarousel
+              bannersList={secBanners}
+              isMobile={isMobile}
+              onSwitchView={onSwitchView}
+              setSelectedCategory={setSelectedCategory}
+            />
+          </div>
+        );
+      }
+
+      return null;
+    };
 
     const sectionsMap = {
       banner: section_banner,
@@ -1410,7 +2288,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     };
 
     return (
-      <div style={{ padding: '16px', paddingBottom: '90px', overflowX: 'hidden', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
+      <div style={{ padding: '16px', paddingBottom: '90px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
         {/* Localization & Header Actions */}
         <div className="mobile-home-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div 
@@ -1420,7 +2298,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             <MapPin size={18} style={{ color: '#f28d1a' }} />
             <div>
               <div style={{ fontSize: '0.65rem', color: '#888', textTransform: 'uppercase', fontWeight: 600 }}>Entregar em</div>
-              <div style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d', borderBottom: '1px dashed #f28d1a' }}>{userLocation.split(',')[0]}</div>
+              <div style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d', borderBottom: '1px dashed #f28d1a' }}>{(userLocation || 'Cabeças - Ouro Preto, MG').split(',')[0]}</div>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
@@ -1507,7 +2385,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             ) : (
               <>
                 <h2 style={{ fontSize: '1.25rem', fontWeight: 500, color: '#2d2d2d' }}>
-                  olá, <EditableText textId="home_username" defaultText={currentUser ? currentUser.name.split(' ')[0] : 'lindeza'} />!
+                  olá, <EditableText textId="home_username" defaultText={(currentUser && currentUser.name) ? currentUser.name.split(' ')[0] : 'lindeza'} />!
                 </h2>
                 <p style={{ fontSize: '0.8rem', color: '#666' }}>
                   <EditableText textId="home_subtitle" defaultText="Bora achar uns trem bão hoje?" />
@@ -1536,8 +2414,20 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           </button>
         </div>
 
-        {/* Renderização Reordenável */}
-        {(visualLayoutSettings?.sectionOrder || ['banner', 'categories', 'flashDeals', 'nearbyStores', 'products', 'buyers', 'events', 'services']).map(secId => sectionsMap[secId])}
+        {/* Renderização Reordenável das Seções */}
+        {(visualLayoutSettings?.sectionOrder || ['banner', 'categories', 'flashDeals', 'nearbyStores', 'products', 'buyers', 'events', 'services'])
+          .map(secId => {
+            const baseId = secId.includes('__') ? secId.split('__')[0] : secId;
+            // Seção fixa
+            if (sectionsMap[baseId]) return sectionsMap[baseId](secId);
+            // Seção dinâmica (prefixo dynamic_)
+            if (baseId.startsWith('dynamic_') && homeSections) {
+              const dynId = baseId.replace('dynamic_', '');
+              const sec = (homeSections || []).find(s => s.id === dynId);
+              if (sec) return renderDynamicSection(sec, secId);
+            }
+            return null;
+          })}
       </div>
     );
   };
@@ -1546,21 +2436,14 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const renderProductDetail = () => {
     const prod = products.find(p => p.id === selectedProductId);
     if (!prod) return <div>Produto sumiu uai...</div>;
-
     const coinsEarned = Math.round(prod.price * 0.5);
-    const images = [
-      prod.image,
-      prod.image.includes('?') ? `${prod.image}&v=1` : `${prod.image}?v=1`,
-      prod.image.includes('?') ? `${prod.image}&v=2` : `${prod.image}?v=2`,
-      prod.image.includes('?') ? `${prod.image}&v=3` : `${prod.image}?v=3`,
-      prod.image.includes('?') ? `${prod.image}&v=4` : `${prod.image}?v=4`,
-      prod.image.includes('?') ? `${prod.image}&v=5` : `${prod.image}?v=5`,
-      prod.image.includes('?') ? `${prod.image}&v=6` : `${prod.image}?v=6`,
-      prod.image.includes('?') ? `${prod.image}&v=7` : `${prod.image}?v=7`,
-      prod.image.includes('?') ? `${prod.image}&v=8` : `${prod.image}?v=8`,
-      prod.image.includes('?') ? `${prod.image}&v=9` : `${prod.image}?v=9`,
-    ];
-
+    const images = (prod.images && prod.images.filter(img => img)) || [];
+    if (images.length === 0 && prod.image) {
+      images.push(prod.image);
+    }
+    if (images.length === 0) {
+      images.push('https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500');
+    }
     // Parse specifications
     const specList = [];
     if (typeof prod.specifications === 'string' && prod.specifications.trim()) {
@@ -1583,9 +2466,35 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     return (
       <div style={{ backgroundColor: '#ffffff', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }} className="animate-fade-in">
         {/* Scrollable Content wrapper */}
-        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '90px' }} className="custom-scroll">
+        <div 
+          style={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            paddingBottom: '90px',
+            display: isDesktop ? 'flex' : 'block',
+            gap: isDesktop ? '32px' : '0px',
+            padding: isDesktop ? '20px' : '0px',
+            maxWidth: isDesktop ? '1000px' : '100%',
+            margin: isDesktop ? '0 auto' : '0',
+            width: '100%',
+            boxSizing: 'border-box'
+          }} 
+          className="custom-scroll"
+        >
           {/* Cover gallery 1:1 with horizontal scroll snap */}
-          <div style={{ position: 'relative', width: '100%', aspectRatio: '1/1', backgroundColor: '#eee', overflow: 'hidden' }}>
+          <div style={{ 
+            position: isDesktop ? 'sticky' : 'relative',
+            top: isDesktop ? '20px' : '0px',
+            width: isDesktop ? '300px' : '100%',
+            aspectRatio: '1/1',
+            backgroundColor: '#eee',
+            overflow: 'hidden',
+            flexShrink: 0,
+            borderRadius: isDesktop ? '20px' : '0px',
+            boxShadow: isDesktop ? '0 8px 24px rgba(0,0,0,0.08)' : 'none',
+            alignSelf: isDesktop ? 'flex-start' : 'auto',
+            zIndex: 1
+          }}>
             <div 
               onScroll={(e) => {
                 const scrollLeft = e.target.scrollLeft;
@@ -1670,6 +2579,9 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               {(activeProductImageIdx % images.length) + 1}/{images.length}
             </div>
           </div>
+
+          {/* Right side wrapper (on desktop, flows to the right) */}
+          <div style={{ flex: 1, minWidth: 0, padding: isDesktop ? '0 10px' : '0px' }}>
 
           {/* Info grid block below the image */}
           <div style={{ padding: '20px 20px 0 20px' }}>
@@ -1815,7 +2727,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               }}
             >
               <img 
-                src={users?.find(u => u.id === prod.storeId)?.avatar || 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=100'} 
+                src={users?.find(u => u.id === prod.storeId)?.avatar || users?.find(u => u.id === prod.storeId)?.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'} 
                 alt={prod.storeName}
                 style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }}
               />
@@ -2017,14 +2929,17 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               );
             })()}
           </div>
+          </div>
         </div>
 
         {/* Floating action bar fixed at the bottom */}
         <div style={{
-          position: 'absolute',
+          position: 'fixed',
           bottom: 0,
-          left: 0,
-          right: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
+          width: '100%',
+          maxWidth: isDesktop ? '1000px' : '100%',
           padding: '12px 16px',
           backgroundColor: '#ffffff',
           borderTop: '1px solid #eaeaea',
@@ -2073,7 +2988,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                     targetProd.selectedVariation = selectedVariation;
                   }
                   handleAddToCart(targetProd);
-                  triggerToast("Adicionado ao carrinho!");
                 }}
                 style={{
                   width: '48px',
@@ -2118,33 +3032,19 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   // Grouped Categories Constant & Helpers
   const categoriesGrouped = {
     lojas: categories.filter(c => c.type === 'lojas' && c.active !== false).map(c => ({
-      label: c.label, key: c.key || c.label, desc: c.desc || '', img: c.image || ''
+      label: c.label, key: c.key || c.label, desc: c.desc || '', img: c.image || '', icon: c.icon
     })),
     servicos: categories.filter(c => c.type === 'servicos' && c.active !== false).map(c => ({
-      label: c.label, key: 'Serviços', desc: c.desc || '', img: c.image || ''
+      label: c.label, key: c.key || c.label, desc: c.desc || '', img: c.image || '', icon: c.icon
     })),
     eventos: categories.filter(c => c.type === 'eventos' && c.active !== false).map(c => ({
-      label: c.label, key: 'Eventos', desc: c.desc || '', img: c.image || ''
+      label: c.label, key: c.key || c.label, desc: c.desc || '', img: c.image || '', icon: c.icon
     }))
   };
 
   const handleCategorySelect = (cat) => {
-    if (cat.key === 'Eventos') {
-      setSelectedCategory(null);
-      onSwitchView('client_home');
-      setTimeout(() => {
-        document.getElementById('events-section')?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    } else if (cat.key === 'Serviços') {
-      setSelectedCategory(null);
-      onSwitchView('client_home');
-      setTimeout(() => {
-        document.getElementById('services-section')?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-    } else {
-      setSelectedCategory(cat.key);
-      onSwitchView('client_categories');
-    }
+    setSelectedCategory(cat.key);
+    onSwitchView('client_categories');
   };
 
   const renderCategoryRow = (cat) => (
@@ -2171,11 +3071,27 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         e.currentTarget.style.borderColor = '#eee';
       }}
     >
-      <img
-        src={cat.img}
-        alt={cat.label}
-        style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'cover' }}
-      />
+      {cat.img && typeof cat.img === 'string' && cat.img.trim() !== '' && (cat.img.startsWith('http') || cat.img.startsWith('data:')) ? (
+        <img
+          src={cat.img}
+          alt={cat.label}
+          style={{ width: '40px', height: '40px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }}
+        />
+      ) : (
+        <div style={{
+          width: '40px',
+          height: '40px',
+          borderRadius: '10px',
+          backgroundColor: '#fff9ee',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#f28d1a',
+          flexShrink: 0
+        }}>
+          {renderCategoryIcon(cat.icon)}
+        </div>
+      )}
       <div style={{ flex: 1 }}>
         <h5 style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>{cat.label}</h5>
         <p style={{ fontSize: '0.68rem', color: '#888', margin: '2px 0 0 0' }}>{cat.desc}</p>
@@ -2216,6 +3132,26 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
   // --- SUBVIEW 3: CLIENT CATEGORIES / FILTER ---
   const renderCategories = () => {
+    const getStoreRatingInfo = (storeId) => {
+      const storeProds = (products || []).filter(p => p.storeId === storeId || p.sellerId === storeId);
+      const storeProdIds = storeProds.map(p => p.id);
+      const storeReviews = productReviews?.filter(r => storeProdIds.includes(r.productId)) || [];
+      
+      if (storeReviews.length > 0) {
+        const sum = storeReviews.reduce((acc, r) => acc + (parseFloat(r.rating) || 5), 0);
+        const avg = parseFloat((sum / storeReviews.length).toFixed(1));
+        return {
+          rating: avg,
+          count: storeReviews.length,
+          text: `${avg} (${storeReviews.length})`
+        };
+      }
+      return {
+        rating: null,
+        count: 0,
+        text: 'Sem avaliações'
+      };
+    };
     if (!selectedCategory) {
       return (
         <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
@@ -2246,6 +3182,311 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           </div>
           
           {renderGroupedCategoriesList()}
+        </div>
+      );
+    }
+
+    const catObj = categories.find(c => c.key?.toLowerCase() === selectedCategory.toLowerCase() || c.label?.toLowerCase() === selectedCategory.toLowerCase());
+    const categoryType = catObj ? catObj.type : 'lojas';
+
+    if (categoryType === 'lojas') {
+      const catStores = users.filter(u => u.role === 'seller' && u.registrationStatus === 'approved' && !u.banned && u.category?.toLowerCase() === selectedCategory.toLowerCase());
+      const catProds = products.filter(p => p.category?.toLowerCase() === selectedCategory.toLowerCase() && p.active !== false);
+
+      const hasAnything = catStores.length > 0 || catProds.length > 0;
+
+      return (
+        <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+            <button 
+              onClick={() => setSelectedCategory(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a' }}
+            >
+              <ArrowLeft size={22} />
+            </button>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>
+              {selectedCategory}
+            </h2>
+          </div>
+
+          {!hasAnything ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Search size={32} style={{ color: '#ccc', marginBottom: '8px' }} />
+              <p style={{ fontSize: '0.88rem', marginTop: '6px' }}>Nenhum estabelecimento ou produto cadastrado nessa categoria uai.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {/* Lojas List */}
+              {catStores.length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '10px' }}>Lojas</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {catStores.map(store => (
+                      <div
+                        key={store.id}
+                        onClick={() => { setSelectedStoreId(store.id); onSwitchView('client_store'); }}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          backgroundColor: '#ffffff',
+                          padding: '12px',
+                          borderRadius: '20px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+                          cursor: 'pointer',
+                          border: '1px solid #eee'
+                        }}
+                      >
+                        <img 
+                          src={store.logo || store.avatar || 'https://images.unsplash.com/photo-1513519245088-0e12902e5a38?w=100'} 
+                          alt={store.companyName || store.name} 
+                          style={{ width: '50px', height: '50px', borderRadius: '14px', objectFit: 'cover', flexShrink: 0 }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{store.companyName || store.name}</div>
+                          <div style={{ fontSize: '0.72rem', color: '#888', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>{store.bio || store.description || 'Loja Parceira'}</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
+                            <div style={{ display: 'flex', gap: '6px', fontSize: '0.68rem', color: '#666', fontWeight: 500, alignItems: 'center', flexWrap: 'wrap' }}>
+                              <span>{store.deliveryTimeEstimate || '30-40min'}</span>
+                              <span> • </span>
+                              <span>Frete Grátis</span>
+                            </div>
+                            {(() => {
+                              const ratingInfo = getStoreRatingInfo(store.id);
+                              const ratingVal = ratingInfo.rating;
+                              const ratingCnt = ratingInfo.count;
+                              return (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.68rem' }}>
+                                  {[1, 2, 3, 4, 5].map(star => (
+                                    <Star 
+                                      key={star} 
+                                      size={11} 
+                                      fill={ratingVal !== null && ratingVal > 0 && star <= Math.round(ratingVal) ? "#f9bb1a" : "#ddd"} 
+                                      stroke="none" 
+                                    />
+                                  ))}
+                                  <span style={{ color: '#666', marginLeft: '4px', fontWeight: 500 }}>
+                                    {ratingVal !== null && ratingVal > 0 ? `${ratingVal.toFixed(1)} (${ratingCnt})` : '0 (0)'}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Produtos List */}
+              {catProds.length > 0 && (
+                <div>
+                  <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '10px' }}>Produtos</h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    {catProds.map(prod => (
+                      <div
+                        key={prod.id}
+                        onClick={() => handleProductClick(prod.id)}
+                        style={{
+                          backgroundColor: '#ffffff',
+                          borderRadius: '20px',
+                          padding: '12px',
+                          boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+                          cursor: 'pointer',
+                          border: '1px solid #f0ebdf',
+                          position: 'relative'
+                        }}
+                      >
+                        <button
+                          onClick={(e) => handleFavoriteToggle(prod.id, e)}
+                          style={{
+                            position: 'absolute',
+                            top: '8px',
+                            right: '8px',
+                            background: 'white',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '28px',
+                            height: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+                            cursor: 'pointer',
+                            zIndex: 2
+                          }}
+                        >
+                          <Heart 
+                            size={14} 
+                            className={favorites.includes(prod.id) ? 'heart-active' : ''}
+                            style={{ 
+                              fill: favorites.includes(prod.id) ? '#f9bb1a' : 'none', 
+                              color: favorites.includes(prod.id) ? '#f9bb1a' : '#999',
+                              transition: 'transform 0.2s ease-in-out'
+                            }} 
+                          />
+                        </button>
+
+                        <img 
+                          src={prod.image} 
+                          alt={prod.name} 
+                          style={{ width: '100%', height: '110px', objectFit: 'cover', borderRadius: '14px', marginBottom: '8px' }}
+                        />
+                        <div style={{ fontSize: '0.68rem', color: '#999' }}>{prod.storeName}</div>
+                        <h4 style={{
+                          fontSize: '0.78rem',
+                          fontWeight: 500,
+                          color: '#2d2d2d',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          margin: '2px 0'
+                        }}>{prod.name}</h4>
+                        <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#f28d1a', marginTop: '2px' }}>
+                          R$ {prod.price.toFixed(2)}
+                        </div>
+                        <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '2px' }}>
+                          {prod.soldCount || 0} vendidos
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (categoryType === 'servicos') {
+      const catServices = services.filter(s => {
+        if (s.active === false) return false;
+        const provider = users?.find(u => u.id === s.providerId);
+        if (!provider || provider.registrationStatus !== 'approved' || provider.banned) return false;
+        return s.category?.toLowerCase() === selectedCategory.toLowerCase() || s.serviceCategory?.toLowerCase() === selectedCategory.toLowerCase();
+      });
+
+      return (
+        <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+            <button 
+              onClick={() => setSelectedCategory(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a' }}
+            >
+              <ArrowLeft size={22} />
+            </button>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>
+              {selectedCategory}
+            </h2>
+          </div>
+
+          {catServices.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Search size={32} style={{ color: '#ccc', marginBottom: '8px' }} />
+              <p style={{ fontSize: '0.88rem', marginTop: '6px' }}>Nenhum serviço cadastrado nessa categoria uai.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '12px' }}>
+              {catServices.map(serv => (
+                <div
+                  key={serv.id}
+                  onClick={() => { setSelectedServiceIdForHire(serv.id); setSelectedProviderId(serv.providerId); onSwitchView('client_service'); }}
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '20px',
+                    padding: '12px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+                    cursor: 'pointer',
+                    border: '1px solid #eee'
+                  }}
+                >
+                  <img 
+                    src={serv.image} 
+                    alt={serv.name} 
+                    style={{ width: '100%', height: '110px', objectFit: 'cover', borderRadius: '14px', marginBottom: '8px' }}
+                  />
+                  <h4 style={{ fontSize: '0.78rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{serv.name}</h4>
+                  <div style={{ fontSize: '0.68rem', color: '#888' }}>Prestador: {serv.providerName || 'Profissional'}</div>
+                  <div style={{ fontSize: '0.85rem', fontWeight: 500, color: '#f28d1a', marginTop: '4px' }}>
+                    R$ {(serv.pricePerHour || serv.price || 0).toFixed(2)}{serv.priceType === 'total' ? '' : '/h'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    if (categoryType === 'eventos') {
+      const catEvents = events.filter(e => e.category?.toLowerCase() === selectedCategory.toLowerCase());
+
+      return (
+        <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+            <button 
+              onClick={() => setSelectedCategory(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a' }}
+            >
+              <ArrowLeft size={22} />
+            </button>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>
+              {selectedCategory}
+            </h2>
+          </div>
+
+          {catEvents.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 20px', color: '#999', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <Search size={32} style={{ color: '#ccc', marginBottom: '8px' }} />
+              <p style={{ fontSize: '0.88rem', marginTop: '6px' }}>Nenhum evento cadastrado nessa categoria uai.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+              {catEvents.map(ev => {
+                const activeBatch = ev.batches && ev.batches.length > 0
+                  ? ev.batches.find(b => parseInt(b.limit || 0) > 0 && parseInt(b.sold || 0) < parseInt(b.limit || 0)) || ev.batches[0]
+                  : null;
+                const isSoldOut = ev.batches && ev.batches.length > 0 
+                  ? ev.batches.every(b => parseInt(b.limit || 0) > 0 && parseInt(b.sold || 0) >= parseInt(b.limit || 0)) 
+                  : false;
+                return (
+                  <div
+                    key={ev.id}
+                    onClick={() => { setSelectedEventId(ev.id); onSwitchView('client_event'); }}
+                    style={{
+                      backgroundColor: '#ffffff',
+                      borderRadius: '20px',
+                      padding: '12px',
+                      boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+                      cursor: 'pointer',
+                      border: '1px solid #eee'
+                    }}
+                  >
+                    <img 
+                      src={ev.image} 
+                      alt={ev.name} 
+                      style={{ width: '100%', height: '140px', objectFit: 'cover', borderRadius: '14px', marginBottom: '8px' }}
+                    />
+                    <div style={{ fontSize: '0.68rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', marginTop: '4px' }}>{ev.date}</div>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</h4>
+                    <div style={{ fontSize: '0.72rem', color: '#777' }}>Local: {ev.location}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px', borderTop: '1px solid #f9f9f9', paddingTop: '6px' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#888' }}>{activeBatch?.name || 'Lote'}</span>
+                      <strong style={{ fontSize: '0.8rem', color: isVisitor ? '#ff5e5b' : '#f28d1a', fontWeight: 500 }}>
+                        {isVisitor ? 'Bloqueado' : (isSoldOut ? 'Esgotado' : `R$ ${activeBatch?.price.toFixed(2)}`)}
+                      </strong>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       );
     }
@@ -2367,37 +3608,47 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     const storeProducts = products.filter(p => p.storeId === mockStore.id);
     const storeProductsFiltered = storeProducts;
 
+    const followersCount = users.filter(u => u.following && u.following.includes(mockStore.id)).length;
+    const storeReviews = productReviews?.filter(r => storeProducts.map(p => p.id).includes(r.productId)) || [];
+    let avgRating = 0;
+    if (storeReviews.length > 0) {
+      const sum = storeReviews.reduce((acc, r) => acc + (parseFloat(r.rating) || 5), 0);
+      avgRating = parseFloat((sum / storeReviews.length).toFixed(1));
+    }
+
     return (
       <div style={{ backgroundColor: '#ffffff', minHeight: '100%', overflowX: 'hidden', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
         {/* Cover */}
-        <div style={{ width: '100%', aspectRatio: '21/9', position: 'relative', overflow: 'hidden' }}>
-          <img src={mockStore.cover} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          <button 
-            onClick={() => onSwitchView('client_home')}
-            style={{
-              position: 'absolute',
-              top: '12px',
-              left: '12px',
-              backgroundColor: 'white',
-              border: 'none',
-              borderRadius: '50%',
-              width: '32px',
-              height: '32px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-              cursor: 'pointer'
-            }}
-          >
-            <ArrowLeft size={16} />
-          </button>
+        <div style={{ padding: '16px 16px 0 16px' }}>
+          <div style={{ width: '100%', height: '140px', position: 'relative', overflow: 'hidden', borderRadius: '16px' }}>
+            <img src={mockStore.cover || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 35"><rect width="100" height="35" fill="%23eaeaea"/></svg>'} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <button 
+              onClick={() => onSwitchView('client_home')}
+              style={{
+                position: 'absolute',
+                top: '12px',
+                left: '12px',
+                backgroundColor: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                cursor: 'pointer'
+              }}
+            >
+              <ArrowLeft size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Profile info */}
         <div style={{ padding: '16px', position: 'relative', borderBottom: '1px solid #eee' }}>
           <img 
-            src={mockStore.logo} 
+            src={mockStore.logo || mockStore.avatar || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'} 
             alt="logo" 
             style={{
               width: '64px',
@@ -2445,65 +3696,59 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           </div>
           
           <div style={{ marginTop: '36px' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#2d2d2d' }}>
-              <EditableText textId={`store_${mockStore.id}_name`} defaultText={mockStore.name} />
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 500, color: '#2d2d2d' }}>
+              <EditableText textId={`store_${mockStore.id}_name`} defaultText={mockStore.companyName || mockStore.name} />
             </h3>
             <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, marginTop: '2px' }}>
               {mockStore.category}
             </div>
-            <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '6px', lineHeight: 1.3 }}>
+
+            <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '6px', lineHeight: 1.3, whiteSpace: 'pre-wrap' }}>
               <EditableText textId={`store_${mockStore.id}_desc`} defaultText={mockStore.description} />
             </p>
             <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <MapPin size={12} /> <strong>Endereço:</strong> {mockStore.address}
+              <MapPin size={12} /> <span>Endereço:</span> {mockStore.address}
             </div>
             <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-              <Phone size={12} /> <strong>Telefone:</strong> {mockStore.phone}
+              <Phone size={12} /> <span>Telefone:</span> {mockStore.phone}
+            </div>
+            {mockStore.openingHours && (
+              <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                <Clock size={12} /> <span>Horário:</span> {mockStore.openingHours}
+              </div>
+            )}
+            {mockStore.deliveryTimeEstimate && (
+              <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                <Truck size={12} /> <span>Tempo de Entrega:</span> {mockStore.deliveryTimeEstimate}
+              </div>
+            )}
+            {/* Avaliações e Seguidores */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.7rem', color: '#666', marginTop: '8px' }}>
+              <div style={{ display: 'flex', gap: '2px' }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <Star 
+                    key={star} 
+                    size={11} 
+                    fill={avgRating > 0 && star <= Math.round(avgRating) ? "#f28d1a" : "#ddd"} 
+                    stroke="none" 
+                  />
+                ))}
+              </div>
+              <span style={{ color: '#2d2d2d', fontWeight: 500 }}>
+                {avgRating > 0 ? avgRating.toFixed(1) : '0'} ({storeReviews.length} {storeReviews.length === 1 ? 'avaliação' : 'avaliações'})
+              </span>
+              <span>•</span>
+              <span style={{ fontWeight: 500 }}>
+                {followersCount} {followersCount === 1 ? 'seguidor' : 'seguidores'}
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Store internal categories */}
-        <div 
-          style={{ padding: '12px 16px 0 16px', display: 'flex', gap: '8px', overflowX: 'auto' }} 
-          className="hide-scrollbar"
-          onMouseDown={handleMouseDown}
-          onMouseLeave={handleMouseLeave}
-          onMouseUp={handleMouseUp}
-          onMouseMove={handleMouseMove}
-        >
-          {storeCategories.map(cat => (
-            <button
-              key={cat}
-              onClick={(e) => {
-                const container = e.currentTarget.parentElement;
-                if (container && container.dataset.hasDragged === 'true') {
-                  container.dataset.hasDragged = 'false';
-                  return;
-                }
-                setSelectedStoreCategory(cat);
-              }}
-              style={{
-                padding: '6px 14px',
-                borderRadius: '99px',
-                border: selectedStoreCategory === cat ? 'none' : '1px solid #ddd',
-                backgroundColor: selectedStoreCategory === cat ? '#f28d1a' : '#ffffff',
-                color: selectedStoreCategory === cat ? 'white' : '#666',
-                fontSize: '0.72rem',
-                fontWeight: 500,
-                cursor: 'pointer',
-                whiteSpace: 'nowrap'
-              }}
-            >
-              {cat}
-            </button>
-          ))}
-        </div>
-
         {/* Products grid */}
         <div style={{ padding: '16px', paddingBottom: '90px' }}>
-          <h4 style={{ fontSize: '0.9rem', fontWeight: 800, color: '#2d2d2d', marginBottom: '12px' }}>Produtos da Loja</h4>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '10px' }}>
+          <h4 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>Produtos da Loja</h4>
+          <div className="responsive-store-grid" style={{ gap: '10px' }}>
             {storeProductsFiltered.map(p => {
               const hasDiscount = p.originalPrice && p.price < p.originalPrice;
               const discountPercent = hasDiscount ? Math.round(((p.originalPrice - p.price) / p.originalPrice) * 100) : 0;
@@ -2568,7 +3813,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     const ev = events.find(e => e.id === selectedEventId);
     if (!ev) return <div>Evento sumiu uai...</div>;
 
-    const availableBatch = ev.batches.findIndex(b => b.sold < b.limit);
+    const availableBatch = ev.batches.findIndex(b => parseInt(b.sold || 0, 10) < parseInt(b.limit || 0, 10));
     const activeBatch = availableBatch !== -1 ? ev.batches[availableBatch] : null;
 
     const handleBuyTicketSubmit = () => {
@@ -2580,28 +3825,47 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         alert(res.message);
       }
     };
-
     const imgBase = ev.cover || ev.image || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500';
-    const images = [
-      imgBase,
-      imgBase.includes('?') ? `${imgBase}&v=1` : `${imgBase}?v=1`,
-      imgBase.includes('?') ? `${imgBase}&v=2` : `${imgBase}?v=2`,
-      imgBase.includes('?') ? `${imgBase}&v=3` : `${imgBase}?v=3`,
-      imgBase.includes('?') ? `${imgBase}&v=4` : `${imgBase}?v=4`,
-      imgBase.includes('?') ? `${imgBase}&v=5` : `${imgBase}?v=5`,
-      imgBase.includes('?') ? `${imgBase}&v=6` : `${imgBase}?v=6`,
-      imgBase.includes('?') ? `${imgBase}&v=7` : `${imgBase}?v=7`,
-      imgBase.includes('?') ? `${imgBase}&v=8` : `${imgBase}?v=8`,
-      imgBase.includes('?') ? `${imgBase}&v=9` : `${imgBase}?v=9`,
-    ];
-
+    const images = (ev.images && ev.images.filter(img => img)) || [];
+    if (images.length === 0 && imgBase) {
+      images.push(imgBase);
+    }
+    if (images.length === 0) {
+      images.push('https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500');
+    }
     return (
       <div style={{ backgroundColor: '#ffffff', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }} className="animate-fade-in">
         {/* Scrollable Container */}
-        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '30px' }} className="custom-scroll">
+        <div 
+          style={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            paddingBottom: '30px',
+            display: isDesktop ? 'flex' : 'block',
+            gap: isDesktop ? '32px' : '0px',
+            padding: isDesktop ? '20px' : '0px',
+            maxWidth: isDesktop ? '1000px' : '100%',
+            margin: isDesktop ? '0 auto' : '0',
+            width: '100%',
+            boxSizing: 'border-box'
+          }} 
+          className="custom-scroll"
+        >
           
           {/* Cover gallery 1:1 with horizontal scroll snap */}
-          <div style={{ position: 'relative', width: '100%', aspectRatio: '1/1', backgroundColor: '#eee', overflow: 'hidden' }}>
+          <div style={{ 
+            position: isDesktop ? 'sticky' : 'relative',
+            top: isDesktop ? '20px' : '0px',
+            width: isDesktop ? '300px' : '100%',
+            aspectRatio: '1/1',
+            backgroundColor: '#eee',
+            overflow: 'hidden',
+            flexShrink: 0,
+            borderRadius: isDesktop ? '20px' : '0px',
+            boxShadow: isDesktop ? '0 8px 24px rgba(0,0,0,0.08)' : 'none',
+            alignSelf: isDesktop ? 'flex-start' : 'auto',
+            zIndex: 1
+          }}>
             <div 
               onScroll={(e) => {
                 const scrollLeft = e.target.scrollLeft;
@@ -2687,191 +3951,201 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             </div>
           </div>
 
-          {/* Event Main Info */}
-          <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
-            <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <Calendar size={12} />
-              <span>{ev.date}</span>
-            </div>
-            <h3 style={{ fontSize: '1.2rem', fontWeight: 500, color: '#2d2d2d', margin: '8px 0 4px 0' }}>{ev.name}</h3>
-            <div style={{ fontSize: '0.75rem', color: '#666', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px' }}>
-              <MapPin size={12} style={{ color: '#aaa' }} />
-              <span><strong>Local:</strong> {ev.location}</span>
-            </div>
-
-            <div style={{ position: 'relative' }}>
-              <p style={{
-                fontSize: '0.75rem',
-                color: '#666',
-                marginTop: '10px',
-                lineHeight: 1.4,
-                display: isEventDescExpanded ? 'block' : '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-                overflow: isEventDescExpanded ? 'visible' : 'hidden',
-                textOverflow: 'ellipsis'
-              }}>
-                {ev.description || 'Um super evento preparado com todo carinho para agitar a cidade! Venha curtir com a gente.'}
-              </p>
-              {(ev.description || 'Um super evento preparado com todo carinho para agitar a cidade! Venha curtir com a gente.').length > 90 && (
-                <button
-                  onClick={() => setIsEventDescExpanded(!isEventDescExpanded)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#f28d1a',
-                    fontSize: '0.7rem',
-                    fontWeight: 600,
-                    padding: '2px 0',
-                    cursor: 'pointer',
-                    outline: 'none',
-                    display: 'block',
-                    marginTop: '4px'
-                  }}
-                >
-                  {isEventDescExpanded ? 'Ver menos' : 'Ver mais'}
-                </button>
-              )}
-            </div>
-
-            {/* Organizer Card Link */}
-            <div 
-              onClick={() => { setSelectedOrganizerId(ev.organizerId || 'e1'); onSwitchView('client_organizer'); }}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px 14px',
-                border: '1px solid #eee',
-                borderRadius: '16px',
-                cursor: 'pointer',
-                marginTop: '16px',
-                backgroundColor: '#fafafa'
-              }}
-            >
-              <img 
-                src={users?.find(u => u.id === ev.organizerId)?.avatar || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=100'} 
-                style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} 
-              />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: '0.68rem', color: '#888', fontWeight: 400 }}>Organizado por</div>
-                <div style={{ fontSize: '0.8rem', fontWeight: 450, color: '#2d2d2d' }}>{ev.organizerName}</div>
+          {/* Right side wrapper (on desktop, flows to the right) */}
+          <div style={{ flex: 1, minWidth: 0, padding: isDesktop ? '0 10px' : '0px' }}>
+            {/* Event Main Info */}
+            <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
+              <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <Calendar size={12} />
+                <span>{ev.date}</span>
               </div>
-              <ChevronRight size={16} style={{ color: '#aaa' }} />
-            </div>
-          </div>
+              <h3 style={{ fontSize: '1.2rem', fontWeight: 500, color: '#2d2d2d', margin: '8px 0 4px 0' }}>{ev.name}</h3>
+              <div style={{ fontSize: '0.75rem', color: '#666', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px' }}>
+                <MapPin size={12} style={{ color: '#aaa' }} />
+                <span>Local: {ev.location}</span>
+              </div>
 
-          {/* Tickets Purchase Area */}
-          <div style={{ padding: '16px' }}>
-            <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>Ingressos Disponíveis</h4>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
-              {ev.batches.map((b, idx) => {
-                const isSoldOut = b.sold >= b.limit;
-                const isActive = availableBatch === idx;
-                const percent = Math.round((b.sold / b.limit) * 100) || 0;
-                return (
-                  <div
-                    key={b.name}
+              <div style={{ position: 'relative' }}>
+                <p style={{
+                  fontSize: '0.75rem',
+                  color: '#666',
+                  marginTop: '10px',
+                  lineHeight: 1.4,
+                  display: isEventDescExpanded ? 'block' : '-webkit-box',
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: isEventDescExpanded ? 'visible' : 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'pre-wrap'
+                }}>
+                  {ev.description || 'Um super evento preparado com todo carinho para agitar a cidade! Venha curtir com a gente.'}
+                </p>
+                {(ev.description || 'Um super evento preparado com todo carinho para agitar a cidade! Venha curtir com a gente.').length > 90 && (
+                  <button
+                    onClick={() => setIsEventDescExpanded(!isEventDescExpanded)}
                     style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '6px',
-                      padding: '10px 12px',
-                      borderRadius: '12px',
-                      backgroundColor: isActive ? '#f9bb1a15' : '#ffffff',
-                      border: isActive ? '1px solid #f28d1a' : '1px solid #eee',
-                      opacity: isSoldOut ? 0.6 : 1
+                      background: 'none',
+                      border: 'none',
+                      color: '#f28d1a',
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      padding: '2px 0',
+                      cursor: 'pointer',
+                      outline: 'none',
+                      display: 'block',
+                      marginTop: '4px'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                      <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#2d2d2d' }}>{b.name}</span>
-                      <span style={{ fontSize: '0.78rem', color: isSoldOut ? '#999' : (isVisitor ? '#ff5e5b' : '#f28d1a'), fontWeight: 500 }}>
-                        {isSoldOut ? 'Esgotado' : (isVisitor ? 'Bloqueado' : `R$ ${b.price.toFixed(2)}`)}
-                      </span>
-                    </div>
-                    
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: '#777', marginTop: '2px' }}>
-                      <span>Progresso do lote:</span>
-                      <span>{percent}% ({b.sold}/{b.limit})</span>
-                    </div>
-                    <div style={{ width: '100%', height: '5px', backgroundColor: '#eee', borderRadius: '2.5px', overflow: 'hidden' }}>
-                      <div style={{ width: `${percent}%`, height: '100%', backgroundColor: '#f28d1a', borderRadius: '2.5px' }} />
-                    </div>
-                  </div>
-                );
-              })}
+                    {isEventDescExpanded ? 'Ver menos' : 'Ver mais'}
+                  </button>
+                )}
+              </div>
+
+              {/* Organizer Card Link */}
+              <div 
+                onClick={() => { setSelectedOrganizerId(ev.organizerId || 'e1'); onSwitchView('client_organizer'); }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px 14px',
+                  border: '1px solid #eee',
+                  borderRadius: '16px',
+                  cursor: 'pointer',
+                  marginTop: '16px',
+                  backgroundColor: '#fafafa'
+                }}
+              >
+                <img 
+                  src={users?.find(u => u.id === ev.organizerId)?.avatar || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=100'} 
+                  style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover' }} 
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '0.68rem', color: '#888', fontWeight: 400 }}>Organizado por</div>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 450, color: '#2d2d2d' }}>{ev.organizerName}</div>
+                </div>
+                <ChevronRight size={16} style={{ color: '#aaa' }} />
+              </div>
             </div>
 
-            {activeBatch && (
-              <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '16px', border: '1px solid #eee' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontSize: '0.72rem', color: '#666' }}>Quantidade</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button 
-                      onClick={() => setTicketQty(Math.max(1, ticketQty - 1))}
-                      style={{ border: '1px solid #ccc', background: 'white', width: '24px', height: '24px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
+            {/* Tickets Purchase Area */}
+            <div style={{ padding: '16px' }}>
+              <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>Ingressos Disponíveis</h4>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
+                {ev.batches.map((b, idx) => {
+                  const bSold = parseInt(b.sold || 0, 10);
+                  const bLimit = parseInt(b.limit || 0, 10);
+                  const isSoldOut = bLimit > 0 && bSold >= bLimit;
+                  const isActive = availableBatch === idx;
+                  const percent = bLimit > 0 ? Math.round((bSold / bLimit) * 100) : 0;
+                  return (
+                    <div
+                      key={b.name}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        padding: '10px 12px',
+                        borderRadius: '12px',
+                        backgroundColor: isActive ? '#f9bb1a15' : '#ffffff',
+                        border: isActive ? '1px solid #f28d1a' : '1px solid #eee',
+                        opacity: isSoldOut ? 0.6 : 1
+                      }}
                     >
-                      -
-                    </button>
-                    <span style={{ fontSize: '0.78rem', fontWeight: 500 }}>{ticketQty}</span>
-                    <button 
-                      onClick={() => setTicketQty(ticketQty + 1)}
-                      style={{ border: '1px solid #ccc', background: 'white', width: '24px', height: '24px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-                
-                {/* Cupom e Comissário Inputs */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '8px' }}>
-                  <div>
-                    <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>Cupom de Desconto</label>
-                    <input 
-                      type="text" 
-                      placeholder="Digite o cupom (opcional)" 
-                      value={couponCode} 
-                      onChange={e => setCouponCode(e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', marginTop: '4px', outline: 'none' }}
-                    />
-                  </div>
-                  <div>
-                    <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>Código do Comissário</label>
-                    <input 
-                      type="text" 
-                      placeholder="Digite o código (opcional)" 
-                      value={commissionerCode} 
-                      onChange={e => setCommissionerCode(e.target.value)}
-                      style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', marginTop: '4px', outline: 'none' }}
-                    />
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '8px' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#666' }}>Total:</span>
-                  <span style={{ fontSize: '0.88rem', color: isVisitor ? '#ff5e5b' : '#f28d1a', fontWeight: 500 }}>{isVisitor ? 'Bloqueado' : `R$ ${(activeBatch.price * ticketQty).toFixed(2)}`}</span>
-                </div>
-
-                <button
-                  onClick={() => {
-                    if (isVisitor) {
-                      onTriggerLogin();
-                    } else {
-                      setPreCheckoutType('event');
-                      setPreCheckoutName(currentUser?.name || '');
-                      setPreCheckoutPhone(currentUser?.phone || '');
-                      setPreCheckoutCpf(currentUser?.cpf || '');
-                      setShowPreCheckoutModal(true);
-                    }
-                  }}
-                  className="btn btn-primary"
-                  style={{ width: '100%', height: '48px', marginTop: '16px', fontWeight: 500 }}
-                >
-                  {isVisitor ? 'Cadastre-se ou Entre para comprar' : 'comprar ingresso'}
-                </button>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#2d2d2d' }}>{b.name}</span>
+                        <span style={{ fontSize: '0.78rem', color: isSoldOut ? '#999' : (isVisitor ? '#ff5e5b' : '#f28d1a'), fontWeight: 500 }}>
+                          {isSoldOut ? 'Esgotado' : (isVisitor ? 'Bloqueado' : `R$ ${b.price.toFixed(2)}`)}
+                        </span>
+                      </div>
+                      
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: '#777', marginTop: '2px' }}>
+                        <span>Progresso do lote:</span>
+                        <span>{percent}% ({bSold}/{bLimit})</span>
+                      </div>
+                      <div style={{ width: '100%', height: '5px', backgroundColor: '#eee', borderRadius: '2.5px', overflow: 'hidden' }}>
+                        <div style={{ width: `${percent}%`, height: '100%', backgroundColor: '#f28d1a', borderRadius: '2.5px' }} />
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            )}
+
+              {activeBatch && (
+                <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '16px', border: '1px solid #eee' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '0.72rem', color: '#666' }}>Quantidade</span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <button 
+                        onClick={() => setTicketQty(Math.max(1, ticketQty - 1))}
+                        style={{ border: '1px solid #ccc', background: 'white', width: '24px', height: '24px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
+                      >
+                        -
+                      </button>
+                      <span style={{ fontSize: '0.78rem', fontWeight: 500 }}>{ticketQty}</span>
+                      <button 
+                        onClick={() => setTicketQty(ticketQty + 1)}
+                        style={{ border: '1px solid #ccc', background: 'white', width: '24px', height: '24px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
+                      >
+                        +
+                      </button>
+                    </div>
+                  </div>
+                  
+                  {/* Cupom e Comissário Inputs */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>Cupom de Desconto</label>
+                      <input 
+                        type="text" 
+                        placeholder="Digite o cupom (opcional)" 
+                        value={couponCode} 
+                        onChange={e => setCouponCode(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', marginTop: '4px', outline: 'none' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>Código do Comissário</label>
+                      <input 
+                        type="text" 
+                        placeholder="Digite o código (opcional)" 
+                        value={commissionerCode} 
+                        onChange={e => setCommissionerCode(e.target.value)}
+                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', marginTop: '4px', outline: 'none' }}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '8px' }}>
+                    <span style={{ fontSize: '0.75rem', color: '#666' }}>Total:</span>
+                    <span style={{ fontSize: '0.88rem', color: isVisitor ? '#ff5e5b' : '#f28d1a', fontWeight: 500 }}>{isVisitor ? 'Bloqueado' : `R$ ${(activeBatch ? activeBatch.price * ticketQty : 0).toFixed(2)}`}</span>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      if (isVisitor) {
+                        onTriggerLogin();
+                      } else if (currentUser?.phone && currentUser?.cpf && currentUser?.name) {
+                        setPaymentModalType('event');
+                        setActivePaymentTab('pix');
+                        setShowPaymentModal(true);
+                      } else {
+                        setPreCheckoutType('event');
+                        setPreCheckoutName(currentUser?.name || '');
+                        setPreCheckoutPhone(currentUser?.phone || '');
+                        setPreCheckoutCpf(currentUser?.cpf || '');
+                        setShowPreCheckoutModal(true);
+                      }
+                    }}
+                    className="btn btn-primary"
+                    style={{ width: '100%', height: '48px', marginTop: '16px', fontWeight: 500 }}
+                  >
+                    {isVisitor ? 'Cadastre-se ou Entre para comprar' : 'comprar ingresso'}
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -2887,33 +4161,36 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
     const organizerEvents = events.filter(e => e.organizerId === orgId);
     const isFollowingOrganizer = followingIds.includes(orgId);
+    const organizerFollowersCount = users.filter(u => u.following && u.following.includes(orgId)).length;
 
     return (
       <div style={{ backgroundColor: '#ffffff', minHeight: '100%', display: 'flex', flexDirection: 'column', overflowX: 'hidden', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
         {/* Cover */}
-        <div style={{ width: '100%', aspectRatio: '21/9', position: 'relative', overflow: 'hidden' }}>
-          <img src={ev.cover} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          <button 
-            onClick={() => onSwitchView('client_home')}
-            style={{
-              position: 'absolute',
-              top: '12px',
-              left: '12px',
-              backgroundColor: 'white',
-              border: 'none',
-              borderRadius: '50%',
-              width: '32px',
-              height: '32px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-              cursor: 'pointer',
-              zIndex: 10
-            }}
-          >
-            <ArrowLeft size={16} />
-          </button>
+        <div style={{ padding: '16px 16px 0 16px' }}>
+          <div style={{ width: '100%', height: '140px', position: 'relative', overflow: 'hidden', borderRadius: '16px' }}>
+            <img src={ev.cover} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <button 
+              onClick={() => onSwitchView('client_home')}
+              style={{
+                position: 'absolute',
+                top: '12px',
+                left: '12px',
+                backgroundColor: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                cursor: 'pointer',
+                zIndex: 10
+              }}
+            >
+              <ArrowLeft size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Profile info */}
@@ -2973,6 +4250,12 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, marginTop: '2px' }}>
               Organizador de Eventos
             </div>
+            {/* Seguidores do organizador */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.7rem', color: '#666', marginTop: '6px' }}>
+              <span style={{ fontWeight: 500 }}>
+                {organizerFollowersCount} {organizerFollowersCount === 1 ? 'seguidor' : 'seguidores'}
+              </span>
+            </div>
             <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '6px', lineHeight: 1.3 }}>
               <EditableText 
                 textId={`event_org_${orgId}_desc`} 
@@ -2986,7 +4269,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         <div style={{ padding: '16px 0', flex: 1, paddingBottom: '90px' }}>
           <h4 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px', paddingLeft: '16px' }}>Eventos do Organizador</h4>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', padding: '0 16px' }}>
+          <div className="responsive-profile-grid" style={{ gap: '12px', padding: '0 16px' }}>
             {organizerEvents.map(orgEv => (
               <div 
                 key={orgEv.id}
@@ -3025,39 +4308,59 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
     const isFollowingProvider = followingIds.includes(prov.providerId || 'p1');
 
+    // Retrieve real provider user document
+    const providerUser = users.find(u => u.id === selectedProviderId) || {};
+    const providerAvatar = providerUser.avatar || "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150";
+    const providerCover = providerUser.cover || providerUser.banner || "https://images.unsplash.com/photo-1501854140801-50d01698950b?w=600";
+    const providerName = providerUser.name || prov.providerName;
+    const providerDescription = providerUser.description || prov.description || 'Prestador de Serviços no Connecta+';
+    const providerAddress = providerUser.address || 'Cabeças - Ouro Preto, MG';
+    const providerPhone = providerUser.phone || '(31) 98888-5555';
+    const providerHours = providerUser.openingHours || '08:00 às 18:00';
+
+    // Calculate real reviews
+    const providerReviewsList = serviceReviews ? serviceReviews.filter(r => r.providerId === selectedProviderId) : [];
+    const totalReviews = providerReviewsList.length;
+    const avgRating = totalReviews > 0
+      ? parseFloat((providerReviewsList.reduce((sum, r) => sum + r.rating, 0) / totalReviews).toFixed(1))
+      : 0.0;
+    const providerFollowersCount = users.filter(u => u.following && u.following.includes(selectedProviderId)).length;
+
     return (
       <div style={{ backgroundColor: '#ffffff', minHeight: '100%', display: 'flex', flexDirection: 'column', overflowX: 'hidden', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
         {/* Cover */}
-        <div style={{ width: '100%', aspectRatio: '21/9', position: 'relative', overflow: 'hidden' }}>
-          <img src="https://images.unsplash.com/photo-1501854140801-50d01698950b?w=600" alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          <button 
-            onClick={() => onSwitchView('client_home')}
-            style={{
-              position: 'absolute',
-              top: '12px',
-              left: '12px',
-              backgroundColor: 'white',
-              border: 'none',
-              borderRadius: '50%',
-              width: '32px',
-              height: '32px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
-              cursor: 'pointer',
-              zIndex: 10
-            }}
-          >
-            <ArrowLeft size={16} />
-          </button>
+        <div style={{ padding: '16px 16px 0 16px' }}>
+          <div style={{ width: '100%', height: '140px', position: 'relative', overflow: 'hidden', borderRadius: '16px' }}>
+            <img src={providerCover} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <button 
+              onClick={() => onSwitchView('client_home')}
+              style={{
+                position: 'absolute',
+                top: '12px',
+                left: '12px',
+                backgroundColor: 'white',
+                border: 'none',
+                borderRadius: '50%',
+                width: '32px',
+                height: '32px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                cursor: 'pointer',
+                zIndex: 10
+              }}
+            >
+              <ArrowLeft size={16} />
+            </button>
+          </div>
         </div>
 
         {/* Profile info */}
         <div style={{ padding: '16px', position: 'relative', borderBottom: '1px solid #eee' }}>
           <img 
-            src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=150" 
-            alt={prov.providerName} 
+            src={providerAvatar} 
+            alt={providerName} 
             style={{
               width: '64px',
               height: '64px',
@@ -3067,7 +4370,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               left: '16px',
               border: '3px solid white',
               boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-              objectFit: 'cover'
+              objectFit: 'cover',
+              backgroundColor: '#ffffff'
             }}
           />
           <div style={{ display: 'flex', gap: '8px', float: 'right' }}>
@@ -3104,32 +4408,57 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           </div>
           
           <div style={{ marginTop: '36px' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 500, color: '#2d2d2d' }}>
-              <EditableText textId={`prov_${prov.providerId || 'p1'}_name`} defaultText={prov.providerName} />
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>
+              {providerName}
             </h3>
             <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, marginTop: '2px' }}>
-              Serviços - {prov.category}
+              {providerUser.serviceCategory || prov.category}
             </div>
-            <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '6px', lineHeight: 1.3 }}>
-              <EditableText textId={`prov_${prov.providerId || 'p1'}_desc`} defaultText={prov.description} />
+
+            <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '8px', marginBottom: '0px', lineHeight: 1.35, whiteSpace: 'pre-wrap' }}>
+              {providerDescription}
             </p>
             <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <MapPin size={12} /> <span>Endereço:</span> Rua das Flores, 45, Cabeças - Ouro Preto
+              <MapPin size={12} /> <span>Endereço:</span> {providerAddress}
             </div>
             <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-              <Phone size={12} /> <span>Telefone:</span> (31) 98888-5555
+              <Phone size={12} /> <span>Telefone:</span> {providerPhone}
+            </div>
+            <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+              <Clock size={12} /> <span>Horário:</span> {providerHours}
+            </div>
+            {/* Ratings stars display */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px' }}>
+              <div style={{ display: 'flex', gap: '2px' }}>
+                {[1, 2, 3, 4, 5].map(star => (
+                  <Star 
+                    key={star} 
+                    size={11} 
+                    fill={avgRating > 0 && star <= Math.round(avgRating) ? "#f28d1a" : "#ddd"} 
+                    stroke="none" 
+                  />
+                ))}
+              </div>
+              <span style={{ fontSize: '0.7rem', color: '#2d2d2d', fontWeight: 500 }}>
+                {avgRating > 0 ? avgRating.toFixed(1) : '0'} ({totalReviews} {totalReviews === 1 ? 'avaliação' : 'avaliações'})
+              </span>
+              <span style={{ fontSize: '0.7rem', color: '#888' }}>•</span>
+              <span style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>
+                {providerFollowersCount} {providerFollowersCount === 1 ? 'seguidor' : 'seguidores'}
+              </span>
             </div>
           </div>
         </div>
 
         {/* Services list */}
-        <div style={{ padding: '16px 0', flex: 1, paddingBottom: '90px' }}>
+        <div style={{ padding: '16px 0', paddingBottom: '10px' }}>
           <h4 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px', paddingLeft: '16px' }}>Serviços Disponíveis</h4>
           
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '12px', padding: '0 16px' }}>
+          <div className="responsive-profile-grid" style={{ gap: '12px', padding: '0 16px' }}>
             {providerServices.map(s => {
-              const hasDiscount = s.originalPrice && s.pricePerHour < s.originalPrice;
-              const discountPercent = hasDiscount ? Math.round(((s.originalPrice - s.pricePerHour) / s.originalPrice) * 100) : 0;
+              const sPrice = s.pricePerHour || s.price || 0;
+              const hasDiscount = s.originalPrice && sPrice < s.originalPrice;
+              const discountPercent = hasDiscount ? Math.round(((s.originalPrice - sPrice) / s.originalPrice) * 100) : 0;
               return (
                 <div
                   key={s.id}
@@ -3166,7 +4495,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       <span style={{ fontSize: '0.75rem', color: '#ff5e5b' }}>Bloqueado</span>
                     ) : (
                       <>
-                        <strong style={{ fontSize: '0.8rem', color: '#f28d1a', fontWeight: 500 }}>R$ {s.pricePerHour.toFixed(2)}/h</strong>
+                        <strong style={{ fontSize: '0.8rem', color: '#f28d1a', fontWeight: 500 }}>R$ {(s.pricePerHour || s.price || 0).toFixed(2)}{s.priceType === 'total' ? '' : '/h'}</strong>
                         {hasDiscount && (
                           <span style={{ fontSize: '0.68rem', textDecoration: 'line-through', color: '#bbb' }}>R$ {s.originalPrice.toFixed(2)}</span>
                         )}
@@ -3174,13 +4503,48 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                     )}
                   </div>
                   <div style={{ fontSize: '0.65rem', color: '#888', marginTop: '2px' }}>
-                    {s.completedCount || 0} serviços realizados
+                    {(servicesHired || []).filter(sh => sh.serviceId === s.id && sh.status === 'completed').length} serviços realizados
                   </div>
                 </div>
               );
             })}
           </div>
         </div>
+
+        {/* Avaliações dos Clientes */}
+        <div style={{ padding: '0 16px', marginTop: '10px', borderTop: '1px solid #f2f2f2', paddingTop: '16px', paddingBottom: '90px' }}>
+          <h4 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>Avaliações dos Clientes ({providerReviewsList.length})</h4>
+          {providerReviewsList.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '16px', color: '#999', fontSize: '0.75rem' }}>
+              Nenhuma avaliação recebida ainda.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              {providerReviewsList.map(r => (
+                <div key={r.id} style={{ backgroundColor: '#f9f9f9', padding: '12px', borderRadius: '16px', border: '1px solid #eee' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                    <strong style={{ fontSize: '0.75rem', color: '#333' }}>{r.customerName}</strong>
+                    <span style={{ fontSize: '0.65rem', color: '#999' }}>{r.date}</span>
+                  </div>
+                  <div style={{ display: 'flex', gap: '2px', marginBottom: '6px' }}>
+                    {Array.from({ length: 5 }).map((_, i) => (
+                      <Star key={i} size={10} fill={i < r.rating ? '#f28d1a' : '#ddd'} stroke="none" />
+                    ))}
+                  </div>
+                  <p style={{ fontSize: '0.72rem', color: '#555', margin: 0, lineHeight: 1.3 }}>"{r.comment || 'Sem comentário.'}"</p>
+                  {r.images && r.images.length > 0 && (
+                    <div style={{ display: 'flex', gap: '4px', marginTop: '6px' }}>
+                      {r.images.map((img, idx) => (
+                        <img key={idx} src={img} alt="review" style={{ width: '36px', height: '36px', borderRadius: '6px', objectFit: 'cover' }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
       </div>
     );
   };
@@ -3189,28 +4553,47 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const renderServiceView = () => {
     const serv = services.find(s => s.id === selectedServiceIdForHire) || services[0];
     if (!serv) return <div>Serviço não encontrado uai...</div>;
-
     const imgBase = serv.image || 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500';
-    const images = [
-      imgBase,
-      imgBase.includes('?') ? `${imgBase}&v=1` : `${imgBase}?v=1`,
-      imgBase.includes('?') ? `${imgBase}&v=2` : `${imgBase}?v=2`,
-      imgBase.includes('?') ? `${imgBase}&v=3` : `${imgBase}?v=3`,
-      imgBase.includes('?') ? `${imgBase}&v=4` : `${imgBase}?v=4`,
-      imgBase.includes('?') ? `${imgBase}&v=5` : `${imgBase}?v=5`,
-      imgBase.includes('?') ? `${imgBase}&v=6` : `${imgBase}?v=6`,
-      imgBase.includes('?') ? `${imgBase}&v=7` : `${imgBase}?v=7`,
-      imgBase.includes('?') ? `${imgBase}&v=8` : `${imgBase}?v=8`,
-      imgBase.includes('?') ? `${imgBase}&v=9` : `${imgBase}?v=9`,
-    ];
-
+    const images = (serv.images && serv.images.filter(img => img)) || [];
+    if (images.length === 0 && imgBase) {
+      images.push(imgBase);
+    }
+    if (images.length === 0) {
+      images.push('https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=500');
+    }
     return (
       <div style={{ backgroundColor: '#ffffff', height: '100%', display: 'flex', flexDirection: 'column', position: 'relative' }} className="animate-fade-in">
         {/* Scrollable Container */}
-        <div style={{ flex: 1, overflowY: 'auto', paddingBottom: '30px' }} className="custom-scroll">
+        <div 
+          style={{ 
+            flex: 1, 
+            overflowY: 'auto', 
+            paddingBottom: '30px',
+            display: isDesktop ? 'flex' : 'block',
+            gap: isDesktop ? '32px' : '0px',
+            padding: isDesktop ? '20px' : '0px',
+            maxWidth: isDesktop ? '1000px' : '100%',
+            margin: isDesktop ? '0 auto' : '0',
+            width: '100%',
+            boxSizing: 'border-box'
+          }} 
+          className="custom-scroll"
+        >
           
           {/* Cover gallery 1:1 with horizontal scroll snap */}
-          <div style={{ position: 'relative', width: '100%', aspectRatio: '1/1', backgroundColor: '#eee', overflow: 'hidden' }}>
+          <div style={{ 
+            position: isDesktop ? 'sticky' : 'relative',
+            top: isDesktop ? '20px' : '0px',
+            width: isDesktop ? '300px' : '100%',
+            aspectRatio: '1/1',
+            backgroundColor: '#eee',
+            overflow: 'hidden',
+            flexShrink: 0,
+            borderRadius: isDesktop ? '20px' : '0px',
+            boxShadow: isDesktop ? '0 8px 24px rgba(0,0,0,0.08)' : 'none',
+            alignSelf: isDesktop ? 'flex-start' : 'auto',
+            zIndex: 1
+          }}>
             <div 
               onScroll={(e) => {
                 const scrollLeft = e.target.scrollLeft;
@@ -3296,7 +4679,10 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             </div>
           </div>
 
-          {/* Service Title and Info */}
+          {/* Right side wrapper (on desktop, flows to the right) */}
+          <div style={{ flex: 1, minWidth: 0, padding: isDesktop ? '0 10px' : '0px' }}>
+
+            {/* Service Title and Info */}
           <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
             <span style={{ fontSize: '0.65rem', backgroundColor: '#e2f9e1', color: '#27ae60', padding: '2px 8px', borderRadius: '8px', fontWeight: 500 }}>
               {serv.category}
@@ -3366,31 +4752,77 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             </div>
           </div>
 
+          {/* Service Variations Selector */}
+          {serv.variations && serv.variations.length > 0 && (
+            <div style={{ padding: '0 16px', marginTop: '12px' }}>
+              <span style={{ fontSize: '0.75rem', fontWeight: 500, color: '#444', display: 'block', marginBottom: '8px' }}>Variações disponíveis</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {serv.variations.map(v => (
+                  <div 
+                    key={v.id} 
+                    onClick={() => setSelectedServiceVariation(selectedServiceVariation?.id === v.id ? null : v)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '8px 12px',
+                      borderRadius: '12px',
+                      border: selectedServiceVariation?.id === v.id ? '2px solid #f28d1a' : '1px solid #eee',
+                      backgroundColor: selectedServiceVariation?.id === v.id ? '#fff8ef' : '#fff',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <img src={v.image} alt={v.text} style={{ width: '30px', height: '30px', borderRadius: '8px', objectFit: 'cover' }} />
+                    <span style={{ fontSize: '0.75rem', flex: 1, color: '#333' }}>{v.text}</span>
+                    {v.price > 0 && <span style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 600 }}>+R$ {v.price.toFixed(2)}</span>}
+                    <div style={{
+                      width: '18px',
+                      height: '18px',
+                      borderRadius: '50%',
+                      border: selectedServiceVariation?.id === v.id ? '2px solid #f28d1a' : '2px solid #ccc',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0
+                    }}>
+                      {selectedServiceVariation?.id === v.id && (
+                        <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: '#f28d1a' }} />
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Scheduling Form */}
           <div style={{ padding: '16px', paddingBottom: '30px' }}>
             <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>Agendamento</h4>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fcfcfc', padding: '12px', borderRadius: '16px', border: '1px solid #eee' }}>
-                <span style={{ fontSize: '0.75rem', color: '#666' }}>Horas de Serviço</span>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <button 
-                    type="button"
-                    onClick={() => setServiceHours(Math.max(1, serviceHours - 1))}
-                    style={{ border: '1px solid #ccc', background: 'white', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
-                  >
-                    -
-                  </button>
-                  <span style={{ fontSize: '0.82rem', fontWeight: 500 }}>{serviceHours}h</span>
-                  <button 
-                    type="button"
-                    onClick={() => setServiceHours(serviceHours + 1)}
-                    style={{ border: '1px solid #ccc', background: 'white', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
-                  >
-                    +
-                  </button>
+              {serv.priceType !== 'total' && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fcfcfc', padding: '12px', borderRadius: '16px', border: '1px solid #eee' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#666' }}>Horas de Serviço</span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <button 
+                      type="button"
+                      onClick={() => setServiceHours(Math.max(1, serviceHours - 1))}
+                      style={{ border: '1px solid #ccc', background: 'white', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
+                    >
+                      -
+                    </button>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 500 }}>{serviceHours}h</span>
+                    <button 
+                      type="button"
+                      onClick={() => setServiceHours(serviceHours + 1)}
+                      style={{ border: '1px solid #ccc', background: 'white', width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1 }}>
@@ -3428,7 +4860,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '10px', marginTop: '4px' }}>
                 <span style={{ fontSize: '0.75rem', color: '#666' }}>Preço total:</span>
                 <span style={{ fontSize: '0.92rem', color: isVisitor ? '#ff5e5b' : '#f28d1a', fontWeight: 500 }}>
-                  {isVisitor ? 'Bloqueado' : `R$ ${(serv.pricePerHour * serviceHours).toFixed(2)}`}
+                  {isVisitor ? 'Bloqueado' : `R$ ${((serv.priceType === 'total' ? (serv.pricePerHour || serv.price || 0) : ((serv.pricePerHour || serv.price || 0) * serviceHours)) + (selectedServiceVariation?.price || 0)).toFixed(2)}`}
                 </span>
               </div>
 
@@ -3441,6 +4873,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 {isVisitor ? 'Cadastre-se ou Entre para contratar' : 'agendar agora'}
               </button>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -3556,15 +4989,18 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
         {/* Totals card */}
         <div style={{
-          position: 'absolute',
+          position: 'fixed',
           bottom: 0,
-          left: 0,
+          left: '50%',
+          transform: 'translateX(-50%)',
           width: '100%',
+          maxWidth: isDesktop ? '1000px' : '100%',
           backgroundColor: '#ffffff',
           padding: '16px',
           borderTop: '1px solid #eaeaea',
-          boxShadow: '0 -8px 24px rgba(0,0,0,0.02)',
-          zIndex: 100
+          boxShadow: '0 -8px 24px rgba(0,0,0,0.05)',
+          zIndex: 100,
+          boxSizing: 'border-box'
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8rem', color: '#777', marginBottom: '4px' }}>
             <span>Subtotal:</span>
@@ -3618,7 +5054,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         updateUserProfile(currentUser.id, { 
           phone: checkoutPhone,
           cpf: checkoutCpf,
-          address: currentUser.address || userLocation
+          address: currentUser.address || tempAddress || userLocation
         });
       }
       const res = placeOrder(activePaymentTab, couponApplied ? couponCode : '', useCoins, finalShipping);
@@ -4633,6 +6069,20 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       setIsVideoPlaying(prev => !prev);
     };
 
+    const handleWheel = (e) => {
+      const now = Date.now();
+      if (now - lastWheelTimeRef.current < 800) {
+        return;
+      }
+      if (e.deltaY > 20) {
+        lastWheelTimeRef.current = now;
+        handleNextVideo();
+      } else if (e.deltaY < -20) {
+        lastWheelTimeRef.current = now;
+        handlePrevVideo();
+      }
+    };
+
     const handleLike = () => {
       const isAlreadyLiked = likedVideoIds.includes(activeVideo.id);
       if (isAlreadyLiked) {
@@ -4689,6 +6139,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           onMouseDown={handleMouseDown}
           onMouseUp={handleMouseUp}
           onClick={handleContainerClick}
+          onWheel={handleWheel}
           style={{
             position: 'absolute',
             inset: 0,
@@ -4759,16 +6210,20 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           <div 
             onClick={(e) => {
               e.stopPropagation();
-              if (activeVideo.linkedType === 'product') {
+              const creator = users?.find(u => u.id === activeVideo.creatorId);
+              const role = creator?.role || '';
+              if (role === 'seller' || activeVideo.linkedType === 'product') {
                 setSelectedStoreId(activeVideo.creatorId);
                 onSwitchView('client_store');
-              } else if (activeVideo.linkedType === 'event') {
-                setSelectedEventId(activeVideo.linkedId);
-                onSwitchView('client_event');
-              } else if (activeVideo.linkedType === 'service') {
-                setSelectedServiceIdForHire(activeVideo.linkedId);
+              } else if (role === 'provider' || activeVideo.linkedType === 'service') {
                 setSelectedProviderId(activeVideo.creatorId);
-                onSwitchView('client_service');
+                onSwitchView('client_provider');
+              } else if (role === 'events' || activeVideo.linkedType === 'event') {
+                setSelectedOrganizerId(activeVideo.creatorId);
+                onSwitchView('client_organizer');
+              } else {
+                setSelectedStoreId(activeVideo.creatorId);
+                onSwitchView('client_store');
               }
             }}
             style={{ position: 'relative', cursor: 'pointer' }}
@@ -4781,11 +6236,17 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               overflow: 'hidden',
               backgroundColor: 'white'
             }}>
-              <img 
-                src={activeVideo.linkedType === 'service' ? 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100' : activeVideo.poster} 
-                alt="creator" 
-                style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              />
+              {(() => {
+                const creator = users?.find(u => u.id === activeVideo.creatorId);
+                const avatarUrl = creator?.avatar || creator?.logo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100';
+                return (
+                  <img 
+                    src={avatarUrl} 
+                    alt="creator" 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                );
+              })()}
             </div>
             {!followingIds.includes(activeVideo.creatorId) && (
               <button
@@ -4874,6 +6335,45 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             <span style={{ fontSize: '0.7rem', fontWeight: 500 }}>{(videoCommentsList[activeVideo.id] || []).length}</span>
           </button>
 
+          {/* Share */}
+          <button 
+            onClick={(e) => { 
+              e.stopPropagation(); 
+              if (activeVideo?.videoUrl) {
+                navigator.clipboard.writeText(activeVideo.videoUrl)
+                  .then(() => {
+                    triggerToast('Link do vídeo copiado com sucesso!');
+                  })
+                  .catch(err => {
+                    console.error('Erro ao copiar link: ', err);
+                  });
+              }
+            }}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: 'white',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center'
+            }}
+          >
+            <div style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '50%',
+              backgroundColor: 'rgba(0,0,0,0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: '3px'
+            }}>
+              <Share2 size={18} />
+            </div>
+            <span style={{ fontSize: '0.7rem', fontWeight: 500 }}>Partilhar</span>
+          </button>
+
           {/* Coins Badge */}
           <div className="pulse-button" style={{
             width: '32px',
@@ -4903,112 +6403,182 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           <h4 
             onClick={(e) => {
               e.stopPropagation();
-              if (activeVideo.linkedType === 'product') {
+              const creator = users?.find(u => u.id === activeVideo.creatorId);
+              const role = creator?.role || '';
+              if (role === 'seller' || activeVideo.linkedType === 'product') {
                 setSelectedStoreId(activeVideo.creatorId);
                 onSwitchView('client_store');
-              } else if (activeVideo.linkedType === 'event') {
-                setSelectedEventId(activeVideo.linkedId);
-                onSwitchView('client_event');
-              } else if (activeVideo.linkedType === 'service') {
-                setSelectedServiceIdForHire(activeVideo.linkedId);
+              } else if (role === 'provider' || activeVideo.linkedType === 'service') {
                 setSelectedProviderId(activeVideo.creatorId);
-                onSwitchView('client_service');
+                onSwitchView('client_provider');
+              } else if (role === 'events' || activeVideo.linkedType === 'event') {
+                setSelectedOrganizerId(activeVideo.creatorId);
+                onSwitchView('client_organizer');
+              } else {
+                setSelectedStoreId(activeVideo.creatorId);
+                onSwitchView('client_store');
               }
             }}
             style={{ fontSize: '0.92rem', fontWeight: 500, color: '#ffffff', margin: 0, cursor: 'pointer' }}
           >
-            @{activeVideo.creatorName}
+            {(() => {
+              const creator = users?.find(u => u.id === activeVideo.creatorId);
+              const displayName = creator?.companyName || creator?.name || activeVideo.creatorName || 'Parceiro';
+              return `@${displayName}`;
+            })()}
           </h4>
-          <p 
-            onClick={(e) => { e.stopPropagation(); setDescExpanded(!descExpanded); }}
-            style={{ 
-              fontSize: '0.78rem', 
-              color: '#eaeaea', 
-              marginTop: '6px', 
-              lineHeight: 1.3,
-              cursor: 'pointer',
-              ...(!descExpanded ? {
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              } : {})
-            }}
-          >
+          <h5 style={{ fontSize: '0.8rem', fontWeight: 600, color: '#ffffff', margin: '4px 0 2px 0' }}>
             {activeVideo.title}
-          </p>
+          </h5>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+            <p 
+              onClick={(e) => { e.stopPropagation(); setDescExpanded(!descExpanded); }}
+              style={{ 
+                fontSize: '0.75rem', 
+                color: '#eaeaea', 
+                margin: 0, 
+                lineHeight: 1.3,
+                cursor: 'pointer',
+                width: '100%',
+                ...(!descExpanded ? {
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                } : {
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word'
+                })
+              }}
+            >
+              {activeVideo.desc || activeVideo.description || ''}
+            </p>
+            {(activeVideo.desc || activeVideo.description) && (
+              <button 
+                onClick={(e) => { e.stopPropagation(); setDescExpanded(!descExpanded); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#f28d1a',
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  padding: '2px 0 0 0',
+                  cursor: 'pointer',
+                  outline: 'none'
+                }}
+              >
+                {descExpanded ? 'Ver menos' : 'Ver mais'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* TIKTOK SHOP LINKING POPUP (Overlay at the bottom) */}
-        <div style={{
-          position: 'absolute',
-          bottom: '16px',
-          left: '16px',
-          right: '16px',
-          zIndex: 5,
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(10px)',
-          borderRadius: '20px',
-          padding: '12px 14px',
-          color: '#2d2d2d',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
-          animation: 'slideUp 0.3s ease-out'
-        }}>
-          <img 
-            src={activeVideo.poster} 
-            alt="link" 
-            style={{ width: '42px', height: '42px', borderRadius: '10px', objectFit: 'cover' }}
-          />
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <span style={{ fontSize: '0.62rem', backgroundColor: '#fff0d2', color: '#d4730d', padding: '1px 6px', borderRadius: '8px', fontWeight: 500 }}>
-              Destaque do Vídeo
-            </span>
-            <h5 style={{
-              fontSize: '0.78rem',
-              fontWeight: 500,
-              margin: '2px 0 0 0',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis'
-            }}>
-              {activeVideo.linkedName}
-            </h5>
-            <strong style={{ fontSize: '0.82rem', color: isVisitor ? '#ff5e5b' : '#f28d1a' }}>
-              {isVisitor ? 'Bloqueado' : `R$ ${activeVideo.linkedPrice.toFixed(2)}`}
-            </strong>
-          </div>
+        {(() => {
+          if (!activeVideo.linkedType || !activeVideo.linkedId) return null;
           
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              if (activeVideo.linkedType === 'product') {
-                handleProductClick(activeVideo.linkedId);
-              } else if (activeVideo.linkedType === 'event') {
-                setSelectedEventId(activeVideo.linkedId);
-                onSwitchView('client_event');
-              } else if (activeVideo.linkedType === 'service') {
-                setSelectedServiceIdForHire(activeVideo.linkedId);
-                setSelectedProviderId(activeVideo.creatorId);
-                onSwitchView('client_service');
-              }
-            }}
-            style={{
-              padding: '8px 14px',
-              borderRadius: '99px',
-              backgroundColor: '#f28d1a',
-              color: 'white',
-              border: 'none',
-              fontSize: '0.7rem',
-              fontWeight: 500,
-              cursor: 'pointer',
-              boxShadow: '0 4px 10px rgba(242,141,26,0.3)'
-            }}
-          >
-            Quero!
-          </button>
-        </div>
+          let linkedName = activeVideo.linkedName || 'Item Destaque';
+          let linkedPrice = activeVideo.linkedPrice;
+          let linkedImage = activeVideo.poster;
+          
+          if (activeVideo.linkedType === 'product') {
+            const p = products?.find(prod => prod.id === activeVideo.linkedId);
+            if (p) {
+              linkedName = p.name;
+              linkedPrice = p.price;
+              linkedImage = p.image || p.images?.[0] || activeVideo.poster;
+            }
+          } else if (activeVideo.linkedType === 'service') {
+            const s = services?.find(serv => serv.id === activeVideo.linkedId);
+            if (s) {
+              linkedName = s.name || s.title;
+              linkedPrice = s.price || s.pricePerHour;
+              linkedImage = s.image || s.images?.[0] || activeVideo.poster;
+            }
+          } else if (activeVideo.linkedType === 'event') {
+            const evt = events?.find(e => e.id === activeVideo.linkedId);
+            if (evt) {
+              linkedName = evt.title || evt.name;
+              linkedPrice = evt.price || evt.ticketPrice;
+              linkedImage = evt.image || evt.coverImage || activeVideo.poster;
+            }
+          }
+          
+          const parsedPrice = parseFloat(linkedPrice);
+          const displayPrice = isNaN(parsedPrice) ? 'Consultar' : `R$ ${parsedPrice.toFixed(2)}`;
+          
+          return (
+            <div style={{
+              position: 'absolute',
+              bottom: '16px',
+              left: '16px',
+              right: '16px',
+              zIndex: 5,
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(10px)',
+              borderRadius: '20px',
+              padding: '12px 14px',
+              color: '#2d2d2d',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
+              animation: 'slideUp 0.3s ease-out'
+            }}>
+              <img 
+                src={linkedImage} 
+                alt="link" 
+                style={{ width: '42px', height: '42px', borderRadius: '10px', objectFit: 'cover' }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ fontSize: '0.62rem', backgroundColor: '#fff0d2', color: '#d4730d', padding: '1px 6px', borderRadius: '8px', fontWeight: 500 }}>
+                  Destaque do Vídeo
+                </span>
+                <h5 style={{
+                  fontSize: '0.78rem',
+                  fontWeight: 500,
+                  margin: '2px 0 0 0',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}>
+                  {linkedName}
+                </h5>
+                <strong style={{ fontSize: '0.82rem', color: isVisitor ? '#ff5e5b' : '#f28d1a' }}>
+                  {isVisitor ? 'Bloqueado' : displayPrice}
+                </strong>
+              </div>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (activeVideo.linkedType === 'product') {
+                    handleProductClick(activeVideo.linkedId);
+                  } else if (activeVideo.linkedType === 'event') {
+                    setSelectedEventId(activeVideo.linkedId);
+                    onSwitchView('client_event');
+                  } else if (activeVideo.linkedType === 'service') {
+                    setSelectedServiceIdForHire(activeVideo.linkedId);
+                    setSelectedProviderId(activeVideo.creatorId);
+                    onSwitchView('client_service');
+                  }
+                }}
+                style={{
+                  padding: '8px 14px',
+                  borderRadius: '99px',
+                  backgroundColor: '#f28d1a',
+                  color: 'white',
+                  border: 'none',
+                  fontSize: '0.7rem',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 10px rgba(242,141,26,0.3)'
+                }}
+              >
+                Quero!
+              </button>
+            </div>
+          );
+        })()}
 
         {/* Video Comments Sheet Popup */}
         {showVideoComments && (
@@ -5048,8 +6618,16 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                   {(videoCommentsList[activeVideo.id] || []).map((c, i) => (
-                    <div key={i} style={{ fontSize: '0.78rem', color: '#333' }}>
-                      <strong style={{ color: '#2d2d2d' }}>{c.name}: </strong>{c.text}
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.78rem', color: '#333' }}>
+                      <img 
+                        src={c.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100'} 
+                        alt={c.name} 
+                        style={{ width: '24px', height: '24px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                      />
+                      <div>
+                        <span style={{ color: '#2d2d2d', fontWeight: 'normal' }}>{c.name}: </span>
+                        <span>{c.text}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -5075,14 +6653,18 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               />
               <button
                 onClick={() => {
+                  if (isVisitor) {
+                    onTriggerLogin();
+                    return;
+                  }
                   if (newCommentText.trim() !== '') {
-                    setVideoCommentsList(prev => ({
-                      ...prev,
-                      [activeVideo.id]: [
-                        ...(prev[activeVideo.id] || []),
-                        { name: currentUser?.name || 'Cliente', text: newCommentText }
-                      ]
-                    }));
+                    addVideoComment(
+                      activeVideo.id,
+                      currentUser?.name || 'Cliente',
+                      currentUser?.avatar || '',
+                      newCommentText,
+                      currentUser?.id || ''
+                    );
                     setNewCommentText('');
                   }
                 }}
@@ -5271,8 +6853,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
               if (!u && !s) return null;
 
-              const name = u ? u.name : s.name;
-              const logo = u ? (u.avatar || u.logo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150') : s.logo;
+              const name = u ? ((u.role === 'seller' || u.role === 'organizer') ? (u.companyName || u.name) : u.name) : s.name;
+              const logo = u ? (u.avatar || u.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>') : s.logo;
               const desc = u 
                 ? (u.role === 'seller' ? 'Loja Vendedora' : u.role === 'provider' ? (u.serviceCategory || 'Prestador de Serviços') : u.role === 'organizer' ? 'Organizador de Eventos' : 'Cliente') 
                 : s.desc;
@@ -5347,8 +6929,9 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               Nenhum cupom disponível no momento, uai!
             </div>
           ) : coupons.map(cp => {
-            const tag = cp.discountType === 'percent' ? `${cp.value}% OFF` : `R$ ${cp.value.toFixed(2)}`;
-            const desc = cp.discountType === 'percent'
+            const isPercent = cp.discountType === 'percent' || cp.discountType === 'percentage';
+            const tag = isPercent ? `${cp.value}% OFF` : `R$ ${cp.value.toFixed(2)}`;
+            const desc = isPercent
               ? `Ganhe ${cp.value}% de desconto em suas compras!`
               : `Desconto de R$ ${cp.value.toFixed(2)}`;
             const minPurchaseText = cp.minPurchase > 0 ? ` em compras acima de R$ ${cp.minPurchase.toFixed(2)}.` : '';
@@ -5437,9 +7020,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           <h1 style={{ fontSize: '2.5rem', margin: '6px 0', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
             <Coins size={32} /> {currentUser?.ouroCoins || 0}
           </h1>
-          <p style={{ fontSize: '0.78rem', opacity: 0.9 }}>
-            Equivale a R$ {((currentUser?.ouroCoins || 0) * 0.01).toFixed(2)} de desconto! (100 moedas = R$ 1,00)
-          </p>
         </div>
 
         <div style={{ backgroundColor: 'white', padding: '16px', borderRadius: '24px', border: '1px solid #eee', marginBottom: '20px' }}>
@@ -5827,52 +7407,127 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     const userTickets = userOrders.filter(o => o.type === 'ticket');
     const userHiredServices = servicesHired.filter(sh => sh.userId === user.id || sh.customerId === user.id);
 
+    const handlePhoneChange = (val) => {
+      let clean = val.replace(/\D/g, '');
+      if (clean.length > 11) clean = clean.slice(0, 11);
+      let formatted = clean;
+      if (clean.length > 6) {
+        formatted = `(${clean.slice(0, 2)}) ${clean.slice(2, 7)}-${clean.slice(7)}`;
+      } else if (clean.length > 2) {
+        formatted = `(${clean.slice(0, 2)}) ${clean.slice(2)}`;
+      } else if (clean.length > 0) {
+        formatted = `(${clean.slice(0, 2)}`;
+      }
+      setEditPhone(formatted);
+    };
+
+    const handleCpfChange = (val) => {
+      let clean = val.replace(/\D/g, '');
+      if (clean.length > 11) clean = clean.slice(0, 11);
+      let formatted = clean;
+      if (clean.length > 9) {
+        formatted = `${clean.slice(0, 3)}.${clean.slice(3, 6)}.${clean.slice(6, 9)}-${clean.slice(9)}`;
+      } else if (clean.length > 6) {
+        formatted = `${clean.slice(0, 3)}.${clean.slice(3, 6)}.${clean.slice(6)}`;
+      } else if (clean.length > 3) {
+        formatted = `${clean.slice(0, 3)}.${clean.slice(3)}`;
+      }
+      setEditCpf(formatted);
+    };
+
+    const handleCepChange = async (val) => {
+      let clean = val.replace(/\D/g, '');
+      if (clean.length > 8) clean = clean.slice(0, 8);
+      let masked = clean;
+      if (clean.length > 5) {
+        masked = `${clean.slice(0, 5)}-${clean.slice(5)}`;
+      }
+      setEditCep(masked);
+
+      if (clean.length === 8) {
+        try {
+          const response = await fetch(`https://viacep.com.br/ws/${clean}/json/`);
+          const data = await response.json();
+          if (data && !data.erro) {
+            setEditStreet(data.logradouro || '');
+            setEditNeighborhood(data.bairro || '');
+          }
+        } catch (err) {
+          console.error("Erro ao buscar CEP:", err);
+        }
+      }
+    };
+
     const startEditing = () => {
       setEditName(user.name || '');
       setEditBio(user.bio || '');
       setEditAvatar(user.avatar || '');
       setEditBanner(user.banner || '');
-      setEditAddress(user.address || '');
       setEditPhone(user.phone || '');
+      setEditCpf(user.cpf || '');
+      
+      setEditStreet(user.addrStreet || '');
+      setEditNumber(user.addrNumber || '');
+      setEditNeighborhood(user.addrNeighborhood || '');
+      setEditCep(user.addrCep || '');
+      
+      if (!user.addrStreet && user.address) {
+        const parts = user.address.split(',');
+        const street = parts[0]?.trim() || '';
+        const num = parts[1]?.trim() || '';
+        let neighborhood = '';
+        let cep = '';
+        
+        if (parts[2]) {
+          const subParts = parts[2].split('-');
+          neighborhood = subParts[0]?.trim() || '';
+          if (subParts[1] && subParts[1].toLowerCase().includes('cep')) {
+            cep = subParts[1].replace(/cep:/i, '').trim();
+          }
+        }
+        setEditStreet(street);
+        setEditNumber(num);
+        setEditNeighborhood(neighborhood);
+        setEditCep(cep);
+      }
+      
       setIsEditingProfile(true);
     };
 
     const handleClientCoverUpload = (e) => {
       const file = e.target.files[0];
       if (file && isOwnProfile && currentUser) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const base64 = event.target.result;
-          updateUserProfile(currentUser.id, { banner: base64 });
+        compressImage(file, 800, 300, (compressedBase64) => {
+          updateUserProfile(currentUser.id, { banner: compressedBase64 });
           triggerToast("Capa do perfil atualizada!");
-        };
-        reader.readAsDataURL(file);
+        });
       }
     };
 
     const handleClientAvatarUpload = (e) => {
       const file = e.target.files[0];
       if (file && isOwnProfile && currentUser) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const base64 = event.target.result;
-          updateUserProfile(currentUser.id, { avatar: base64 });
+        compressImage(file, 400, 400, (compressedBase64) => {
+          updateUserProfile(currentUser.id, { avatar: compressedBase64 });
           triggerToast("Foto de perfil atualizada!");
-        };
-        reader.readAsDataURL(file);
+        });
       }
     };
 
     const saveProfileChanges = () => {
       if (isOwnProfile && currentUser) {
+        const fullAddr = `${editStreet}${editNumber ? ', ' + editNumber : ''}${editNeighborhood ? ', ' + editNeighborhood : ''}${editCep ? ' - CEP: ' + editCep : ''}`;
         const updatedFields = {
           name: editName,
-          bio: editBio
+          bio: editBio,
+          address: fullAddr,
+          addrStreet: editStreet,
+          addrNumber: editNumber,
+          addrNeighborhood: editNeighborhood,
+          addrCep: editCep,
+          phone: editPhone,
+          cpf: editCpf
         };
-        if (currentUser.role !== 'client') {
-          updatedFields.address = editAddress;
-          updatedFields.phone = editPhone;
-        }
         updateUserProfile(currentUser.id, updatedFields);
         triggerToast("Perfil atualizado com sucesso!");
       }
@@ -6038,8 +7693,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   const s = nearbyStores.find(store => store.id === fId);
                   if (!u && !s) return null;
 
-                  const name = u ? u.name : s.name;
-                  const logo = u ? (u.avatar || u.logo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150') : s.logo;
+                  const name = u ? ((u.role === 'seller' || u.role === 'organizer') ? (u.companyName || u.name) : u.name) : s.name;
+                  const logo = u ? (u.avatar || u.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>') : s.logo;
                   const desc = u 
                     ? (u.role === 'seller' ? 'Loja Vendedora' : u.role === 'provider' ? (u.serviceCategory || 'Prestador de Serviços') : u.role === 'organizer' ? 'Organizador de Eventos' : 'Cliente') 
                     : s.desc;
@@ -6112,6 +7767,34 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       <span style={{ color: '#888' }}>Total ({sh.hours} horas)</span>
                       <strong style={{ color: '#f28d1a' }}>R$ {(sh.total || (sh.pricePerHour * sh.hours) || 0).toFixed(2)}</strong>
                     </div>
+                    {sh.status === 'completed' && (
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '8px' }}>
+                        {sh.reviewed ? (
+                          <span style={{ fontSize: '0.7rem', color: '#2ec4b6', fontWeight: 500 }}>✓ Avaliado</span>
+                        ) : (
+                          <button
+                            onClick={() => {
+                              setRatingServiceHiredId(sh.id);
+                              setServiceReviewRating(5);
+                              setServiceReviewComment('');
+                              setServiceReviewImages([]);
+                            }}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '8px',
+                              border: '1px solid #f28d1a',
+                              backgroundColor: '#ffffff',
+                              color: '#f28d1a',
+                              fontSize: '0.7rem',
+                              fontWeight: 500,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Avaliar Serviço
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))
               )}
@@ -6495,7 +8178,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           </div>
           
           <div style={{ marginTop: '42px' }}>
-            <h3 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#2d2d2d', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <h3 style={{ fontSize: '1.05rem', fontWeight: 500, color: '#2d2d2d', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <EditableText textId={`profile_name_${user.id}`} defaultText={user.name} />
             </h3>
             <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, marginTop: '2px' }}>
@@ -6504,16 +8187,27 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '6px', lineHeight: 1.3, display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
               <EditableText textId={`profile_bio_${user.id}`} defaultText={user.bio || ''} />
             </p>
-            {user.role !== 'client' && (
+            {/* Se for admin, ou se for um perfil comercial (não-client) */}
+            {((currentUser?.role === 'admin' || user.role !== 'client') && (user.address || user.phone || user.cpf)) && (
               <>
-                <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <MapPin size={12} /> 
-                  <span><strong>Endereço:</strong> <EditableText textId={`profile_address_${user.id}`} defaultText={user.address || 'Centro Histórico, Ouro Preto - MG'} /></span>
-                </div>
-                <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
-                  <Phone size={12} /> 
-                  <span><strong>Telefone:</strong> <EditableText textId={`profile_phone_${user.id}`} defaultText={user.phone || '(31) 99999-1234'} /></span>
-                </div>
+                {user.address && (
+                  <div style={{ fontSize: '0.7rem', color: '#888', marginTop: '8px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <MapPin size={12} /> 
+                    <span>Endereço: {user.address}</span>
+                  </div>
+                )}
+                {user.phone && (
+                  <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                    <Phone size={12} /> 
+                    <span>Telefone: {user.phone}</span>
+                  </div>
+                )}
+                {user.cpf && (
+                  <div style={{ fontSize: '0.7rem', color: '#888', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                    <Layers size={12} /> 
+                    <span>CPF: {user.cpf}</span>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -6646,29 +8340,68 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   />
                 </div>
 
-                {user.role !== 'client' && (
-                  <>
-                    <div>
-                      <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>Endereço</label>
-                      <input 
-                        type="text" 
-                        value={editAddress} 
-                        onChange={e => setEditAddress(e.target.value)}
-                        style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
-                      />
-                    </div>
+                <div>
+                  <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>CEP</label>
+                  <input 
+                    type="text" 
+                    placeholder="00000-000"
+                    value={editCep} 
+                    onChange={e => handleCepChange(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
+                  />
+                </div>
 
-                    <div>
-                      <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>Telefone</label>
-                      <input 
-                        type="text" 
-                        value={editPhone} 
-                        onChange={e => setEditPhone(e.target.value)}
-                        style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
-                      />
-                    </div>
-                  </>
-                )}
+                <div>
+                  <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>Rua</label>
+                  <input 
+                    type="text" 
+                    value={editStreet} 
+                    onChange={e => setEditStreet(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>Número</label>
+                  <input 
+                    type="text" 
+                    value={editNumber} 
+                    onChange={e => setEditNumber(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>Bairro</label>
+                  <input 
+                    type="text" 
+                    value={editNeighborhood} 
+                    onChange={e => setEditNeighborhood(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>Telefone</label>
+                  <input 
+                    type="text" 
+                    placeholder="(31) 99999-9999"
+                    value={editPhone} 
+                    onChange={e => handlePhoneChange(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>CPF</label>
+                  <input 
+                    type="text" 
+                    placeholder="000.000.000-00"
+                    value={editCpf} 
+                    onChange={e => handleCpfChange(e.target.value)}
+                    style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
@@ -6725,7 +8458,32 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       {renderViewContent()}
       
       {toastMessage && (
-        <div className="toast">
+        <div style={{
+          position: 'fixed',
+          top: '24px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          background: 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)',
+          color: 'white',
+          padding: '12px 20px',
+          borderRadius: '16px',
+          fontSize: '0.82rem',
+          fontWeight: 600,
+          zIndex: 99999,
+          boxShadow: '0 8px 32px rgba(242, 141, 26, 0.35)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '10px',
+          pointerEvents: 'none',
+          animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+          textAlign: 'center',
+          width: 'calc(100% - 32px)',
+          maxWidth: '340px',
+          backdropFilter: 'blur(8px)',
+          border: '1px solid rgba(255,255,255,0.2)'
+        }}>
+          <Check size={16} color="white" style={{ flexShrink: 0 }} />
           {toastMessage}
         </div>
       )}
@@ -7019,6 +8777,192 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   setReviewRating(5);
                   setRatingProductId(null);
                   triggerToast("Avaliação enviada com sucesso! Obrigado.");
+                }}
+                className="btn btn-primary"
+                style={{ flex: 1, height: '44px', padding: 0, fontSize: '0.8rem', color: '#ffffff' }}
+              >
+                Enviar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Service Rating Modal */}
+      {ratingServiceHiredId && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1100,
+          padding: '20px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '24px',
+            padding: '24px',
+            width: '100%',
+            maxWidth: '320px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+            color: '#2d2d2d',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Avaliar Serviço</h3>
+              <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '4px', lineHeight: 1.3 }}>Conta pra gente o que achou do profissional e do serviço prestado!</p>
+            </div>
+            
+            {/* Stars Selector */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', margin: '8px 0' }}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <button
+                  key={star}
+                  onClick={() => setServiceReviewRating(star)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '4px',
+                    fontSize: '1.8rem',
+                    color: star <= serviceReviewRating ? '#f28d1a' : '#ddd',
+                    transition: 'transform 0.1s ease',
+                    outline: 'none'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.2)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  ★
+                </button>
+              ))}
+            </div>
+
+            {/* Comment input */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>Seu comentário (opcional)</label>
+              <textarea
+                placeholder="Ex: Profissional muito pontual e educado! Recomendo."
+                value={serviceReviewComment}
+                onChange={(e) => setServiceReviewComment(e.target.value)}
+                style={{
+                  width: '100%',
+                  height: '80px',
+                  borderRadius: '12px',
+                  border: '1px solid #ddd',
+                  padding: '10px 12px',
+                  fontSize: '0.78rem',
+                  color: '#2d2d2d',
+                  backgroundColor: '#ffffff',
+                  outline: 'none',
+                  resize: 'none'
+                }}
+              />
+            </div>
+
+            {/* Upload de Imagens */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>
+                Adicionar fotos (Máx. 5)
+              </label>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                {serviceReviewImages.map((img, idx) => (
+                  <div key={idx} style={{ position: 'relative', width: '44px', height: '44px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #ddd' }}>
+                    <img src={img} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <button
+                      type="button"
+                      onClick={() => setServiceReviewImages(prev => prev.filter((_, i) => i !== idx))}
+                      style={{
+                        position: 'absolute',
+                        top: '1px',
+                        right: '1px',
+                        backgroundColor: 'rgba(0,0,0,0.6)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '50%',
+                        width: '12px',
+                        height: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '6px',
+                        cursor: 'pointer',
+                        padding: 0
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                
+                {serviceReviewImages.length < 5 && (
+                  <label style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '8px',
+                    border: '1.5px dashed #f28d1a',
+                    backgroundColor: '#fff9ee',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    color: '#f28d1a',
+                    fontSize: '1rem',
+                    fontWeight: 'bold'
+                  }}>
+                    +
+                    <input
+                      type="file"
+                      accept="image/*"
+                      multiple={serviceReviewImages.length < 4}
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files);
+                        const spaceLeft = 5 - serviceReviewImages.length;
+                        const filesToProcess = files.slice(0, spaceLeft);
+                        
+                        filesToProcess.forEach(file => {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            setServiceReviewImages(prev => {
+                              if (prev.length >= 5) return prev;
+                              return [...prev, event.target.result];
+                            });
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                        e.target.value = ''; // Reset file input
+                      }}
+                      style={{ display: 'none' }}
+                    />
+                  </label>
+                )}
+              </div>
+            </div>
+
+            {/* Action buttons */}
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+              <button
+                onClick={() => {
+                  setRatingServiceHiredId(null);
+                  setServiceReviewImages([]);
+                }}
+                className="btn btn-secondary"
+                style={{ flex: 1, height: '44px', padding: 0, fontSize: '0.8rem', border: '1px solid #ddd' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={async () => {
+                  await addServiceReview(ratingServiceHiredId, currentUser?.name || 'Cliente Anônimo', serviceReviewRating, serviceReviewComment, serviceReviewImages);
+                  setServiceReviewImages([]);
+                  setServiceReviewComment('');
+                  setServiceReviewRating(5);
+                  setRatingServiceHiredId(null);
+                  triggerToast("Avaliação de serviço enviada com sucesso!");
                 }}
                 className="btn btn-primary"
                 style={{ flex: 1, height: '44px', padding: 0, fontSize: '0.8rem', color: '#ffffff' }}

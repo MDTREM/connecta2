@@ -561,4 +561,33 @@ h1, h2, h3, h4 {
   }
 }
 
+/* Responsive logo sizing for panel headers */
+.header-logo-img {
+  height: 18px;
+}
+@media (min-width: 768px) {
+  .header-logo-img {
+    height: 34px;
+  }
+}
+
+/* Responsive grid for profile cards (products, services, events) */
+.responsive-profile-grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+}
+
+.responsive-store-grid {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)) !important;
+}
+
+@media (min-width: 768px) {
+  .responsive-profile-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 180px)) !important;
+  }
+  .responsive-store-grid {
+    grid-template-columns: repeat(auto-fill, minmax(140px, 180px)) !important;
+  }
+}
 

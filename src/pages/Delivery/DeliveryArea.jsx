@@ -1,18 +1,37 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
-import { ToggleLeft, ToggleRight, Bike, MapPin, MessageSquare, Home } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Bike, MapPin, MessageSquare, Home, X, Bell, LogOut, User, Camera, Edit, Save, Calendar, Clock } from 'lucide-react';
+import { uploadAvatar, uploadCover } from '../../firebase/storage';
 
-export default function DeliveryArea({ onOpenChat }) {
-  const { currentUser, orders, acceptDelivery, updateOrderStatus, setUsers } = useFirebaseMock();
+export default function DeliveryArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout }) {
+  const { currentUser, orders, acceptDelivery, updateOrderStatus, setUsers, categories, updateUserProfile } = useFirebaseMock();
 
-  const [activeTab, setActiveTab] = useState('dashboard'); // dashboard, active_job
+  const [activeTab, setActiveTab] = useState(() => {
+    return localStorage.getItem('connecta_delivery_active_tab') || 'dashboard';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('connecta_delivery_active_tab', activeTab);
+  }, [activeTab]);
+
+  // Profile editing states
+  const [editingField, setEditingField] = useState(null);
+  const [editValue, setEditValue] = useState('');
+  
+  // Saque modal states
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawPixKey, setWithdrawPixKey] = useState('');
+  const [withdrawAccount, setWithdrawAccount] = useState('');
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawError, setWithdrawError] = useState('');
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
   
   // Rider toggle state
   const isOnline = currentUser.online;
   const deliveryRate = currentUser.deliveryRate || 7.00;
 
   // Find delivery offers (orders calling riders)
-  const deliveryOffers = orders.filter(o => o.status === 'calling_rider');
+  const deliveryOffers = orders.filter(o => o.status === 'calling_rider' && (!o.assignedRiderId || o.assignedRiderId === currentUser.id));
 
   // Find rider's active job
   const activeJob = orders.find(o => 
@@ -24,14 +43,57 @@ export default function DeliveryArea({ onOpenChat }) {
   // Compute rider stats
   const completedDeliveries = orders.filter(o => o.riderId === currentUser.id && o.status === 'delivered');
   const totalRiderEarnings = completedDeliveries.length * (currentUser.deliveryRate || 7.00);
-  const withdrawableBalance = totalRiderEarnings + 42.00; // simulated history
+  const withdrawableBalance = totalRiderEarnings; // Real withdrawable balance from completed deliveries
 
   const handleToggleOnline = () => {
-    setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, online: !u.online } : u));
+    const nextOnlineState = !currentUser.online;
+    setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, online: nextOnlineState } : u));
+    updateUserProfile(currentUser.id, { online: nextOnlineState });
   };
 
   const handleRateChange = (newRate) => {
-    setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, deliveryRate: parseFloat(newRate) || 7.00 } : u));
+    const rateVal = parseFloat(newRate) || 7.00;
+    setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, deliveryRate: rateVal } : u));
+    updateUserProfile(currentUser.id, { deliveryRate: rateVal });
+  };
+
+  const startEditing = (field, val) => {
+    setEditingField(field);
+    setEditValue(val || '');
+  };
+
+  const handleSaveField = (field) => {
+    setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, [field]: editValue } : u));
+    updateUserProfile(currentUser.id, { [field]: editValue });
+    setEditingField(null);
+  };
+
+  const handleAvatarUpload = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const url = await uploadAvatar(file, currentUser.id);
+        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, avatar: url, logo: url } : u));
+        updateUserProfile(currentUser.id, { avatar: url, logo: url });
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao enviar foto de perfil. Tente novamente, sô!');
+      }
+    }
+  };
+
+  const handleCoverUpload = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const url = await uploadCover(file, currentUser.id);
+        setUsers(prev => prev.map(u => u.id === currentUser.id ? { ...u, cover: url, banner: url } : u));
+        updateUserProfile(currentUser.id, { cover: url, banner: url });
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao enviar imagem de capa. Tente novamente, sô!');
+      }
+    }
   };
 
   // --- SUBVIEW 1: DASHBOARD ---
@@ -117,17 +179,27 @@ export default function DeliveryArea({ onOpenChat }) {
             )}
             <div style={{ fontSize: '0.62rem', color: '#999' }}>{st.desc}</div>
             {st.btn && (
-              <button style={{
-                marginTop: '8px',
-                padding: '2px 10px',
-                borderRadius: '8px',
-                border: 'none',
-                backgroundColor: '#f28d1a',
-                color: 'white',
-                fontWeight: 500,
-                fontSize: '0.62rem',
-                cursor: 'pointer'
-              }}>
+              <button 
+                onClick={() => {
+                  setWithdrawAmount(withdrawableBalance.toString());
+                  setWithdrawPixKey('');
+                  setWithdrawAccount('');
+                  setWithdrawError('');
+                  setWithdrawSuccess(false);
+                  setShowWithdrawModal(true);
+                }}
+                style={{
+                  marginTop: '8px',
+                  padding: '2px 10px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: '#f28d1a',
+                  color: 'white',
+                  fontWeight: 500,
+                  fontSize: '0.62rem',
+                  cursor: 'pointer'
+                }}
+              >
                 {st.btn}
               </button>
             )}
@@ -367,19 +439,389 @@ export default function DeliveryArea({ onOpenChat }) {
     );
   };
 
+  const renderProfileView = () => {
+    const deliveryCategoriesFromDb = categories ? categories.filter(c => c.type === 'entregadores').map(c => c.label) : [];
+    const deliveryCategoriesList = deliveryCategoriesFromDb.length > 0 ? deliveryCategoriesFromDb : ['Entrega de Moto', 'Entrega de Carro / Fretes', 'Bicicleta', 'Caminhão/Entregas Grandes'];
+
+    return (
+      <div style={{ backgroundColor: '#ffffff', minHeight: '100%', width: '100%', boxSizing: 'border-box' }} className="animate-fade-in">
+        {/* Cover Banner */}
+        <div style={{ width: '100%', height: '140px', position: 'relative', backgroundColor: '#fafafa', borderRadius: '16px', overflow: 'hidden' }}>
+          <img 
+            src={currentUser.cover || currentUser.banner || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 35"><rect width="100" height="35" fill="%23eaeaea"/></svg>'} 
+            alt="cover" 
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          />
+          <label 
+            htmlFor="cover-file-upload-del"
+            style={{
+              position: 'absolute',
+              bottom: '10px',
+              right: '10px',
+              backgroundColor: 'rgba(0,0,0,0.65)',
+              color: 'white',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              fontSize: '0.7rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              cursor: 'pointer',
+              fontWeight: 500,
+              backdropFilter: 'blur(2px)'
+            }}
+          >
+            <Camera size={12} /> Alterar Capa
+          </label>
+          <input 
+            type="file" 
+            id="cover-file-upload-del" 
+            accept="image/*" 
+            onChange={handleCoverUpload} 
+            style={{ display: 'none' }} 
+          />
+        </div>
+
+        {/* Profile Avatar overlapping */}
+        <div style={{ padding: '16px', position: 'relative', borderBottom: '1px solid #eee' }}>
+          <div style={{
+            position: 'absolute',
+            top: '-36px',
+            left: '16px',
+            width: '72px',
+            height: '72px',
+            borderRadius: '16px',
+            border: '3px solid white',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            overflow: 'hidden',
+            backgroundColor: 'white'
+          }}>
+            <img 
+              src={currentUser.avatar || currentUser.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'} 
+              alt="logo" 
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+            />
+            <label 
+              htmlFor="avatar-file-upload-del"
+              style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                height: '100%',
+                backgroundColor: 'rgba(0,0,0,0.5)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'white',
+                opacity: 0,
+                transition: 'opacity 0.2s',
+                cursor: 'pointer'
+              }}
+              className="avatar-hover-upload"
+            >
+              <Camera size={16} />
+            </label>
+            <input 
+              type="file" 
+              id="avatar-file-upload-del" 
+              accept="image/*" 
+              onChange={handleAvatarUpload} 
+              style={{ display: 'none' }} 
+            />
+          </div>
+          <style>{`
+            .avatar-hover-upload:hover { opacity: 1 !important; }
+          `}</style>
+
+          {/* Inline Editing */}
+          <div style={{ marginTop: '42px' }}>
+            {/* NAME */}
+            {editingField === 'name' ? (
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px' }}>
+                <input 
+                  type="text" 
+                  value={editValue} 
+                  onChange={(e) => setEditValue(e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: '6px 10px', fontSize: '0.82rem', margin: 0 }}
+                />
+                <button type="button" onClick={() => handleSaveField('name')} className="btn btn-primary" style={{ padding: '4px 12px', fontSize: '0.72rem', height: '34px', width: 'auto', backgroundColor: '#f28d1a' }}><Save size={14} /></button>
+                <button type="button" onClick={() => setEditingField(null)} className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: '0.72rem', height: '34px', width: 'auto' }}><X size={14} /></button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>{currentUser.name}</h3>
+                <button type="button" onClick={() => startEditing('name', currentUser.name)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><Edit size={12} /></button>
+              </div>
+            )}
+
+            {/* CATEGORY */}
+            {editingField === 'category' ? (
+              <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', marginTop: '4px' }}>
+                <select 
+                  value={editValue} 
+                  onChange={(e) => setEditValue(e.target.value)} 
+                  style={{
+                    padding: '6px 10px',
+                    fontSize: '0.82rem',
+                    borderRadius: '12px',
+                    border: '2px solid #eaeaea',
+                    backgroundColor: 'white',
+                    fontWeight: 500
+                  }}
+                >
+                  <option value="">Selecione uma categoria...</option>
+                  {deliveryCategoriesList.map(cat => (
+                    <option key={cat} value={cat}>{cat}</option>
+                  ))}
+                </select>
+                <button type="button" onClick={() => handleSaveField('category')} className="btn btn-primary" style={{ padding: '4px 12px', fontSize: '0.72rem', height: '34px', width: 'auto', backgroundColor: '#f28d1a' }}><Save size={14} /></button>
+                <button type="button" onClick={() => setEditingField(null)} className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: '0.72rem', height: '34px', width: 'auto' }}><X size={14} /></button>
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span>{currentUser.category || 'Sem categoria cadastrada'}</span>
+                <button type="button" onClick={() => startEditing('category', currentUser.category || deliveryCategoriesList[0])} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><Edit size={12} /></button>
+              </div>
+            )}
+
+            {/* DESCRIPTION / BIO */}
+            {editingField === 'description' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px', marginBottom: '8px' }}>
+                <textarea 
+                  value={editValue} 
+                  onChange={(e) => setEditValue(e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: '8px', fontSize: '0.78rem', height: '80px', resize: 'none', margin: 0 }}
+                  placeholder="Conte um pouco sobre sua experiência de entrega..."
+                />
+                <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                  <button type="button" onClick={() => setEditingField(null)} className="btn btn-secondary" style={{ padding: '4px 12px', fontSize: '0.72rem', height: '30px', width: 'auto' }}>Cancelar</button>
+                  <button type="button" onClick={() => handleSaveField('description')} className="btn btn-primary" style={{ padding: '4px 12px', fontSize: '0.72rem', height: '30px', width: 'auto', backgroundColor: '#f28d1a' }}>Salvar</button>
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginTop: '8px', display: 'flex', alignItems: 'flex-start', gap: '6px' }}>
+                <p style={{ fontSize: '0.75rem', color: '#666', margin: 0, lineHeight: 1.35, flex: 1, whiteSpace: 'pre-wrap' }}>{currentUser.description || 'Nenhuma descrição/bio cadastrada.'}</p>
+                <button type="button" onClick={() => startEditing('description', currentUser.description || '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: '2px 0 0 0' }}><Edit size={12} /></button>
+              </div>
+            )}
+
+            {/* ADDRESS */}
+            <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '12px' }}>
+              {editingField === 'address' ? (
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <MapPin size={12} />
+                  <input 
+                    type="text" 
+                    value={editValue} 
+                    onChange={(e) => setEditValue(e.target.value)} 
+                    className="input-field" 
+                    style={{ padding: '4px 8px', fontSize: '0.75rem', margin: 0 }}
+                  />
+                  <button type="button" onClick={() => handleSaveField('address')} className="btn btn-primary" style={{ padding: '2px 8px', fontSize: '0.7rem', height: '28px', width: 'auto', backgroundColor: '#f28d1a' }}><Save size={12} /></button>
+                  <button type="button" onClick={() => setEditingField(null)} className="btn btn-secondary" style={{ padding: '2px 8px', fontSize: '0.7rem', height: '28px', width: 'auto' }}><X size={12} /></button>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <MapPin size={12} style={{ color: '#aaa' }} /> 
+                  <span style={{ color: '#555' }}>Endereço base:</span> {currentUser.address || 'Não informado'}
+                  <button type="button" onClick={() => startEditing('address', currentUser.address || '')} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 0 }}><Edit size={10} /></button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* DELIVERY HISTORY SECTION */}
+        <div style={{ padding: '16px' }}>
+          <h3 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Clock size={16} style={{ color: '#f28d1a' }} /> Histórico de Entregas ({completedDeliveries.length})
+          </h3>
+
+          {completedDeliveries.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '30px', color: '#999', fontSize: '0.8rem', backgroundColor: '#f9f9f9', borderRadius: '16px', border: '1px solid #eee' }}>
+              Nenhuma entrega concluída ainda. Comece a receber corridas!
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {completedDeliveries.map(order => (
+                <div 
+                  key={order.id} 
+                  style={{
+                    backgroundColor: '#ffffff',
+                    borderRadius: '20px',
+                    padding: '16px',
+                    border: '1px solid #eee',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '10px'
+                  }}
+                >
+                  {/* History Item Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #fcfcfc', paddingBottom: '8px' }}>
+                    <div>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#2d2d2d' }}>Pedido #{order.id}</span>
+                      <div style={{ fontSize: '0.68rem', color: '#999', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}>
+                        <Calendar size={12} /> {order.date || 'Data não disponível'}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: 'right' }}>
+                      <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2ec4b6' }}>+ R$ {(currentUser.deliveryRate || 7.00).toFixed(2)}</span>
+                      <div style={{ fontSize: '0.62rem', backgroundColor: '#e6f7f0', color: '#2ec4b6', padding: '2px 8px', borderRadius: '99px', fontWeight: 600, marginTop: '4px', display: 'inline-block' }}>
+                        ENTREGUE
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Merchant & Customer Info */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '0.72rem', color: '#666' }}>
+                    <div style={{ backgroundColor: '#fafafa', padding: '8px 12px', borderRadius: '12px' }}>
+                      <strong style={{ color: '#ff5e5b', fontSize: '0.62rem', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>Coleta</strong>
+                      <span style={{ fontWeight: 600, color: '#333' }}>{order.items[0]?.storeName || 'Loja Parceira'}</span>
+                    </div>
+                    <div style={{ backgroundColor: '#fafafa', padding: '8px 12px', borderRadius: '12px' }}>
+                      <strong style={{ color: '#f28d1a', fontSize: '0.62rem', textTransform: 'uppercase', display: 'block', marginBottom: '2px' }}>Destinatário</strong>
+                      <span style={{ fontWeight: 600, color: '#333' }}>{order.customerName}</span>
+                    </div>
+                  </div>
+
+                  {/* Destination address */}
+                  <div style={{ fontSize: '0.72rem', color: '#666', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#fffcf7', padding: '8px 12px', borderRadius: '12px' }}>
+                    <MapPin size={12} style={{ color: '#f28d1a', flexShrink: 0 }} />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{order.address}</span>
+                  </div>
+
+                  {/* Items list summary */}
+                  <div style={{ borderTop: '1px dashed #eee', paddingTop: '8px', fontSize: '0.68rem', color: '#888' }}>
+                    <span style={{ fontWeight: 600 }}>Itens entregues:</span>{' '}
+                    {order.items.map((item, idx) => (
+                      <span key={item.id}>
+                        {item.quantity}x {item.name}
+                        {idx < order.items.length - 1 ? ', ' : ''}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#ffffff', position: 'relative' }} className="animate-fade-in">
+      
+      {/* Desktop Header */}
+      <header className="desktop-header">
+        <div className="desktop-header-inner">
+          {/* Logo */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', flexShrink: 0 }}>
+            <img 
+              src="/logo-full.png" 
+              alt="Connecta+" 
+              className="header-logo-img"
+              style={{ objectFit: 'contain' }} 
+            />
+          </div>
+
+          {/* Nav links */}
+          <nav className="desktop-nav">
+            {[
+              { id: 'dashboard', label: 'Painel', icon: <Home size={18} /> },
+              { id: 'active_job', label: 'Corrida Ativa', icon: <Bike size={18} /> },
+              { id: 'profile', label: 'Perfil', icon: <User size={18} /> }
+            ].map(item => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setActiveTab(item.id)}
+                className={`desktop-nav-item ${activeTab === item.id ? 'active' : ''}`}
+                style={{ position: 'relative' }}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+                {item.id === 'active_job' && activeJob && (
+                  <span style={{ position: 'absolute', top: '2px', right: '14px', backgroundColor: '#ff5e5b', width: '6px', height: '6px', borderRadius: '50%' }} />
+                )}
+              </button>
+            ))}
+          </nav>
+
+          {/* Right actions (Chat, Notifications, Logout) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={onOpenChat}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: '#fff7e6', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title="Chat Suporte"
+            >
+              <MessageSquare size={16} style={{ color: '#f28d1a' }} />
+            </button>
+
+            <button
+              type="button"
+              onClick={onToggleNotifications}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: 'white', border: '1px solid #eee',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', position: 'relative'
+              }}
+              title="Notificações"
+            >
+              <Bell size={16} style={{ color: '#f28d1a' }} />
+              {unreadNotificationsCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: '-2px', right: '-2px',
+                  backgroundColor: '#ff5e5b', width: '12px', height: '12px',
+                  borderRadius: '50%', fontSize: '0.55rem', color: 'white',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}>
+                  {unreadNotificationsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={onLogout}
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: '#ff5e5b15', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title="Sair da Conta"
+            >
+              <LogOut size={16} style={{ color: '#ff5e5b' }} />
+            </button>
+          </div>
+        </div>
+      </header>
+
       {/* Body */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '16px', paddingBottom: '90px' }} className="custom-scroll">
         {activeTab === 'dashboard' && renderDashboard()}
         {activeTab === 'active_job' && renderActiveJob()}
+        {activeTab === 'profile' && renderProfileView()}
       </div>
 
       {/* Menu Fixo Embaixo com Ícones */}
       <div className="bottom-nav">
         {[
           { id: 'dashboard', label: 'Painel', icon: <Home size={20} /> },
-          { id: 'active_job', label: 'Corrida Ativa', icon: <Bike size={20} /> }
+          { id: 'active_job', label: 'Corrida Ativa', icon: <Bike size={20} /> },
+          { id: 'profile', label: 'Perfil', icon: <User size={20} /> }
         ].map(item => (
           <button
             key={item.id}
@@ -396,6 +838,201 @@ export default function DeliveryArea({ onOpenChat }) {
           </button>
         ))}
       </div>
+
+      {showWithdrawModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 2000,
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '440px',
+            padding: '24px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }} className="animate-fade-in">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Sacar Saldo</h3>
+              <button 
+                type="button"
+                onClick={() => setShowWithdrawModal(false)}
+                style={{ border: 'none', backgroundColor: 'transparent', cursor: 'pointer', display: 'flex', padding: 0 }}
+              >
+                <X size={20} style={{ color: '#666' }} />
+              </button>
+            </div>
+
+            {withdrawSuccess ? (
+              <div style={{ textAlign: 'center', padding: '16px 0', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  backgroundColor: '#e6f7f0',
+                  color: '#2ec4b6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '1.5rem',
+                  fontWeight: 'bold'
+                }}>
+                  ✓
+                </div>
+                <h4 style={{ fontSize: '1rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Solicitação de Saque Enviada!</h4>
+                <p style={{ fontSize: '0.8rem', color: '#777', margin: 0, lineHeight: 1.4 }}>
+                  Seu saque de <strong>R$ {parseFloat(withdrawAmount).toFixed(2)}</strong> está em processamento e será depositado em sua conta Pix cadastrada em breve.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowWithdrawModal(false)}
+                  style={{
+                    marginTop: '12px',
+                    padding: '10px 24px',
+                    backgroundColor: '#f28d1a',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    width: '100%'
+                  }}
+                >
+                  Fechar
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={(e) => {
+                e.preventDefault();
+                const amt = parseFloat(withdrawAmount);
+                if (isNaN(amt) || amt <= 0) {
+                  setWithdrawError('Digite um valor de saque válido.');
+                  return;
+                }
+                if (amt > withdrawableBalance) {
+                  setWithdrawError(`Saldo insuficiente. Seu saldo disponível é R$ ${withdrawableBalance.toFixed(2)}.`);
+                  return;
+                }
+                if (!withdrawPixKey.trim()) {
+                  setWithdrawError('A chave PIX é obrigatória.');
+                  return;
+                }
+                if (!withdrawAccount.trim()) {
+                  setWithdrawError('O número da conta é obrigatório.');
+                  return;
+                }
+
+                // Success simulation
+                setWithdrawError('');
+                setWithdrawSuccess(true);
+              }} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                
+                <div style={{ backgroundColor: '#fffdf4', padding: '12px', borderRadius: '14px', border: '1px solid #f28d1a15' }}>
+                  <div style={{ fontSize: '0.75rem', color: '#888' }}>Saldo disponível para saque</div>
+                  <div style={{ fontSize: '1.25rem', fontWeight: 600, color: '#f28d1a' }}>R$ {withdrawableBalance.toFixed(2)}</div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#555' }}>Chave PIX</label>
+                  <input
+                    type="text"
+                    placeholder="CPF, E-mail, Celular ou Chave Aleatória"
+                    value={withdrawPixKey}
+                    onChange={(e) => setWithdrawPixKey(e.target.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      backgroundColor: '#fcfcfc'
+                    }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#555' }}>Número da Conta</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Agência 0001, Conta 12345-6"
+                    value={withdrawAccount}
+                    onChange={(e) => setWithdrawAccount(e.target.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      backgroundColor: '#fcfcfc'
+                    }}
+                    required
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: '#555' }}>Valor do Saque (R$)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={withdrawableBalance}
+                    placeholder="0,00"
+                    value={withdrawAmount}
+                    onChange={(e) => setWithdrawAmount(e.target.value)}
+                    style={{
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.85rem',
+                      outline: 'none',
+                      backgroundColor: '#fcfcfc'
+                    }}
+                    required
+                  />
+                </div>
+
+                {withdrawError && (
+                  <div style={{ color: '#ff5e5b', fontSize: '0.75rem', fontWeight: 500 }}>{withdrawError}</div>
+                )}
+
+                <button
+                  type="submit"
+                  style={{
+                    marginTop: '8px',
+                    padding: '12px',
+                    backgroundColor: '#f28d1a',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    fontSize: '0.88rem',
+                    cursor: 'pointer',
+                    boxShadow: '0 4px 12px rgba(242,141,26,0.2)'
+                  }}
+                >
+                  Solicitar Saque
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
