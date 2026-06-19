@@ -2297,7 +2297,11 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           >
             <MapPin size={18} style={{ color: '#f28d1a' }} />
             <div>
-              <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Connecta+</div>
+              <img 
+                src="/logo-full.png" 
+                alt="Connecta+" 
+                style={{ height: '22px', objectFit: 'contain', display: 'block', marginBottom: '2px' }} 
+              />
               <div style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d', borderBottom: '1px dashed #f28d1a' }}>{(userLocation || 'Cabeças - Ouro Preto, MG').split(',')[0]}</div>
             </div>
           </div>
