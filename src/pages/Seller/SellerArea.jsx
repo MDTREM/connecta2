@@ -14,7 +14,7 @@ export default function SellerArea({ onOpenChat, onToggleNotifications, unreadNo
     currentUser, products, orders, addProduct, editProduct,
     deleteProduct, toggleProductActive, updateOrderStatus, callRider, cancelCallRider, addVideo,
     setUsers, addFlashDeal, removeFlashDeal, visualLayoutSettings, updateUserProfile, users,
-    productReviews
+    productReviews, videos, deleteVideo, updateVideo
   } = useFirebaseMock();
 
   // Rider selection modal state
@@ -74,6 +74,12 @@ export default function SellerArea({ onOpenChat, onToggleNotifications, unreadNo
   const [showTaxInfoModal, setShowTaxInfoModal] = useState(false);
   const [reelsFile, setReelsFile] = useState(null);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [foryouSubTab, setForyouSubTab] = useState('upload');
+  const [editingVideoId, setEditingVideoId] = useState(null);
+  const [editVideoTitle, setEditVideoTitle] = useState('');
+  const [editVideoDesc, setEditVideoDesc] = useState('');
+  const [editVideoLinkedId, setEditVideoLinkedId] = useState('');
+  const [isEditLinkDropdownOpen, setIsEditLinkDropdownOpen] = useState(false);
 
   // Flash Deal states
   const [fdProductId, setFdProductId] = useState('');
@@ -1936,267 +1942,632 @@ export default function SellerArea({ onOpenChat, onToggleNotifications, unreadNo
 
 
   // --- SUBVIEW 6: FOR YOU VIDEO UPLOAD ---
-  const renderForyouForm = () => (
-    <form onSubmit={handleReelsSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="animate-fade-in">
-      <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>Upload Vídeo ForYou</h3>
-      <p style={{ fontSize: '0.75rem', color: '#666', lineHeight: 1.35, margin: 0 }}>
-        Cadastre um vídeo curto no feed da ForYou. Os clientes podem comprar o produto vinculado diretamente do vídeo!
-      </p>
+  const renderForyouForm = () => {
+    const myVideos = (videos || []).filter(v => v.creatorId === currentUser.id);
 
-      {/* 1. Vídeo */}
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label style={{ fontSize: '0.72rem', color: '#666', marginBottom: '6px', display: 'block' }}>Vídeo</label>
-        
-        <input 
-          type="file" 
-          id="reels-video-file-upload" 
-          accept="video/*" 
-          onChange={handleVideoUpload} 
-          style={{ display: 'none' }} 
-        />
-
-        {reelsVideoUrl ? (
-          <div style={{
-            position: 'relative',
-            width: '100%',
-            height: '220px',
-            borderRadius: '20px',
-            overflow: 'hidden',
-            backgroundColor: '#000',
-            boxShadow: 'var(--shadow-sm)',
-            border: '1.5px solid #eee'
-          }}>
-            <video 
-              src={reelsVideoUrl} 
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-              autoPlay 
-              muted 
-              loop 
-              playsInline
-            />
-            <button
-              type="button"
-              onClick={() => {
-                setReelsVideoUrl('');
-                setReelsVideoName('');
-              }}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                right: '10px',
-                backgroundColor: 'rgba(255, 94, 91, 0.9)',
-                color: 'white',
-                border: 'none',
-                borderRadius: '50%',
-                width: '28px',
-                height: '28px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-                zIndex: 10
-              }}
-            >
-              <X size={16} />
-            </button>
-            <div style={{
-              position: 'absolute',
-              bottom: '10px',
-              left: '10px',
-              backgroundColor: 'rgba(0,0,0,0.6)',
-              color: 'white',
-              padding: '4px 10px',
-              borderRadius: '8px',
-              fontSize: '0.65rem',
-              fontWeight: 500
-            }}>
-              {reelsVideoName || 'Vídeo selecionado'}
-            </div>
-          </div>
-        ) : (
-          <div 
-            onClick={() => document.getElementById('reels-video-file-upload').click()}
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="animate-fade-in">
+        {/* Tab selection buttons */}
+        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #eee', paddingBottom: '8px', marginBottom: '8px' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setForyouSubTab('upload');
+              setEditingVideoId(null);
+            }}
             style={{
-              width: '100%',
-              height: '150px',
+              padding: '6px 12px',
               borderRadius: '20px',
-              border: '2px dashed #f28d1a40',
-              backgroundColor: '#fffcf7',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              padding: '16px',
-              textAlign: 'center'
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              backgroundColor: foryouSubTab === 'upload' ? '#f28d1a15' : 'transparent',
+              color: foryouSubTab === 'upload' ? '#f28d1a' : '#666',
+              border: 'none',
+              cursor: 'pointer'
             }}
           >
-            <div style={{
-              width: '44px',
-              height: '44px',
-              borderRadius: '50%',
-              backgroundColor: '#f9bb1a15',
-              color: '#f28d1a',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}>
-              <Upload size={20} />
-            </div>
-            <div>
-              <span style={{ fontSize: '0.78rem', fontWeight: 500, color: '#f28d1a' }}>Selecionar arquivo de vídeo</span>
-              <p style={{ fontSize: '0.65rem', color: '#888', marginTop: '3px' }}>MP4 ou MOV até 15MB. Duração sugerida: 15s</p>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 2. Título */}
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label>Título / Legenda do vídeo</label>
-        <input 
-          type="text" 
-          placeholder="Ex: Caneca esculpida com amor e tradição" 
-          value={reelsTitle}
-          onChange={(e) => setReelsTitle(e.target.value)}
-          className="input-field"
-          required 
-        />
-      </div>
-
-      {/* 3. Descrição */}
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label>Descrição detalhada do Vídeo</label>
-        <textarea 
-          placeholder="Conte um pouco sobre a produção deste item..." 
-          value={reelsDesc}
-          onChange={(e) => setReelsDesc(e.target.value)}
-          className="input-field"
-          style={{ height: '50px', resize: 'none' }}
-        />
-      </div>
-
-      {/* 4. Vincular Produto */}
-      <div className="form-group" style={{ marginBottom: 0, position: 'relative' }}>
-        <label>Vincular Produto da sua loja (Opcional)</label>
-        
-        {/* Dropdown Toggle Button */}
-        <div 
-          onClick={() => setIsLinkDropdownOpen(!isLinkDropdownOpen)}
-          style={{
-            width: '100%',
-            padding: '10px 14px',
-            borderRadius: '16px',
-            border: '2px solid #eaeaea',
-            fontSize: '0.82rem',
-            backgroundColor: 'white',
-            fontWeight: 500,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            minHeight: '44px'
-          }}
-        >
-          {reelsProductId ? (() => {
-            const selectedProd = storeProducts.find(p => p.id === reelsProductId);
-            if (!selectedProd) return <span style={{ color: '#777' }}>Não vincular nenhum produto</span>;
-            return (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <img src={selectedProd.image} alt={selectedProd.name} style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
-                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>{selectedProd.name}</span>
-                <span style={{ color: '#f28d1a', whiteSpace: 'nowrap' }}>R$ {selectedProd.price.toFixed(2)}</span>
-                <span style={{ fontSize: '0.65rem', backgroundColor: '#f28d1a15', color: '#f28d1a', padding: '1px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{selectedProd.category}</span>
-              </div>
-            );
-          })() : (
-            <span style={{ color: '#777' }}>Não vincular nenhum produto</span>
-          )}
-          <span style={{ fontSize: '0.6rem', color: '#999' }}>▼</span>
+            Novo Vídeo
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setForyouSubTab('my_videos');
+              setEditingVideoId(null);
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              backgroundColor: foryouSubTab === 'my_videos' ? '#f28d1a15' : 'transparent',
+              color: foryouSubTab === 'my_videos' ? '#f28d1a' : '#666',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Vídeos Publicados ({myVideos.length})
+          </button>
         </div>
 
-        {/* Dropdown Menu */}
-        {isLinkDropdownOpen && (
-          <div style={{
-            position: 'absolute',
-            bottom: '100%',
-            left: 0,
-            width: '100%',
-            backgroundColor: 'white',
-            borderRadius: '16px',
-            border: '2px solid #eaeaea',
-            marginBottom: '4px',
-            boxShadow: '0 -4px 12px rgba(0,0,0,0.1)',
-            zIndex: 100,
-            maxHeight: '180px',
-            overflowY: 'auto'
-          }}>
-            {/* Opção Não Vincular */}
-            <div 
-              onClick={() => {
-                setReelsProductId('');
-                setIsLinkDropdownOpen(false);
-              }}
-              style={{
-                padding: '10px 14px',
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                borderBottom: '1px solid #f0f0f0',
-                color: '#777'
-              }}
-            >
-              Não vincular nenhum produto
-            </div>
-            
-            {/* Lista de Produtos */}
-            {storeProducts.map(p => (
-              <div 
-                key={p.id}
-                onClick={() => {
-                  setReelsProductId(p.id);
-                  setIsLinkDropdownOpen(false);
-                }}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  padding: '8px 14px',
-                  fontSize: '0.82rem',
-                  cursor: 'pointer',
-                  borderBottom: '1px solid #f9f9f9',
-                  transition: 'background-color 0.2s'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
-              >
-                <img src={p.image} alt={p.name} style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#2d2d2d' }}>{p.name}</div>
-                  <div style={{ fontSize: '0.68rem', color: '#777', display: 'flex', gap: '6px' }}>
-                    <span style={{ color: '#f28d1a', fontWeight: 500 }}>R$ {p.price.toFixed(2)}</span>
-                    <span>•</span>
-                    <span>{p.category}</span>
+        {foryouSubTab === 'upload' ? (
+          <form onSubmit={handleReelsSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>Upload Vídeo ForYou</h3>
+            <p style={{ fontSize: '0.75rem', color: '#666', lineHeight: 1.35, margin: 0 }}>
+              Cadastre um vídeo curto no feed da ForYou. Os clientes podem comprar o produto vinculado diretamente do vídeo!
+            </p>
+
+            {/* 1. Vídeo */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.72rem', color: '#666', marginBottom: '6px', display: 'block' }}>Vídeo</label>
+              
+              <input 
+                type="file" 
+                id="reels-video-file-upload" 
+                accept="video/*" 
+                onChange={handleVideoUpload} 
+                style={{ display: 'none' }} 
+              />
+
+              {reelsVideoUrl ? (
+                <div style={{
+                  position: 'relative',
+                  width: '100%',
+                  height: '220px',
+                  borderRadius: '20px',
+                  overflow: 'hidden',
+                  backgroundColor: '#000',
+                  boxShadow: 'var(--shadow-sm)',
+                  border: '1.5px solid #eee'
+                }}>
+                  <video 
+                    src={reelsVideoUrl} 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                    autoPlay 
+                    muted 
+                    loop 
+                    playsInline
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReelsVideoUrl('');
+                      setReelsVideoName('');
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '10px',
+                      right: '10px',
+                      backgroundColor: 'rgba(255, 94, 91, 0.9)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '28px',
+                      height: '28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+                      zIndex: 10
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                  <div style={{
+                    position: 'absolute',
+                    bottom: '10px',
+                    left: '10px',
+                    backgroundColor: 'rgba(0,0,0,0.6)',
+                    color: 'white',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    fontSize: '0.65rem',
+                    fontWeight: 500
+                  }}>
+                    {reelsVideoName || 'Vídeo selecionado'}
                   </div>
                 </div>
+              ) : (
+                <div 
+                  onClick={() => document.getElementById('reels-video-file-upload').click()}
+                  style={{
+                    width: '100%',
+                    height: '150px',
+                    borderRadius: '20px',
+                    border: '2px dashed #f28d1a40',
+                    backgroundColor: '#fffcf7',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    padding: '16px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <div style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '50%',
+                    backgroundColor: '#f9bb1a15',
+                    color: '#f28d1a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <Upload size={20} />
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.78rem', fontWeight: 500, color: '#f28d1a' }}>Selecionar arquivo de vídeo</span>
+                    <p style={{ fontSize: '0.65rem', color: '#888', marginTop: '3px' }}>MP4 ou MOV até 15MB. Duração sugerida: 15s</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* 2. Título */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Título / Legenda do vídeo</label>
+              <input 
+                type="text" 
+                placeholder="Ex: Caneca esculpida com amor e tradição" 
+                value={reelsTitle}
+                onChange={(e) => setReelsTitle(e.target.value)}
+                className="input-field"
+                required 
+              />
+            </div>
+
+            {/* 3. Descrição */}
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Descrição detalhada do Vídeo</label>
+              <textarea 
+                placeholder="Conte um pouco sobre a produção deste item..." 
+                value={reelsDesc}
+                onChange={(e) => setReelsDesc(e.target.value)}
+                className="input-field"
+                style={{ height: '50px', resize: 'none' }}
+              />
+            </div>
+
+            {/* 4. Vincular Produto */}
+            <div className="form-group" style={{ marginBottom: 0, position: 'relative' }}>
+              <label>Vincular Produto da sua loja (Opcional)</label>
+              
+              {/* Dropdown Toggle Button */}
+              <div 
+                onClick={() => setIsLinkDropdownOpen(!isLinkDropdownOpen)}
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  borderRadius: '16px',
+                  border: '2px solid #eaeaea',
+                  fontSize: '0.82rem',
+                  backgroundColor: 'white',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  minHeight: '44px'
+                }}
+              >
+                {reelsProductId ? (() => {
+                  const selectedProd = storeProducts.find(p => p.id === reelsProductId);
+                  if (!selectedProd) return <span style={{ color: '#777' }}>Não vincular nenhum produto</span>;
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <img src={selectedProd.image} alt={selectedProd.name} style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
+                      <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '120px' }}>{selectedProd.name}</span>
+                      <span style={{ color: '#f28d1a', whiteSpace: 'nowrap' }}>R$ {selectedProd.price.toFixed(2)}</span>
+                      <span style={{ fontSize: '0.65rem', backgroundColor: '#f28d1a15', color: '#f28d1a', padding: '1px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>{selectedProd.category}</span>
+                    </div>
+                  );
+                })() : (
+                  <span style={{ color: '#777' }}>Não vincular nenhum produto</span>
+                )}
+                <span style={{ fontSize: '0.6rem', color: '#999' }}>▼</span>
               </div>
-            ))}
+
+              {/* Dropdown Menu */}
+              {isLinkDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  bottom: '100%',
+                  left: 0,
+                  width: '100%',
+                  backgroundColor: 'white',
+                  borderRadius: '16px',
+                  border: '2px solid #eaeaea',
+                  marginBottom: '4px',
+                  boxShadow: '0 -4px 12px rgba(0,0,0,0.1)',
+                  zIndex: 100,
+                  maxHeight: '180px',
+                  overflowY: 'auto'
+                }}>
+                  {/* Opção Não Vincular */}
+                  <div 
+                    onClick={() => {
+                      setReelsProductId('');
+                      setIsLinkDropdownOpen(false);
+                    }}
+                    style={{
+                      padding: '10px 14px',
+                      fontSize: '0.82rem',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid #f0f0f0',
+                      color: '#777'
+                    }}
+                  >
+                    Não vincular nenhum produto
+                  </div>
+                  
+                  {/* Lista de Produtos */}
+                  {storeProducts.map(p => (
+                    <div 
+                      key={p.id}
+                      onClick={() => {
+                        setReelsProductId(p.id);
+                        setIsLinkDropdownOpen(false);
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '8px 14px',
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid #f9f9f9',
+                        transition: 'background-color 0.2s'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f9f9f9'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'white'}
+                    >
+                      <img src={p.image} alt={p.name} style={{ width: '32px', height: '32px', borderRadius: '6px', objectFit: 'cover' }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#2d2d2d' }}>{p.name}</div>
+                        <div style={{ fontSize: '0.68rem', color: '#777', display: 'flex', gap: '6px' }}>
+                          <span style={{ color: '#f28d1a', fontWeight: 500 }}>R$ {p.price.toFixed(2)}</span>
+                          <span>•</span>
+                          <span>{p.category}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={isUploadingVideo}
+              className="btn btn-primary"
+              style={{ width: '100%', height: '44px', marginTop: '6px', backgroundColor: '#f28d1a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
+              {isUploadingVideo ? 'Publicando vídeo...' : 'Publicar Vídeo no ForYou'}
+            </button>
+          </form>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>Gerenciar Vídeos</h3>
+
+            {myVideos.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px 10px', color: '#777', fontSize: '0.8rem', border: '1px dashed #ddd', borderRadius: '16px' }}>
+                Nenhum vídeo publicado por você ainda.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {myVideos.map(v => (
+                  <div
+                    key={v.id}
+                    style={{
+                      display: 'flex',
+                      gap: '12px',
+                      padding: '12px',
+                      borderRadius: '16px',
+                      border: '1px solid #eee',
+                      backgroundColor: '#fafafa',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <div style={{ width: '60px', height: '80px', borderRadius: '10px', overflow: 'hidden', backgroundColor: '#000', flexShrink: 0, boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
+                      <video src={v.videoUrl + '#t=0.1'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} preload="metadata" muted playsInline />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, fontSize: '0.85rem', color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {v.title}
+                      </div>
+                      {v.description && (
+                        <div style={{ fontSize: '0.75rem', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                          {v.description}
+                        </div>
+                      )}
+                      <div style={{ fontSize: '0.68rem', color: '#999', marginTop: '4px' }}>
+                        {v.linkedName ? `Vinculado a: ${v.linkedName}` : 'Sem produto vinculado'}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingVideoId(v.id);
+                            setEditVideoTitle(v.title);
+                            setEditVideoDesc(v.description || v.desc || '');
+                            setEditVideoLinkedId(v.linkedId || '');
+                          }}
+                          style={{ border: 'none', backgroundColor: 'transparent', color: '#f28d1a', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                        >
+                          Editar vídeo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm('Deseja realmente excluir este vídeo?')) {
+                              deleteVideo(v.id);
+                            }
+                          }}
+                          style={{ border: 'none', backgroundColor: 'transparent', color: '#ff5e5b', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Modal de Edição de Vídeo do Vendedor */}
+            {editingVideoId && (() => {
+              const videoToEdit = videos.find(vid => vid.id === editingVideoId);
+              if (!videoToEdit) return null;
+
+              return (
+                <div style={{
+                  position: 'fixed',
+                  inset: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                  backdropFilter: 'blur(4px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 9999,
+                  padding: '16px'
+                }}>
+                  <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '24px',
+                    width: '100%',
+                    maxWidth: '420px',
+                    padding: '24px',
+                    boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    maxHeight: '90vh',
+                    overflowY: 'auto'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Editar Vídeo</h3>
+                      <button 
+                        onClick={() => setEditingVideoId(null)}
+                        style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '4px' }}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    {/* Miniatura do vídeo */}
+                    <div style={{ 
+                      width: '100%', 
+                      height: '160px', 
+                      borderRadius: '16px', 
+                      overflow: 'hidden', 
+                      backgroundColor: '#000',
+                      position: 'relative'
+                    }}>
+                      <video 
+                        src={videoToEdit.videoUrl + '#t=0.1'} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        controls
+                        preload="metadata"
+                        muted 
+                        playsInline 
+                      />
+                    </div>
+
+                    {/* Legenda/Título */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#666' }}>Legenda do vídeo</label>
+                      <input 
+                        type="text" 
+                        value={editVideoTitle}
+                        onChange={(e) => setEditVideoTitle(e.target.value)}
+                        placeholder="Escreva uma legenda..."
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          color: '#2d2d2d'
+                        }}
+                      />
+                    </div>
+
+                    {/* Descrição */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#666' }}>Descrição do vídeo</label>
+                      <textarea 
+                        value={editVideoDesc}
+                        onChange={(e) => setEditVideoDesc(e.target.value)}
+                        placeholder="Escreva uma descrição detalhada..."
+                        style={{
+                          width: '100%',
+                          height: '60px',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          resize: 'none',
+                          color: '#2d2d2d'
+                        }}
+                      />
+                    </div>
+
+                    {/* Alterar/Remover Produto Vinculado */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#666' }}>Produto Vinculado</label>
+                      <div 
+                        onClick={() => setIsEditLinkDropdownOpen(!isEditLinkDropdownOpen)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          fontSize: '0.82rem',
+                          backgroundColor: 'white',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          minHeight: '40px',
+                          color: '#2d2d2d'
+                        }}
+                      >
+                        {editVideoLinkedId ? (() => {
+                          const selectedProd = storeProducts.find(p => p.id === editVideoLinkedId);
+                          if (!selectedProd) return <span style={{ color: '#777' }}>Sem produto vinculado</span>;
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <img src={selectedProd.image} alt={selectedProd.name} style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }} />
+                              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>{selectedProd.name}</span>
+                            </div>
+                          );
+                        })() : (
+                          <span style={{ color: '#777' }}>Sem produto vinculado</span>
+                        )}
+                        <span style={{ fontSize: '0.55rem', color: '#999' }}>▼</span>
+                      </div>
+
+                      {isEditLinkDropdownOpen && (
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '100%',
+                          left: 0,
+                          width: '100%',
+                          backgroundColor: 'white',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          marginBottom: '4px',
+                          boxShadow: '0 -4px 12px rgba(0,0,0,0.1)',
+                          zIndex: 100,
+                          maxHeight: '140px',
+                          overflowY: 'auto'
+                        }}>
+                          <div 
+                            onClick={() => {
+                              setEditVideoLinkedId('');
+                              setIsEditLinkDropdownOpen(false);
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              fontSize: '0.82rem',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid #f0f0f0',
+                              color: '#ff5e5b'
+                            }}
+                          >
+                            Remover vínculo
+                          </div>
+                          {storeProducts.map(p => (
+                            <div 
+                              key={p.id}
+                              onClick={() => {
+                                setEditVideoLinkedId(p.id);
+                                setIsEditLinkDropdownOpen(false);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '8px 12px',
+                                fontSize: '0.82rem',
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #f9f9f9',
+                                color: '#2d2d2d'
+                              }}
+                            >
+                              <img src={p.image} alt={p.name} style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
+                              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botões de Ação */}
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setEditingVideoId(null)}
+                        style={{
+                          flex: 1,
+                          height: '42px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          backgroundColor: 'transparent',
+                          color: '#666',
+                          fontWeight: 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!editVideoTitle.trim()) return;
+                          const selectedProd = storeProducts.find(p => p.id === editVideoLinkedId);
+                          updateVideo(videoToEdit.id, {
+                            title: editVideoTitle.trim(),
+                            description: editVideoDesc.trim(),
+                            linkedId: editVideoLinkedId,
+                            linkedType: editVideoLinkedId ? 'product' : '',
+                            linkedName: editVideoLinkedId ? selectedProd?.name || '' : ''
+                          });
+                          setEditingVideoId(null);
+                        }}
+                        style={{
+                          flex: 1,
+                          height: '42px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          backgroundColor: '#f28d1a',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
-
-      <button
-        type="submit"
-        disabled={isUploadingVideo}
-        className="btn btn-primary"
-        style={{ width: '100%', height: '44px', marginTop: '6px', backgroundColor: '#f28d1a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-      >
-        {isUploadingVideo ? 'Publicando vídeo...' : 'Publicar Vídeo no ForYou'}
-      </button>
-    </form>
-  );
+    );
+  };
 
   return (
     <div style={{

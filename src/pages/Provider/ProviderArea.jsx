@@ -95,6 +95,9 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
   const [foryouSubTab, setForyouSubTab] = useState('upload');
   const [editingVideoId, setEditingVideoId] = useState(null);
   const [editVideoTitle, setEditVideoTitle] = useState('');
+  const [editVideoDesc, setEditVideoDesc] = useState('');
+  const [editVideoLinkedId, setEditVideoLinkedId] = useState('');
+  const [isEditLinkDropdownOpen, setIsEditLinkDropdownOpen] = useState(false);
    // Saque modal states
    const [showWithdrawModal, setShowWithdrawModal] = useState(false);
     const [withdrawPixKey, setWithdrawPixKey] = useState('');
@@ -1827,96 +1830,305 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
                     key={v.id}
                     style={{
                       display: 'flex',
-                      gap: '10px',
-                      padding: '10px',
+                      gap: '12px',
+                      padding: '12px',
                       borderRadius: '16px',
                       border: '1px solid #eee',
                       backgroundColor: '#fafafa',
                       alignItems: 'center'
                     }}
                   >
-                    <div style={{ width: '60px', height: '80px', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#000', flexShrink: 0 }}>
-                      <video src={v.videoUrl} style={{ width: '100%', height: '100%', objectFit: 'cover' }} muted playsInline />
+                    <div style={{ width: '60px', height: '80px', borderRadius: '10px', overflow: 'hidden', backgroundColor: '#000', flexShrink: 0, boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
+                      <video src={v.videoUrl + '#t=0.1'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} preload="metadata" muted playsInline />
                     </div>
                     
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      {editingVideoId === v.id ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <input
-                            type="text"
-                            value={editVideoTitle}
-                            onChange={(e) => setEditVideoTitle(e.target.value)}
-                            className="input-field"
-                            style={{ padding: '6px 10px', fontSize: '0.78rem', height: '32px' }}
-                            required
-                          />
-                          <div style={{ display: 'flex', gap: '6px' }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (!editVideoTitle.trim()) return;
-                                updateVideo(v.id, { title: editVideoTitle.trim() });
-                                setEditingVideoId(null);
-                              }}
-                              className="btn btn-primary"
-                              style={{ height: '26px', fontSize: '0.7rem', padding: '0 8px', backgroundColor: '#f28d1a' }}
-                            >
-                              Salvar
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setEditingVideoId(null)}
-                              className="btn btn-secondary"
-                              style={{ height: '26px', fontSize: '0.7rem', padding: '0 8px' }}
-                            >
-                              Cancelar
-                            </button>
-                          </div>
+                      <div style={{ fontWeight: 500, fontSize: '0.85rem', color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {v.title}
+                      </div>
+                      {v.description && (
+                        <div style={{ fontSize: '0.75rem', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                          {v.description}
                         </div>
-                      ) : (
-                        <>
-                          <div style={{ fontWeight: 500, fontSize: '0.82rem', color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {v.title}
-                          </div>
-                          {v.description && (
-                            <div style={{ fontSize: '0.72rem', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
-                              {v.description}
-                            </div>
-                          )}
-                          <div style={{ fontSize: '0.68rem', color: '#999', marginTop: '4px' }}>
-                            {v.linkedName ? `Vinculado a: ${v.linkedName}` : 'Sem serviço vinculado'}
-                          </div>
-                          
-                          <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingVideoId(v.id);
-                                setEditVideoTitle(v.title);
-                              }}
-                              style={{ border: 'none', backgroundColor: 'transparent', color: '#f28d1a', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', padding: 0 }}
-                            >
-                              Editar legenda
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (window.confirm('Deseja realmente excluir este vídeo?')) {
-                                  deleteVideo(v.id);
-                                }
-                              }}
-                              style={{ border: 'none', backgroundColor: 'transparent', color: '#ff5e5b', fontSize: '0.72rem', fontWeight: 500, cursor: 'pointer', padding: 0 }}
-                            >
-                              Excluir
-                            </button>
-                          </div>
-                        </>
                       )}
+                      <div style={{ fontSize: '0.68rem', color: '#999', marginTop: '4px' }}>
+                        {v.linkedName ? `Vinculado a: ${v.linkedName}` : 'Sem serviço vinculado'}
+                      </div>
+                      
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingVideoId(v.id);
+                            setEditVideoTitle(v.title);
+                            setEditVideoDesc(v.description || v.desc || '');
+                            setEditVideoLinkedId(v.linkedId || '');
+                          }}
+                          style={{ border: 'none', backgroundColor: 'transparent', color: '#f28d1a', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                        >
+                          Editar vídeo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm('Deseja realmente excluir este vídeo?')) {
+                              deleteVideo(v.id);
+                            }
+                          }}
+                          style={{ border: 'none', backgroundColor: 'transparent', color: '#ff5e5b', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                        >
+                          Excluir
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+
+            {/* Modal de Edição de Vídeo */}
+            {editingVideoId && (() => {
+              const videoToEdit = videos.find(vid => vid.id === editingVideoId);
+              if (!videoToEdit) return null;
+
+              return (
+                <div style={{
+                  position: 'fixed',
+                  inset: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                  backdropFilter: 'blur(4px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 9999,
+                  padding: '16px'
+                }}>
+                  <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '24px',
+                    width: '100%',
+                    maxWidth: '420px',
+                    padding: '24px',
+                    boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    maxHeight: '90vh',
+                    overflowY: 'auto'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Editar Vídeo</h3>
+                      <button 
+                        onClick={() => setEditingVideoId(null)}
+                        style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '4px' }}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    {/* Miniatura do vídeo */}
+                    <div style={{ 
+                      width: '100%', 
+                      height: '160px', 
+                      borderRadius: '16px', 
+                      overflow: 'hidden', 
+                      backgroundColor: '#000',
+                      position: 'relative'
+                    }}>
+                      <video 
+                        src={videoToEdit.videoUrl + '#t=0.1'} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        controls
+                        preload="metadata"
+                        muted 
+                        playsInline 
+                      />
+                    </div>
+
+                    {/* Legenda/Título */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#666' }}>Legenda do vídeo</label>
+                      <input 
+                        type="text" 
+                        value={editVideoTitle}
+                        onChange={(e) => setEditVideoTitle(e.target.value)}
+                        placeholder="Escreva uma legenda..."
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          color: '#2d2d2d'
+                        }}
+                      />
+                    </div>
+
+                    {/* Descrição */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#666' }}>Descrição do vídeo</label>
+                      <textarea 
+                        value={editVideoDesc}
+                        onChange={(e) => setEditVideoDesc(e.target.value)}
+                        placeholder="Escreva uma descrição detalhada..."
+                        style={{
+                          width: '100%',
+                          height: '60px',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          resize: 'none',
+                          color: '#2d2d2d'
+                        }}
+                      />
+                    </div>
+
+                    {/* Alterar/Remover Serviço Vinculado */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#666' }}>Serviço Vinculado</label>
+                      <div 
+                        onClick={() => setIsEditLinkDropdownOpen(!isEditLinkDropdownOpen)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          fontSize: '0.82rem',
+                          backgroundColor: 'white',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          minHeight: '40px',
+                          color: '#2d2d2d'
+                        }}
+                      >
+                        {editVideoLinkedId ? (() => {
+                          const selectedServ = providerServices.find(s => s.id === editVideoLinkedId);
+                          if (!selectedServ) return <span style={{ color: '#777' }}>Sem serviço vinculado</span>;
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <img src={selectedServ.image} alt={selectedServ.name} style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }} />
+                              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>{selectedServ.name}</span>
+                            </div>
+                          );
+                        })() : (
+                          <span style={{ color: '#777' }}>Sem serviço vinculado</span>
+                        )}
+                        <span style={{ fontSize: '0.55rem', color: '#999' }}>▼</span>
+                      </div>
+
+                      {isEditLinkDropdownOpen && (
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '100%',
+                          left: 0,
+                          width: '100%',
+                          backgroundColor: 'white',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          marginBottom: '4px',
+                          boxShadow: '0 -4px 12px rgba(0,0,0,0.1)',
+                          zIndex: 100,
+                          maxHeight: '140px',
+                          overflowY: 'auto'
+                        }}>
+                          <div 
+                            onClick={() => {
+                              setEditVideoLinkedId('');
+                              setIsEditLinkDropdownOpen(false);
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              fontSize: '0.82rem',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid #f0f0f0',
+                              color: '#ff5e5b'
+                            }}
+                          >
+                            Remover vínculo
+                          </div>
+                          {providerServices.map(s => (
+                            <div 
+                              key={s.id}
+                              onClick={() => {
+                                setEditVideoLinkedId(s.id);
+                                setIsEditLinkDropdownOpen(false);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '8px 12px',
+                                fontSize: '0.82rem',
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #f9f9f9',
+                                color: '#2d2d2d'
+                              }}
+                            >
+                              <img src={s.image} alt={s.name} style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
+                              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botões de Ação */}
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setEditingVideoId(null)}
+                        style={{
+                          flex: 1,
+                          height: '42px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          backgroundColor: 'transparent',
+                          color: '#666',
+                          fontWeight: 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!editVideoTitle.trim()) return;
+                          const selectedServ = providerServices.find(s => s.id === editVideoLinkedId);
+                          updateVideo(videoToEdit.id, {
+                            title: editVideoTitle.trim(),
+                            description: editVideoDesc.trim(),
+                            linkedId: editVideoLinkedId,
+                            linkedType: editVideoLinkedId ? 'service' : '',
+                            linkedName: editVideoLinkedId ? selectedServ?.name || '' : ''
+                          });
+                          setEditingVideoId(null);
+                        }}
+                        style={{
+                          flex: 1,
+                          height: '42px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          backgroundColor: '#f28d1a',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

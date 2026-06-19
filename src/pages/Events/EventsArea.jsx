@@ -8,7 +8,11 @@ import {
 import { uploadAvatar, uploadCover, uploadEventImage, uploadVideoFile } from '../../firebase/storage';
 
 export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout }) {
-  const { currentUser, events, addEvent, updateEvent, addCommissioner, addVideo, setUsers, deleteEvent, visualLayoutSettings, updateUserProfile, categories, users } = useFirebaseMock();
+  const { 
+    currentUser, events, addEvent, updateEvent, addCommissioner, addVideo, 
+    setUsers, deleteEvent, visualLayoutSettings, updateUserProfile, categories, users,
+    videos, deleteVideo, updateVideo 
+  } = useFirebaseMock();
 
   const eventCategoriesFromDb = categories ? categories.filter(c => c.type === 'eventos').map(c => c.label) : [];
   const eventCategoriesList = eventCategoriesFromDb.length > 0 ? eventCategoriesFromDb : ['Eventos - Festas e Shows', 'Eventos - Universitários e Repúblicas', 'Eventos - Culturais e Festivais'];
@@ -93,6 +97,12 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   const [showTaxInfoModal, setShowTaxInfoModal] = useState(false);
   const [reelsFile, setReelsFile] = useState(null);
   const [isUploadingVideo, setIsUploadingVideo] = useState(false);
+  const [foryouSubTab, setForyouSubTab] = useState('upload');
+  const [editingVideoId, setEditingVideoId] = useState(null);
+  const [editVideoTitle, setEditVideoTitle] = useState('');
+  const [editVideoDesc, setEditVideoDesc] = useState('');
+  const [editVideoLinkedId, setEditVideoLinkedId] = useState('');
+  const [isEditLinkDropdownOpen, setIsEditLinkDropdownOpen] = useState(false);
 
 
   const handleVideoUpload = (e) => {
@@ -1112,12 +1122,59 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   );
 
   // --- SUBVIEW 4: FORYOU REELS ---
-  const renderForyou = () => (
-    <form onSubmit={handleReelsSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="animate-fade-in">
-      <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d' }}>Upload de Vídeo ForYou</h3>
-      <p style={{ fontSize: '0.75rem', color: '#666', lineHeight: 1.3 }}>
-        Publique vídeos de divulgação do seu evento no feed ForYou para viralizar as vendas dos lotes de ingressos!
-      </p>
+  const renderForyou = () => {
+    const myVideos = (videos || []).filter(v => v.creatorId === currentUser.id);
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="animate-fade-in">
+        {/* Tab selection buttons */}
+        <div style={{ display: 'flex', gap: '8px', borderBottom: '1px solid #eee', paddingBottom: '8px', marginBottom: '8px' }}>
+          <button
+            type="button"
+            onClick={() => {
+              setForyouSubTab('upload');
+              setEditingVideoId(null);
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              backgroundColor: foryouSubTab === 'upload' ? '#f28d1a15' : 'transparent',
+              color: foryouSubTab === 'upload' ? '#f28d1a' : '#666',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Novo Vídeo
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setForyouSubTab('my_videos');
+              setEditingVideoId(null);
+            }}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '20px',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              backgroundColor: foryouSubTab === 'my_videos' ? '#f28d1a15' : 'transparent',
+              color: foryouSubTab === 'my_videos' ? '#f28d1a' : '#666',
+              border: 'none',
+              cursor: 'pointer'
+            }}
+          >
+            Vídeos Publicados ({myVideos.length})
+          </button>
+        </div>
+
+        {foryouSubTab === 'upload' ? (
+          <form onSubmit={handleReelsSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>Upload de Vídeo ForYou</h3>
+            <p style={{ fontSize: '0.75rem', color: '#666', lineHeight: 1.3, margin: 0 }}>
+              Publique vídeos de divulgação do seu evento no feed ForYou para viralizar as vendas dos lotes de ingressos!
+            </p>
 
       {/* 1. Vídeo */}
       <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1363,16 +1420,334 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
         )}
       </div>
 
-      <button
-        type="submit"
-        disabled={isUploadingVideo}
-        className="btn btn-primary"
-        style={{ width: '100%', height: '48px', marginTop: '10px', backgroundColor: '#f28d1a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
-      >
-        {isUploadingVideo ? 'Publicando vídeo...' : 'Publicar Vídeo no ForYou'}
-      </button>
-    </form>
-  );
+            <button
+              type="submit"
+              disabled={isUploadingVideo}
+              className="btn btn-primary"
+              style={{ width: '100%', height: '48px', marginTop: '10px', backgroundColor: '#f28d1a', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+            >
+              {isUploadingVideo ? 'Publicando vídeo...' : 'Publicar Vídeo no ForYou'}
+            </button>
+          </form>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>Gerenciar Vídeos</h3>
+
+            {myVideos.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '30px 10px', color: '#777', fontSize: '0.8rem', border: '1px dashed #ddd', borderRadius: '16px' }}>
+                Nenhum vídeo publicado por você ainda.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {myVideos.map(v => (
+                  <div
+                    key={v.id}
+                    style={{
+                      display: 'flex',
+                      gap: '12px',
+                      padding: '12px',
+                      borderRadius: '16px',
+                      border: '1px solid #eee',
+                      backgroundColor: '#fafafa',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <div style={{ width: '60px', height: '80px', borderRadius: '10px', overflow: 'hidden', backgroundColor: '#000', flexShrink: 0, boxShadow: '0 2px 6px rgba(0,0,0,0.1)' }}>
+                      <video src={v.videoUrl + '#t=0.1'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} preload="metadata" muted playsInline />
+                    </div>
+
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: 500, fontSize: '0.85rem', color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {v.title}
+                      </div>
+                      {v.description && (
+                        <div style={{ fontSize: '0.75rem', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: '2px' }}>
+                          {v.description}
+                        </div>
+                      )}
+                      <div style={{ fontSize: '0.68rem', color: '#999', marginTop: '4px' }}>
+                        {v.linkedName ? `Vinculado a: ${v.linkedName}` : 'Sem evento vinculado'}
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingVideoId(v.id);
+                            setEditVideoTitle(v.title);
+                            setEditVideoDesc(v.description || v.desc || '');
+                            setEditVideoLinkedId(v.linkedId || '');
+                          }}
+                          style={{ border: 'none', backgroundColor: 'transparent', color: '#f28d1a', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                        >
+                          Editar vídeo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm('Deseja realmente excluir este vídeo?')) {
+                              deleteVideo(v.id);
+                            }
+                          }}
+                          style={{ border: 'none', backgroundColor: 'transparent', color: '#ff5e5b', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Modal de Edição de Vídeo do Organizador */}
+            {editingVideoId && (() => {
+              const videoToEdit = videos.find(vid => vid.id === editingVideoId);
+              if (!videoToEdit) return null;
+
+              return (
+                <div style={{
+                  position: 'fixed',
+                  inset: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                  backdropFilter: 'blur(4px)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  zIndex: 9999,
+                  padding: '16px'
+                }}>
+                  <div style={{
+                    backgroundColor: 'white',
+                    borderRadius: '24px',
+                    width: '100%',
+                    maxWidth: '420px',
+                    padding: '24px',
+                    boxShadow: '0 20px 25px -5px rgba(0,0,0,0.15), 0 10px 10px -5px rgba(0,0,0,0.04)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    maxHeight: '90vh',
+                    overflowY: 'auto'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Editar Vídeo</h3>
+                      <button 
+                        onClick={() => setEditingVideoId(null)}
+                        style={{ background: 'none', border: 'none', color: '#999', cursor: 'pointer', padding: '4px' }}
+                      >
+                        <X size={20} />
+                      </button>
+                    </div>
+
+                    {/* Miniatura do vídeo */}
+                    <div style={{ 
+                      width: '100%', 
+                      height: '160px', 
+                      borderRadius: '16px', 
+                      overflow: 'hidden', 
+                      backgroundColor: '#000',
+                      position: 'relative'
+                    }}>
+                      <video 
+                        src={videoToEdit.videoUrl + '#t=0.1'} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                        controls
+                        preload="metadata"
+                        muted 
+                        playsInline 
+                      />
+                    </div>
+
+                    {/* Legenda/Título */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#666' }}>Legenda do vídeo</label>
+                      <input 
+                        type="text" 
+                        value={editVideoTitle}
+                        onChange={(e) => setEditVideoTitle(e.target.value)}
+                        placeholder="Escreva uma legenda..."
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          color: '#2d2d2d'
+                        }}
+                      />
+                    </div>
+
+                    {/* Descrição */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#666' }}>Descrição do vídeo</label>
+                      <textarea 
+                        value={editVideoDesc}
+                        onChange={(e) => setEditVideoDesc(e.target.value)}
+                        placeholder="Escreva uma descrição detalhada..."
+                        style={{
+                          width: '100%',
+                          height: '60px',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          fontSize: '0.82rem',
+                          outline: 'none',
+                          resize: 'none',
+                          color: '#2d2d2d'
+                        }}
+                      />
+                    </div>
+
+                    {/* Alterar/Remover Evento Vinculado */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', position: 'relative' }}>
+                      <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#666' }}>Evento Vinculado</label>
+                      <div 
+                        onClick={() => setIsEditLinkDropdownOpen(!isEditLinkDropdownOpen)}
+                        style={{
+                          width: '100%',
+                          padding: '10px 14px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          fontSize: '0.82rem',
+                          backgroundColor: 'white',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          minHeight: '40px',
+                          color: '#2d2d2d'
+                        }}
+                      >
+                        {editVideoLinkedId ? (() => {
+                          const selectedEv = myEvents.find(ev => ev.id === editVideoLinkedId);
+                          if (!selectedEv) return <span style={{ color: '#777' }}>Sem evento vinculado</span>;
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <img src={selectedEv.image} alt={selectedEv.name} style={{ width: '20px', height: '20px', borderRadius: '4px', objectFit: 'cover' }} />
+                              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '180px' }}>{selectedEv.name}</span>
+                            </div>
+                          );
+                        })() : (
+                          <span style={{ color: '#777' }}>Sem evento vinculado</span>
+                        )}
+                        <span style={{ fontSize: '0.55rem', color: '#999' }}>▼</span>
+                      </div>
+
+                      {isEditLinkDropdownOpen && (
+                        <div style={{
+                          position: 'absolute',
+                          bottom: '100%',
+                          left: 0,
+                          width: '100%',
+                          backgroundColor: 'white',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          marginBottom: '4px',
+                          boxShadow: '0 -4px 12px rgba(0,0,0,0.1)',
+                          zIndex: 100,
+                          maxHeight: '140px',
+                          overflowY: 'auto'
+                        }}>
+                          <div 
+                            onClick={() => {
+                              setEditVideoLinkedId('');
+                              setIsEditLinkDropdownOpen(false);
+                            }}
+                            style={{
+                              padding: '8px 12px',
+                              fontSize: '0.82rem',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid #f0f0f0',
+                              color: '#ff5e5b'
+                            }}
+                          >
+                            Remover vínculo
+                          </div>
+                          {myEvents.map(ev => (
+                            <div 
+                              key={ev.id}
+                              onClick={() => {
+                                setEditVideoLinkedId(ev.id);
+                                setIsEditLinkDropdownOpen(false);
+                              }}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                padding: '8px 12px',
+                                fontSize: '0.82rem',
+                                cursor: 'pointer',
+                                borderBottom: '1px solid #f9f9f9',
+                                color: '#2d2d2d'
+                              }}
+                            >
+                              <img src={ev.image} alt={ev.name} style={{ width: '24px', height: '24px', borderRadius: '4px', objectFit: 'cover' }} />
+                              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Botões de Ação */}
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setEditingVideoId(null)}
+                        style={{
+                          flex: 1,
+                          height: '42px',
+                          borderRadius: '12px',
+                          border: '2px solid #eaeaea',
+                          backgroundColor: 'transparent',
+                          color: '#666',
+                          fontWeight: 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Cancelar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!editVideoTitle.trim()) return;
+                          const selectedEv = myEvents.find(ev => ev.id === editVideoLinkedId);
+                          updateVideo(videoToEdit.id, {
+                            title: editVideoTitle.trim(),
+                            description: editVideoDesc.trim(),
+                            linkedId: editVideoLinkedId,
+                            linkedType: editVideoLinkedId ? 'event' : '',
+                            linkedName: editVideoLinkedId ? selectedEv?.name || '' : ''
+                          });
+                          setEditingVideoId(null);
+                        }}
+                        style={{
+                          flex: 1,
+                          height: '42px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          backgroundColor: '#f28d1a',
+                          color: 'white',
+                          fontWeight: 600,
+                          fontSize: '0.82rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Salvar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   // --- SUBVIEW 5: COMMISSIONERS VIEW ---
   const renderCommissioners = () => {

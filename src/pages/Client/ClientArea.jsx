@@ -3742,6 +3742,57 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 {followersCount} {followersCount === 1 ? 'seguidor' : 'seguidores'}
               </span>
             </div>
+
+            {/* Seguidores com foto e nome */}
+            {(() => {
+              const storeFollowers = users.filter(u => u.following && u.following.includes(mockStore.id));
+              if (storeFollowers.length === 0) return null;
+
+              return (
+                <div style={{ marginTop: '12px', borderTop: '1px solid #f9f9f9', paddingTop: '10px' }}>
+                  <div style={{ fontSize: '0.72rem', color: '#888', fontWeight: 600, marginBottom: '6px' }}>Seguidores:</div>
+                  <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', scrollbarWidth: 'none' }}>
+                    {storeFollowers.map(follower => (
+                      <div 
+                        key={follower.id}
+                        onClick={() => {
+                          if (follower.role === 'provider') {
+                            setSelectedProviderId(follower.id);
+                            onSwitchView('client_provider');
+                          } else if (follower.role === 'seller') {
+                            setSelectedStoreId(follower.id);
+                            onSwitchView('client_store');
+                          } else if (follower.role === 'organizer') {
+                            setSelectedOrganizerId(follower.id);
+                            onSwitchView('client_organizer');
+                          }
+                        }}
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '6px', 
+                          backgroundColor: '#f9f9f9', 
+                          padding: '4px 10px', 
+                          borderRadius: '99px',
+                          cursor: 'pointer',
+                          border: '1px solid #f0f0f0',
+                          flexShrink: 0
+                        }}
+                      >
+                        <img 
+                          src={follower.avatar || follower.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>'} 
+                          alt={follower.name} 
+                          style={{ width: '16px', height: '16px', borderRadius: '50%', objectFit: 'cover' }} 
+                        />
+                        <span style={{ fontSize: '0.68rem', fontWeight: 500, color: '#333', whiteSpace: 'nowrap' }}>
+                          {follower.name || follower.companyName || 'Usuário'}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
@@ -4250,18 +4301,31 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, marginTop: '2px' }}>
               Organizador de Eventos
             </div>
-            {/* Seguidores do organizador */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.7rem', color: '#666', marginTop: '6px' }}>
-              <span style={{ fontWeight: 500 }}>
-                {organizerFollowersCount} {organizerFollowersCount === 1 ? 'seguidor' : 'seguidores'}
-              </span>
-            </div>
             <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '6px', lineHeight: 1.3 }}>
               <EditableText 
                 textId={`event_org_${orgId}_desc`} 
                 defaultText={ev.description || 'Organizador de festas acadêmicas e festivais culturais em Ouro Preto.'} 
               />
             </p>
+
+            {/* Seguidores e Ingressos Vendidos do organizador */}
+            {(() => {
+              const organizerEventIds = organizerEvents.map(e => e.id);
+              const ticketsOrders = (orders || []).filter(o => o.type === 'ticket' && organizerEventIds.includes(o.eventId));
+              const totalTicketsSold = ticketsOrders.reduce((sum, o) => sum + (o.quantity || 0), 0);
+
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', color: '#666', marginTop: '8px' }}>
+                  <span style={{ fontWeight: 500 }}>
+                    {organizerFollowersCount} {organizerFollowersCount === 1 ? 'seguidor' : 'seguidores'}
+                  </span>
+                  <span>•</span>
+                  <span style={{ fontWeight: 500, color: '#f28d1a' }}>
+                    {totalTicketsSold} {totalTicketsSold === 1 ? 'ingresso vendido' : 'ingressos vendidos'}
+                  </span>
+                </div>
+              );
+            })()}
           </div>
         </div>
 
