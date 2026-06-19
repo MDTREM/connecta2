@@ -2320,19 +2320,12 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       <div style={{ padding: '16px', paddingBottom: '90px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
         {/* Localization & Header Actions */}
         <div className="mobile-home-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div 
-            onClick={() => setShowLocationModal(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
-          >
-            <MapPin size={18} style={{ color: '#f28d1a' }} />
-            <div>
-              <img 
-                src="/logo-full.png" 
-                alt="Connecta+" 
-                style={{ height: '22px', objectFit: 'contain', display: 'block', marginBottom: '2px' }} 
-              />
-              <div style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d', borderBottom: '1px dashed #f28d1a' }}>{(userLocation || 'Cabeças - Ouro Preto, MG').split(',')[0]}</div>
-            </div>
+          <div>
+            <img 
+              src="/logo-full.png" 
+              alt="Connecta+" 
+              style={{ height: '22px', objectFit: 'contain', display: 'block' }} 
+            />
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button 
@@ -6434,11 +6427,12 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         <div style={{
           position: 'absolute',
           left: '16px',
-          bottom: '120px',
+          bottom: (activeVideo.linkedType && activeVideo.linkedId) ? '120px' : '25px',
           right: '80px',
           zIndex: 5,
           textShadow: '0 2px 8px rgba(0,0,0,0.8)',
-          textAlign: 'left'
+          textAlign: 'left',
+          transition: 'bottom 0.2s ease-in-out'
         }}>
           <h4 
             onClick={(e) => {
@@ -6737,7 +6731,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
           <button 
             onClick={() => onSwitchView('client_home')}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a' }}
+            style={{ background: 'none', border: 'none', outline: 'none', boxShadow: 'none', textDecoration: 'none', padding: 0, cursor: 'pointer', color: '#f28d1a' }}
           >
             <ArrowLeft size={22} />
           </button>
