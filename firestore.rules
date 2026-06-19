@@ -65,6 +65,17 @@ service cloud.firestore {
     }
 
     // ========================================
+    // VIDEO COMMENTS (Comentários de vídeos)
+    // ========================================
+    match /videoComments/{commentId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // ========================================
     // ORDERS (Pedidos de produtos e ingressos)
     // ========================================
     match /orders/{orderId} {

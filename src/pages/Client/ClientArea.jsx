@@ -2297,7 +2297,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           >
             <MapPin size={18} style={{ color: '#f28d1a' }} />
             <div>
-              <div style={{ fontSize: '0.65rem', color: '#888', textTransform: 'uppercase', fontWeight: 600 }}>Entregar em</div>
+              <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase' }}>Connecta+</div>
               <div style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d', borderBottom: '1px dashed #f28d1a' }}>{(userLocation || 'Cabeças - Ouro Preto, MG').split(',')[0]}</div>
             </div>
           </div>
@@ -6148,14 +6148,10 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     };
 
     const handleLike = () => {
-      const isAlreadyLiked = likedVideoIds.includes(activeVideo.id);
+      const isAlreadyLiked = activeVideo.likedBy && activeVideo.likedBy.includes(currentUser?.id);
       if (isAlreadyLiked) {
-        setLikedVideoIds(prev => prev.filter(id => id !== activeVideo.id));
-        setVideoLikes(prev => ({ ...prev, [activeVideo.id]: Math.max(0, (prev[activeVideo.id] || 0) - 1) }));
         unlikeVideo(activeVideo.id);
       } else {
-        setLikedVideoIds(prev => [...prev, activeVideo.id]);
-        setVideoLikes(prev => ({ ...prev, [activeVideo.id]: (prev[activeVideo.id] || 0) + 1 }));
         likeVideo(activeVideo.id);
       }
     };
@@ -6214,6 +6210,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           }}
         >
           <video 
+            key={activeVideo.id}
             ref={videoRef}
             src={activeVideo.videoUrl}
             poster={activeVideo.poster}
@@ -6364,11 +6361,11 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             }}>
               <Heart 
                 size={20} 
-                fill={likedVideoIds.includes(activeVideo.id) ? "#ff5e5b" : "none"} 
-                color={likedVideoIds.includes(activeVideo.id) ? "#ff5e5b" : "white"} 
+                fill={activeVideo.likedBy && activeVideo.likedBy.includes(currentUser?.id) ? "#ff5e5b" : "none"} 
+                color={activeVideo.likedBy && activeVideo.likedBy.includes(currentUser?.id) ? "#ff5e5b" : "white"} 
               />
             </div>
-            <span style={{ fontSize: '0.7rem', fontWeight: 500 }}>{videoLikes[activeVideo.id] || activeVideo.likes}</span>
+            <span style={{ fontSize: '0.7rem', fontWeight: 500 }}>{activeVideo.likedBy ? activeVideo.likedBy.length : (activeVideo.likes || 0)}</span>
           </button>
 
           {/* Comment */}
@@ -6398,60 +6395,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             </div>
             <span style={{ fontSize: '0.7rem', fontWeight: 500 }}>{(videoCommentsList[activeVideo.id] || []).length}</span>
           </button>
-
-          {/* Share */}
-          <button 
-            onClick={(e) => { 
-              e.stopPropagation(); 
-              if (activeVideo?.videoUrl) {
-                navigator.clipboard.writeText(activeVideo.videoUrl)
-                  .then(() => {
-                    triggerToast('Link do vídeo copiado com sucesso!');
-                  })
-                  .catch(err => {
-                    console.error('Erro ao copiar link: ', err);
-                  });
-              }
-            }}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'white',
-              cursor: 'pointer',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center'
-            }}
-          >
-            <div style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '50%',
-              backgroundColor: 'rgba(0,0,0,0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              marginBottom: '3px'
-            }}>
-              <Share2 size={18} />
-            </div>
-            <span style={{ fontSize: '0.7rem', fontWeight: 500 }}>Partilhar</span>
-          </button>
-
-          {/* Coins Badge */}
-          <div className="pulse-button" style={{
-            width: '32px',
-            height: '32px',
-            borderRadius: '50%',
-            backgroundColor: '#222',
-            border: '3px solid #f28d1a',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            animation: 'pulseGlow 2s infinite'
-          }}>
-            <Coins size={12} color="white" />
-          </div>
         </div>
 
         {/* Video Descriptions & Title Overlay (Left Bottom) */}

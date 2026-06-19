@@ -729,16 +729,29 @@ export const FirebaseMockProvider = ({ children }) => {
   };
 
   const likeVideo = (vidId) => {
+    if (!currentUser) return;
     const v = videos.find(vid => vid.id === vidId);
     if (v) {
-      updateDoc(doc(db, 'videos', vidId), { likes: v.likes + 1 }).catch(err => console.error(err));
+      const likedBy = v.likedBy ? [...v.likedBy] : [];
+      if (!likedBy.includes(currentUser.id)) {
+        likedBy.push(currentUser.id);
+        updateDoc(doc(db, 'videos', vidId), { 
+          likedBy, 
+          likes: likedBy.length 
+        }).catch(err => console.error(err));
+      }
     }
   };
 
   const unlikeVideo = (vidId) => {
+    if (!currentUser) return;
     const v = videos.find(vid => vid.id === vidId);
     if (v) {
-      updateDoc(doc(db, 'videos', vidId), { likes: Math.max(0, v.likes - 1) }).catch(err => console.error(err));
+      const likedBy = v.likedBy ? v.likedBy.filter(id => id !== currentUser.id) : [];
+      updateDoc(doc(db, 'videos', vidId), { 
+        likedBy, 
+        likes: likedBy.length 
+      }).catch(err => console.error(err));
     }
   };
 
