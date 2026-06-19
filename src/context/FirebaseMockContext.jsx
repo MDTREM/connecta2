@@ -779,10 +779,14 @@ export const FirebaseMockProvider = ({ children }) => {
     setVideoComments(prev => [...prev, newComment]);
 
     try {
-      await setDoc(doc(db, 'videoComments', newId), newComment);
       const v = videos.find(vid => vid.id === videoId);
       if (v) {
-        await updateDoc(doc(db, 'videos', videoId), { comments: (v.comments || 0) + 1 });
+        const currentComments = v.commentsList ? [...v.commentsList] : [];
+        currentComments.push(newComment);
+        await updateDoc(doc(db, 'videos', videoId), {
+          commentsList: currentComments,
+          comments: currentComments.length
+        });
       }
     } catch (err) {
       console.error("Erro ao salvar comentário do vídeo no Firebase:", err);

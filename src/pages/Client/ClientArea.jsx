@@ -820,20 +820,49 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         { name: 'Mateus O.', text: 'Excelente passeio histórico. Super recomendo a Ana Cláudia!', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100' }
       ]
     };
+    
     if (videoComments && videoComments.length > 0) {
       videoComments.forEach(c => {
         if (!map[c.videoId]) {
           map[c.videoId] = [];
         }
-        map[c.videoId].push({
-          name: c.userName || 'Cliente',
-          text: c.text,
-          avatar: c.userAvatar || ''
-        });
+        const exists = map[c.videoId].some(item => item.id === c.id || (item.text === c.text && item.name === c.userName));
+        if (!exists) {
+          map[c.videoId].push({
+            id: c.id,
+            name: c.userName || 'Cliente',
+            text: c.text,
+            avatar: c.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+            userId: c.userId,
+            createdAt: c.createdAt
+          });
+        }
       });
     }
+
+    videos.forEach(v => {
+      if (v.commentsList && v.commentsList.length > 0) {
+        if (!map[v.id]) {
+          map[v.id] = [];
+        }
+        v.commentsList.forEach(c => {
+          const exists = map[v.id].some(item => item.id === c.id || (item.text === c.text && item.name === c.userName));
+          if (!exists) {
+            map[v.id].push({
+              id: c.id,
+              name: c.userName || 'Cliente',
+              text: c.text,
+              avatar: c.userAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=100',
+              userId: c.userId,
+              createdAt: c.createdAt
+            });
+          }
+        });
+      }
+    });
+
     return map;
-  }, [videoComments]);
+  }, [videoComments, videos]);
 
   // Reset profile selection when leaving the profile tab
   useEffect(() => {
