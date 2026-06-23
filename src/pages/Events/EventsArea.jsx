@@ -1207,7 +1207,7 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
             padding: '8px 16px',
             borderRadius: '16px',
             border: 'none',
-            background: 'linear-gradient(135deg, #f28d1a 0%, #d47a13 100%)',
+            background: 'var(--gradient-primary)',
             color: 'white',
             fontWeight: 600,
             fontSize: '0.72rem',
