@@ -1025,6 +1025,52 @@ export const FirebaseMockProvider = ({ children }) => {
     return { success: true, order: newTicketOrder };
   };
 
+  const validateTicket = async (ticketId, organizerId) => {
+    const ticket = orders.find(o => o.id === ticketId);
+    if (!ticket) {
+      return { success: false, message: 'Ingresso não encontrado!' };
+    }
+    if (ticket.type !== 'ticket') {
+      return { success: false, message: 'Este ID não corresponde a um ingresso!' };
+    }
+    
+    const event = events.find(e => e.id === ticket.eventId);
+    if (!event) {
+      return { success: false, message: 'Evento associado a este ingresso não foi encontrado.' };
+    }
+    if (event.organizerId !== organizerId) {
+      return { success: false, message: 'Este ingresso pertence a um evento de outro organizador!' };
+    }
+
+    if (ticket.status === 'checked_in') {
+      return { 
+        success: false, 
+        message: `Ingresso já utilizado! Entrada realizada em ${ticket.checkInTime || 'horário desconhecido'}.` 
+      };
+    }
+
+    const checkInTime = new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    try {
+      await updateDoc(doc(db, 'orders', ticketId), {
+        status: 'checked_in',
+        checkInTime: checkInTime
+      });
+
+      createNotification(ticket.customerId, `Seu ingresso para "${ticket.eventName}" foi validado na portaria! Bom evento!`);
+      createNotification(organizerId, `Ingresso validado: Check-in realizado para ${ticket.customerName} no evento "${ticket.eventName}".`);
+
+      return { 
+        success: true, 
+        message: 'Ingresso validado com sucesso! Entrada liberada.',
+        ticket: { ...ticket, status: 'checked_in', checkInTime }
+      };
+    } catch (err) {
+      console.error("Erro ao validar ingresso no Firestore:", err);
+      return { success: false, message: 'Erro ao validar o ingresso na base de dados.' };
+    }
+  };
+
   const updateOrderStatus = (orderId, newStatus) => {
     const updates = { status: newStatus };
     if (newStatus === 'preparing') updates.step = 1;
@@ -1484,6 +1530,7 @@ export const FirebaseMockProvider = ({ children }) => {
       removeFromCart,
       placeOrder,
       buyTicket,
+      validateTicket,
       updateOrderStatus,
       callRider,
       cancelCallRider,

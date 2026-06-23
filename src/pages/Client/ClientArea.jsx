@@ -354,6 +354,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   // Event buying
   const [ticketQty, setTicketQty] = useState(1);
   const [commissionerCode, setCommissionerCode] = useState('');
+  const [selectedTicketForModal, setSelectedTicketForModal] = useState(null);
 
   // ForYou state
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
@@ -6815,10 +6816,19 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           ) : (
             userTickets.map(o => (
               <div key={o.id} style={{ border: '1px solid #eee', borderRadius: '16px', padding: '14px', backgroundColor: 'white', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', backgroundColor: '#f28d1a' }} />
+                <div style={{ position: 'absolute', top: 0, left: 0, width: '4px', height: '100%', backgroundColor: o.status === 'checked_in' ? '#888' : '#f28d1a' }} />
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', paddingLeft: '6px' }}>
-                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f28d1a' }}>Ticket #{o.id}</span>
-                  <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#888' }}>Confirmado</span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: o.status === 'checked_in' ? '#888' : '#f28d1a' }}>Ticket #{o.id}</span>
+                  <span style={{ 
+                    fontSize: '0.7rem', 
+                    fontWeight: 600, 
+                    color: o.status === 'checked_in' ? '#ff5e5b' : '#2ec4b6',
+                    backgroundColor: o.status === 'checked_in' ? '#ffebe9' : '#e6f9f6',
+                    padding: '2px 8px',
+                    borderRadius: '8px'
+                  }}>
+                    {o.status === 'checked_in' ? 'Utilizado' : 'Confirmado'}
+                  </span>
                 </div>
                 {o.items ? (
                   o.items.map((item, idx) => (
@@ -6841,10 +6851,21 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 )}
                 {/* Simulated QR Code button */}
                 <div style={{ marginTop: '12px', paddingLeft: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.68rem', color: '#999' }}>Apresente na portaria do evento</span>
+                  <span style={{ fontSize: '0.68rem', color: '#999' }}>
+                    {o.status === 'checked_in' ? `Entrada validada às ${o.checkInTime}` : 'Apresente na portaria do evento'}
+                  </span>
                   <button 
-                    onClick={() => triggerToast("QR Code exibido! Mostre na portaria do evento.")}
-                    style={{ padding: '4px 10px', borderRadius: '8px', border: '1px solid #f28d1a', background: 'none', color: '#f28d1a', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                    onClick={() => setSelectedTicketForModal(o)}
+                    style={{ 
+                      padding: '6px 12px', 
+                      borderRadius: '8px', 
+                      border: `1px solid ${o.status === 'checked_in' ? '#ccc' : '#f28d1a'}`, 
+                      background: 'none', 
+                      color: o.status === 'checked_in' ? '#888' : '#f28d1a', 
+                      fontSize: '0.7rem', 
+                      fontWeight: 600, 
+                      cursor: 'pointer' 
+                    }}
                   >
                     Ver QR Code
                   </button>
@@ -6853,6 +6874,160 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             ))
           )}
         </div>
+
+        {/* Ticket Modal */}
+        {selectedTicketForModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px',
+            backdropFilter: 'blur(4px)'
+          }} onClick={() => setSelectedTicketForModal(null)}>
+            <div style={{
+              width: '100%',
+              maxWidth: '340px',
+              backgroundColor: '#1e1e1e',
+              borderRadius: '24px',
+              overflow: 'hidden',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
+              position: 'relative'
+            }} onClick={e => e.stopPropagation()}>
+              
+              {/* Event Cover Image Area */}
+              <div style={{ height: '140px', position: 'relative', overflow: 'hidden' }}>
+                <img 
+                  src={selectedTicketForModal.eventImage || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=400'} 
+                  alt="Evento" 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+                <div style={{
+                  position: 'absolute',
+                  top: 0, right: 0, bottom: 0, left: 0,
+                  background: 'linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(30,30,30,1) 100%)'
+                }} />
+                
+                {/* Header elements inside cover */}
+                <div style={{ position: 'absolute', top: '16px', left: '16px', right: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.62rem', backgroundColor: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(4px)', color: '#fff', padding: '4px 10px', borderRadius: '99px', fontWeight: 600 }}>
+                    Connecta+ Eventos
+                  </span>
+                  <button 
+                    onClick={() => setSelectedTicketForModal(null)}
+                    style={{ background: 'rgba(255,255,255,0.2)', border: 'none', width: '28px', height: '28px', borderRadius: '50%', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' }}
+                  >
+                    <X size={16} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Ticket Details */}
+              <div style={{ padding: '20px', color: 'white', textAlign: 'center' }}>
+                <span style={{ fontSize: '0.65rem', color: '#ffaf5b', fontWeight: 600, letterSpacing: '1px', textTransform: 'uppercase' }}>
+                  {selectedTicketForModal.batchName || 'Lote Único'}
+                </span>
+                <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'white', margin: '4px 0 12px 0', lineHeight: 1.2 }}>
+                  {selectedTicketForModal.eventName}
+                </h3>
+                
+                {/* Ticket separation line (Serrated Ticket Stub Style) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '14px 0' }}>
+                  <div style={{ width: '10px', height: '20px', backgroundColor: '#000', borderRadius: '0 10px 10px 0', marginLeft: '-20px' }} />
+                  <div style={{ flex: 1, borderTop: '1px dashed rgba(255,255,255,0.15)' }} />
+                  <div style={{ width: '10px', height: '20px', backgroundColor: '#000', borderRadius: '10px 0 0 10px', marginRight: '-20px' }} />
+                </div>
+
+                {/* QR Code Container */}
+                <div style={{ margin: '12px 0' }}>
+                  <img 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${selectedTicketForModal.id}`} 
+                    alt="Ingresso QR Code" 
+                    style={{ 
+                      width: '160px', 
+                      height: '160px', 
+                      margin: '0 auto', 
+                      display: 'block', 
+                      padding: '8px', 
+                      backgroundColor: 'white', 
+                      borderRadius: '16px' 
+                    }} 
+                  />
+                  <div style={{ fontSize: '0.72rem', color: '#aaa', marginTop: '6px', fontWeight: 500 }}>
+                    Código: #{selectedTicketForModal.id}
+                  </div>
+                </div>
+
+                {/* Info Block */}
+                <div style={{ backgroundColor: '#282828', borderRadius: '14px', padding: '10px 14px', margin: '14px 0', textAlign: 'left' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.68rem', color: '#999' }}>Titular:</span>
+                    <span style={{ fontSize: '0.68rem', color: '#fff', fontWeight: 600 }}>{selectedTicketForModal.customerName}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span style={{ fontSize: '0.68rem', color: '#999' }}>Quantidade:</span>
+                    <span style={{ fontSize: '0.68rem', color: '#fff', fontWeight: 600 }}>{selectedTicketForModal.quantity} {selectedTicketForModal.quantity === 1 ? 'ingresso' : 'ingressos'}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '0.68rem', color: '#999' }}>Data do Evento:</span>
+                    <span style={{ fontSize: '0.68rem', color: '#fff', fontWeight: 600 }}>{selectedTicketForModal.eventDate}</span>
+                  </div>
+                </div>
+
+                {/* Status Indicator */}
+                <div style={{ 
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 16px',
+                  borderRadius: '99px',
+                  backgroundColor: selectedTicketForModal.status === 'checked_in' ? 'rgba(255, 94, 91, 0.15)' : 'rgba(46, 196, 182, 0.15)',
+                  color: selectedTicketForModal.status === 'checked_in' ? '#ff5e5b' : '#2ec4b6',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  marginBottom: '10px'
+                }}>
+                  <div style={{ 
+                    width: '6px', 
+                    height: '6px', 
+                    borderRadius: '50%', 
+                    backgroundColor: selectedTicketForModal.status === 'checked_in' ? '#ff5e5b' : '#2ec4b6' 
+                  }} />
+                  {selectedTicketForModal.status === 'checked_in' 
+                    ? `Utilizado às ${selectedTicketForModal.checkInTime}` 
+                    : 'Ingresso Válido • Portaria Liberada'
+                  }
+                </div>
+
+                <button 
+                  onClick={() => setSelectedTicketForModal(null)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    borderRadius: '14px',
+                    border: 'none',
+                    background: '#f28d1a',
+                    color: 'white',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    marginTop: '10px',
+                    transition: 'all 0.2s'
+                  }}
+                >
+                  Fechar Carteira
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
       </div>
     );
   };

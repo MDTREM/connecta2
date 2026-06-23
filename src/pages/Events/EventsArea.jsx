@@ -11,7 +11,7 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   const { 
     currentUser, events, addEvent, updateEvent, addCommissioner, addVideo, 
     setUsers, deleteEvent, visualLayoutSettings, updateUserProfile, categories, users,
-    videos, deleteVideo, updateVideo 
+    videos, deleteVideo, updateVideo, validateTicket, orders
   } = useFirebaseMock();
 
   const eventCategoriesFromDb = categories ? categories.filter(c => c.type === 'eventos').map(c => c.label) : [];
@@ -32,6 +32,83 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [withdrawError, setWithdrawError] = useState('');
   const [withdrawSuccess, setWithdrawSuccess] = useState(false);
+
+  // Portaria Scanner states
+  const [showScannerModal, setShowScannerModal] = useState(false);
+  const [scannerInputValue, setScannerInputValue] = useState('');
+  const [scannerResult, setScannerResult] = useState(null);
+  const [scannerFilterEventId, setScannerFilterEventId] = useState('all');
+  const [scannerSearchTerm, setScannerSearchTerm] = useState('');
+  const [html5QrcodeLoaded, setHtml5QrcodeLoaded] = useState(false);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [scannerTab, setScannerTab] = useState('camera'); // 'camera' or 'list'
+
+  useEffect(() => {
+    if (showScannerModal && !html5QrcodeLoaded) {
+      const script = document.createElement('script');
+      script.src = "https://unpkg.com/html5-qrcode";
+      script.onload = () => {
+        setHtml5QrcodeLoaded(true);
+      };
+      script.onerror = (err) => {
+        console.error("Erro ao carregar html5-qrcode:", err);
+      };
+      document.body.appendChild(script);
+    }
+  }, [showScannerModal, html5QrcodeLoaded]);
+
+  useEffect(() => {
+    let html5QrCodeScanner = null;
+    if (showScannerModal && cameraActive && html5QrcodeLoaded && scannerTab === 'camera') {
+      try {
+        html5QrCodeScanner = new window.Html5Qrcode("reader");
+        html5QrCodeScanner.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 220, height: 220 }
+          },
+          (decodedText) => {
+            handleTicketScanSubmit(decodedText);
+            setCameraActive(false); // desliga câmera após scan para focar no resultado
+          },
+          () => {
+            // erro de leitura silencioso
+          }
+        ).catch(err => {
+          console.error("Erro ao iniciar câmera no scanner:", err);
+          alert("Não foi possível acessar a câmera do dispositivo. Por favor, dê permissão ou use a validação manual/lista.");
+          setCameraActive(false);
+        });
+      } catch (err) {
+        console.error("Erro ao instanciar Html5Qrcode:", err);
+      }
+    }
+
+    return () => {
+      if (html5QrCodeScanner && html5QrCodeScanner.isScanning) {
+        html5QrCodeScanner.stop().catch(err => console.error("Erro ao desligar câmera no cleanup:", err));
+      }
+    };
+  }, [showScannerModal, cameraActive, html5QrcodeLoaded, scannerTab]);
+
+  const handleTicketScanSubmit = async (customCode) => {
+    const codeToValidate = customCode || scannerInputValue;
+    if (!codeToValidate) return;
+
+    setScannerResult({ loading: true });
+    
+    // Suporta formato com ou sem '#' e limpa espaços
+    const formattedCode = codeToValidate.replace('Ticket #', '').replace('#', '').trim();
+    
+    const res = await validateTicket(formattedCode, currentUser.id);
+    if (res.success) {
+      setScannerResult({ success: true, message: res.message, ticket: res.ticket });
+      setScannerInputValue('');
+    } else {
+      setScannerResult({ success: false, message: res.message });
+    }
+  };
 
   // Edit profile states
   const [editingField, setEditingField] = useState(null); // 'name', 'description', 'phone', 'address', 'category', 'openingHours'
@@ -623,6 +700,408 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   };
 
 
+  const renderScannerModal = () => {
+    const organizerTickets = (orders || []).filter(o => o.type === 'ticket' && myEvents.some(me => me.id === o.eventId));
+    
+    const filteredTickets = organizerTickets
+      .filter(o => scannerFilterEventId === 'all' ? true : o.eventId === scannerFilterEventId)
+      .filter(o => {
+        if (!scannerSearchTerm.trim()) return true;
+        const term = scannerSearchTerm.toLowerCase();
+        return (o.customerName || '').toLowerCase().includes(term) || 
+               (o.id || '').toLowerCase().includes(term) ||
+               (o.eventName || '').toLowerCase().includes(term);
+      });
+
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        backdropFilter: 'blur(6px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 2000,
+        padding: '16px'
+      }} onClick={() => {
+        setCameraActive(false);
+        setShowScannerModal(false);
+      }}>
+        <div style={{
+          backgroundColor: 'white',
+          borderRadius: '24px',
+          width: '100%',
+          maxWidth: '480px',
+          padding: '20px',
+          boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+          position: 'relative',
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: '90vh'
+        }} onClick={e => e.stopPropagation()}>
+          
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+            <div>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Validação de Portaria</h3>
+              <span style={{ fontSize: '0.65rem', color: '#777' }}>Controle de entrada em tempo real</span>
+            </div>
+            <button 
+              onClick={() => {
+                setCameraActive(false);
+                setShowScannerModal(false);
+              }}
+              style={{ background: '#f5f5f5', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' }}
+            >
+              <X size={16} />
+            </button>
+          </div>
+
+          {/* Scanner Feedback (Success/Error Message) */}
+          {scannerResult && (
+            <div style={{
+              backgroundColor: scannerResult.loading 
+                ? '#fffdf4' 
+                : scannerResult.success 
+                  ? '#e6f9f6' 
+                  : '#ffebe9',
+              borderRadius: '16px',
+              padding: '14px',
+              marginBottom: '14px',
+              border: `1.5px solid ${
+                scannerResult.loading 
+                  ? '#f28d1a30' 
+                  : scannerResult.success 
+                    ? '#2ec4b630' 
+                    : '#ff5e5b30'
+              }`,
+              textAlign: 'center',
+              position: 'relative'
+            }}>
+              {scannerResult.loading ? (
+                <div style={{ padding: '10px 0' }}>
+                  <div style={{ fontSize: '0.8rem', color: '#f28d1a', fontWeight: 600 }}>Processando check-in...</div>
+                  <span style={{ fontSize: '0.68rem', color: '#999' }}>Aguardando resposta do servidor</span>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ 
+                    fontSize: '0.85rem', 
+                    fontWeight: 700, 
+                    color: scannerResult.success ? '#20a396' : '#ff5e5b',
+                    marginBottom: '4px'
+                  }}>
+                    {scannerResult.success ? 'CHECK-IN LIBERADO' : 'CONTRATEMPO NA ENTRADA'}
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: '#333', margin: '4px 0 8px 0' }}>{scannerResult.message}</p>
+                  
+                  {scannerResult.success && scannerResult.ticket && (
+                    <div style={{ backgroundColor: 'rgba(46,196,182,0.06)', borderRadius: '10px', padding: '8px', textAlign: 'left', fontSize: '0.7rem', color: '#444', marginBottom: '8px' }}>
+                      <div><strong>Titular:</strong> {scannerResult.ticket.customerName}</div>
+                      <div><strong>Lote:</strong> {scannerResult.ticket.batchName || 'Lote Único'}</div>
+                      <div><strong>Ingressos:</strong> {scannerResult.ticket.quantity} un.</div>
+                      <div><strong>Evento:</strong> {scannerResult.ticket.eventName}</div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => {
+                      setScannerResult(null);
+                      if (scannerTab === 'camera') {
+                        setCameraActive(true);
+                      }
+                    }}
+                    style={{
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: scannerResult.success ? '#2ec4b6' : '#ff5e5b',
+                      color: 'white',
+                      fontSize: '0.68rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Próximo Ingresso
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Navigation Tabs */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', borderBottom: '1px solid #eee', paddingBottom: '8px' }}>
+            <button
+              onClick={() => {
+                setScannerTab('camera');
+                setScannerResult(null);
+              }}
+              style={{
+                flex: 1,
+                padding: '8px',
+                border: 'none',
+                background: scannerTab === 'camera' ? '#e6f9f6' : 'none',
+                color: scannerTab === 'camera' ? '#2ec4b6' : '#666',
+                borderRadius: '10px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Câmera QR Code
+            </button>
+            <button
+              onClick={() => {
+                setScannerTab('list');
+                setCameraActive(false);
+                setScannerResult(null);
+              }}
+              style={{
+                flex: 1,
+                padding: '8px',
+                border: 'none',
+                background: scannerTab === 'list' ? '#fcf6ed' : 'none',
+                color: scannerTab === 'list' ? '#f28d1a' : '#666',
+                borderRadius: '10px',
+                fontSize: '0.78rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              Portaria (Lista)
+            </button>
+          </div>
+
+          {/* Tab Content */}
+          <div style={{ flex: 1, overflowY: 'auto' }}>
+            {scannerTab === 'camera' ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                <div style={{
+                  height: '220px',
+                  backgroundColor: '#111',
+                  borderRadius: '16px',
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: 'white',
+                  position: 'relative'
+                }}>
+                  {cameraActive ? (
+                    <div id="reader" style={{ width: '100%', height: '100%' }}></div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '20px' }}>
+                      <div style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '10px' }}>
+                        Ative o scanner de câmera para ler QR Codes
+                      </div>
+                      <button
+                        onClick={() => {
+                          setScannerResult(null);
+                          setCameraActive(true);
+                        }}
+                        style={{
+                          padding: '10px 18px',
+                          borderRadius: '12px',
+                          border: 'none',
+                          backgroundColor: '#2ec4b6',
+                          color: 'white',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        <Camera size={16} />
+                        Ligar Câmera
+                      </button>
+                    </div>
+                  )}
+                  {cameraActive && (
+                    <button
+                      onClick={() => setCameraActive(false)}
+                      style={{
+                        position: 'absolute',
+                        bottom: '10px',
+                        padding: '4px 10px',
+                        borderRadius: '8px',
+                        border: 'none',
+                        backgroundColor: 'rgba(255,255,255,0.2)',
+                        color: 'white',
+                        fontSize: '0.62rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        backdropFilter: 'blur(4px)'
+                      }}
+                    >
+                      Desligar Câmera
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ borderTop: '1px solid #eee', paddingTop: '14px', marginTop: '4px' }}>
+                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555', display: 'block', marginBottom: '6px' }}>
+                    Validação Manual por Código
+                  </label>
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    handleTicketScanSubmit();
+                  }} style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="Código do ingresso (ex: Ticket #12345)"
+                      value={scannerInputValue}
+                      onChange={(e) => setScannerInputValue(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #eee',
+                        fontSize: '0.78rem',
+                        outline: 'none'
+                      }}
+                    />
+                    <button
+                      type="submit"
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '10px',
+                        border: 'none',
+                        backgroundColor: '#2ec4b6',
+                        color: 'white',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Validar
+                    </button>
+                  </form>
+                </div>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    value={scannerFilterEventId}
+                    onChange={(e) => setScannerFilterEventId(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '8px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.75rem',
+                      outline: 'none',
+                      backgroundColor: '#fafafa'
+                    }}
+                  >
+                    <option value="all">Todos os eventos</option>
+                    {myEvents.map(e => (
+                      <option key={e.id} value={e.id}>{e.name}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="text"
+                    placeholder="Buscar titular ou ID..."
+                    value={scannerSearchTerm}
+                    onChange={(e) => setScannerSearchTerm(e.target.value)}
+                    style={{
+                      flex: 1,
+                      padding: '8px',
+                      borderRadius: '10px',
+                      border: '1.5px solid #eee',
+                      fontSize: '0.75rem',
+                      outline: 'none'
+                    }}
+                  />
+                </div>
+
+                <div style={{ 
+                  maxHeight: '220px', 
+                  overflowY: 'auto', 
+                  border: '1px solid #eee', 
+                  borderRadius: '14px',
+                  backgroundColor: '#fafafa' 
+                }}>
+                  {filteredTickets.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '30px 10px', color: '#999', fontSize: '0.75rem' }}>
+                      Nenhum ingresso vendido atende aos filtros.
+                    </div>
+                  ) : (
+                    filteredTickets.map(t => (
+                      <div 
+                        key={t.id} 
+                        style={{ 
+                          padding: '10px 12px', 
+                          borderBottom: '1px solid #eee',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          gap: '10px',
+                          backgroundColor: 'white'
+                        }}
+                      >
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {t.customerName}
+                          </div>
+                          <div style={{ fontSize: '0.62rem', color: '#666', marginTop: '2px' }}>
+                            #{t.id} • {t.batchName || 'Lote Único'} ({t.quantity} un.)
+                          </div>
+                          <div style={{ fontSize: '0.62rem', color: '#999', fontStyle: 'italic' }}>
+                            {t.eventName}
+                          </div>
+                        </div>
+                        <div>
+                          {t.status === 'checked_in' ? (
+                            <span style={{
+                              fontSize: '0.62rem',
+                              color: '#ff5e5b',
+                              backgroundColor: '#ffebe9',
+                              padding: '2px 8px',
+                              borderRadius: '6px',
+                              fontWeight: 600,
+                              whiteSpace: 'nowrap'
+                            }}>
+                              Utilizado
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => handleTicketScanSubmit(t.id)}
+                              style={{
+                                padding: '4px 10px',
+                                borderRadius: '6px',
+                                border: 'none',
+                                backgroundColor: '#2ec4b6',
+                                color: 'white',
+                                fontSize: '0.62rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              Check-in
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   // --- SUBVIEW 1: DASHBOARD ---
   const renderDashboard = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
@@ -681,6 +1160,63 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
             )}
           </div>
         ))}
+      </div>
+
+      {/* Portaria & Validação de Ingressos */}
+      <div style={{
+        backgroundColor: '#ffffff',
+        borderRadius: '24px',
+        padding: '16px',
+        boxShadow: 'var(--shadow-sm)',
+        border: '1px solid #eee',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '12px',
+            backgroundColor: '#e6f9f6',
+            color: '#2ec4b6',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <line x1="7" y1="12" x2="17" y2="12" />
+              <line x1="12" y1="7" x2="12" y2="17" />
+            </svg>
+          </div>
+          <div>
+            <h4 style={{ fontSize: '0.8rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>Portaria e Validação</h4>
+            <p style={{ fontSize: '0.7rem', color: '#777', margin: '2px 0 0 0' }}>Escanear QR Codes e fazer check-in em tempo real</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setScannerResult(null);
+            setScannerInputValue('');
+            setShowScannerModal(true);
+          }}
+          style={{
+            padding: '8px 16px',
+            borderRadius: '16px',
+            border: 'none',
+            background: 'linear-gradient(135deg, #2ec4b6 0%, #20a396 100%)',
+            color: 'white',
+            fontWeight: 600,
+            fontSize: '0.72rem',
+            cursor: 'pointer',
+            boxShadow: '0 4px 12px rgba(46, 196, 182, 0.2)'
+          }}
+        >
+          Validar Entrada
+        </button>
       </div>
 
       {/* Chat Suporte Card */}
@@ -2141,6 +2677,8 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
           </div>
         </div>
       )}
+      
+      {showScannerModal && renderScannerModal()}
     </div>
   );
 }
