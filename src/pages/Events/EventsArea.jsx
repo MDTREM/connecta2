@@ -121,6 +121,26 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   const [evImages, setEvImages] = useState(Array(10).fill(''));
   const [evDescription, setEvDescription] = useState('');
 
+  // Structured date/time states
+  const [startDate, setStartDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [salesStartDate, setSalesStartDate] = useState('');
+  const [salesStartTime, setSalesStartTime] = useState('');
+
+  // Structured address states
+  const [addressCep, setAddressCep] = useState('');
+  const [addressStreet, setAddressStreet] = useState('');
+  const [addressNumber, setAddressNumber] = useState('');
+  const [addressComplement, setAddressComplement] = useState('');
+  const [addressNeighborhood, setAddressNeighborhood] = useState('');
+  const [addressCity, setAddressCity] = useState('');
+  const [addressState, setAddressState] = useState('');
+
+  // Online transmission link
+  const [onlineLink, setOnlineLink] = useState('');
+
   // Handlers for event images
   const handleEventImageUpload = async (idx, e) => {
     const file = e.target.files[0];
@@ -228,8 +248,8 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
   const netEarnings = grossSales * (1 - ticketsCommRate / 100);
   const withdrawableBalance = isNaN(netEarnings) ? 0 : netEarnings;
 
-  const handleAddBatch = () => {
-    setBatches([...batches, { name: '', type: 'pago', price: '', limit: '', startDate: '', startTime: '', endDate: '', endTime: '', sold: 0 }]);
+  const handleAddBatch = (type = 'pago') => {
+    setBatches([...batches, { name: '', type, price: type === 'gratuito' ? '0' : '', limit: '', startDate: '', startTime: '', endDate: '', endTime: '', sold: 0, feeOption: 'repassar' }]);
   };
 
   const handleRemoveBatch = (idx) => {
@@ -266,9 +286,30 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
 
   const handleEventSubmit = (e) => {
     e.preventDefault();
-    if (!evName || !evDate || !evLocation) {
-      alert('Por favor, insira o nome, a data e o local do evento!');
+    if (!evName) {
+      alert('Por favor, insira o nome do evento!');
       return;
+    }
+
+    let finalLocation = '';
+    if (eventType === 'fisico') {
+      if (!addressStreet || !addressNumber || !addressCity || !addressState) {
+        alert('Por favor, preencha o endereço completo (Rua, Número, Cidade e Estado) para eventos físicos!');
+        return;
+      }
+      finalLocation = `${addressStreet}, ${addressNumber} ${addressComplement ? `(${addressComplement})` : ''} - ${addressNeighborhood}, ${addressCity} - ${addressState}, CEP: ${addressCep}`;
+    } else {
+      finalLocation = onlineLink ? `Virtual (Link: ${onlineLink})` : 'Virtual (Link de transmissão online)';
+    }
+
+    let finalDateStr = '';
+    if (startDate && startTime) {
+      finalDateStr = `${startDate} às ${startTime}`;
+      if (endDate && endTime) {
+        finalDateStr += ` até ${endDate} às ${endTime}`;
+      }
+    } else {
+      finalDateStr = 'A definir';
     }
 
     const filteredImages = evImages.filter(img => img !== '');
@@ -283,7 +324,8 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       startTime: b.startTime || '',
       endDate: b.endDate || '',
       endTime: b.endTime || '',
-      sold: b.sold || 0
+      sold: b.sold || 0,
+      feeOption: b.feeOption || 'repassar'
     })).filter(b => b.limit > 0);
 
     if (parsedBatches.length === 0) {
@@ -293,8 +335,22 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
 
     const eventData = {
       name: evName,
-      date: evDate,
-      location: evLocation,
+      date: finalDateStr,
+      location: finalLocation,
+      startDate,
+      startTime,
+      endDate,
+      endTime,
+      salesStartDate,
+      salesStartTime,
+      addressCep,
+      addressStreet,
+      addressNumber,
+      addressComplement,
+      addressNeighborhood,
+      addressCity,
+      addressState,
+      onlineLink,
       image: mainImage,
       cover: mainImage,
       images: filteredImages,
@@ -351,6 +407,23 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
     setFeeOption('absorver');
     setCoupons([]);
     setPolicy('');
+
+    // Reset novos states estruturados
+    setStartDate('');
+    setStartTime('');
+    setEndDate('');
+    setEndTime('');
+    setSalesStartDate('');
+    setSalesStartTime('');
+    setAddressCep('');
+    setAddressStreet('');
+    setAddressNumber('');
+    setAddressComplement('');
+    setAddressNeighborhood('');
+    setAddressCity('');
+    setAddressState('');
+    setOnlineLink('');
+
     setActiveTab('events');
   };
 
@@ -1529,6 +1602,23 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                       setFeeOption(ev.feeOption || 'absorver');
                       setCoupons(ev.coupons || []);
                       setPolicy(ev.policy || '');
+
+                      // Set structured states
+                      setStartDate(ev.startDate || '');
+                      setStartTime(ev.startTime || '');
+                      setEndDate(ev.endDate || '');
+                      setEndTime(ev.endTime || '');
+                      setSalesStartDate(ev.salesStartDate || '');
+                      setSalesStartTime(ev.salesStartTime || '');
+                      setAddressCep(ev.addressCep || '');
+                      setAddressStreet(ev.addressStreet || '');
+                      setAddressNumber(ev.addressNumber || '');
+                      setAddressComplement(ev.addressComplement || '');
+                      setAddressNeighborhood(ev.addressNeighborhood || '');
+                      setAddressCity(ev.addressCity || '');
+                      setAddressState(ev.addressState || '');
+                      setOnlineLink(ev.onlineLink || '');
+
                       setActiveTab('add_event');
                     }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a', padding: '4px' }}
@@ -1568,15 +1658,17 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
   // --- SUBVIEW 3: CREATE EVENT ---
   // --- SUBVIEW 3: CREATE EVENT ---
   const renderAddEvent = () => (
-    <form onSubmit={handleEventSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }} className="animate-fade-in">
+    <form onSubmit={handleEventSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
       <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>
         {editingEventId ? 'Editar Evento' : 'Cadastrar Novo Evento'}
       </h3>
       
-      {/* Event Details */}
+      {/* 1. Vamos criar seu evento */}
       <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Vamos criar seu evento:</h4>
+        
         <div className="form-group" style={{ marginBottom: 0 }}>
-          <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Nome da Festa / Evento</label>
+          <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Nome</label>
           <input 
             type="text" 
             placeholder="Ex: Nome do seu Evento" 
@@ -1589,7 +1681,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Categoria de Festa</label>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Categoria</label>
             <input 
               type="text" 
               placeholder="Ex: Show, Balada, Teatro..." 
@@ -1601,304 +1693,47 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Data e Horário</label>
-            <input 
-              type="text" 
-              placeholder="Ex: 24/10/2026 às 22h" 
-              value={evDate} 
-              onChange={(e) => setEvDate(e.target.value)} 
-              className="input-field" 
-              required 
-            />
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Tipo</label>
+            <select
+              value={eventType}
+              onChange={(e) => setEventType(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '0.78rem', borderRadius: '12px', border: '1.5px solid #eee', backgroundColor: 'white', outline: 'none', height: '36px' }}
+            >
+              <option value="fisico">Físico</option>
+              <option value="virtual">Virtual</option>
+            </select>
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Tipo de Evento</label>
-            <select
-              value={eventType}
-              onChange={(e) => setEventType(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', fontSize: '0.78rem', borderRadius: '12px', border: '1.5px solid #eee', backgroundColor: 'white', outline: 'none' }}
-            >
-              <option value="fisico">Evento Físico (Presencial)</option>
-              <option value="virtual">Evento Virtual (Online)</option>
-            </select>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Localização</label>
+            <input 
+              type="text" 
+              placeholder="Ex: Arena Show, Club Espaço, Online..." 
+              value={evLocation} 
+              onChange={(e) => setEvLocation(e.target.value)} 
+              className="input-field" 
+              required 
+            />
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Tags de SEO (separadas por vírgula)</label>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Tags</label>
             <input 
               type="text" 
-              placeholder="Ex: republica, rock, openbar" 
+              placeholder="Ex: sertanejo, balada, vip" 
               value={tags} 
               onChange={(e) => setTags(e.target.value)} 
               className="input-field" 
             />
           </div>
         </div>
-
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>
-            {eventType === 'fisico' ? 'Localização Completa (Endereço)' : 'Link de Transmissão Online'}
-          </label>
-          <input 
-            type="text" 
-            placeholder={eventType === 'fisico' ? 'Ex: Rua Principal, 123 - Centro, Cidade - UF' : 'Ex: https://linkdatransmissao.com/live'} 
-            value={evLocation} 
-            onChange={(e) => setEvLocation(e.target.value)} 
-            className="input-field" 
-            required 
-          />
-        </div>
       </div>
 
-      {/* Seat Config and App Fee Settings */}
+      {/* 2. Imagens */}
       <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <h4 style={{ fontSize: '0.82rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Configurações de Assentos e Taxas</h4>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setHasNumberedSeats(!hasNumberedSeats)}>
-          <input 
-            type="checkbox" 
-            checked={hasNumberedSeats} 
-            onChange={(e) => setHasNumberedSeats(e.target.checked)} 
-            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-          />
-          <span style={{ fontSize: '0.78rem', color: '#333', fontWeight: 500 }}>Este evento possui assentos numerados/cadeiras?</span>
-        </div>
-
-        {hasNumberedSeats && (
-          <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Quantidade Total de Assentos Numerados (1 a X)</label>
-            <input 
-              type="number" 
-              placeholder="Ex: 100" 
-              value={totalSeats} 
-              onChange={(e) => setTotalSeats(e.target.value)} 
-              className="input-field" 
-              required={hasNumberedSeats}
-            />
-          </div>
-        )}
-
-        <div className="form-group" style={{ marginBottom: 0 }}>
-          <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Cobrança de Taxas do Aplicativo (10%)</label>
-          <select
-            value={feeOption}
-            onChange={(e) => setFeeOption(e.target.value)}
-            style={{ width: '100%', padding: '8px 12px', fontSize: '0.78rem', borderRadius: '12px', border: '1.5px solid #eee', backgroundColor: 'white', outline: 'none' }}
-          >
-            <option value="absorver">Absorver taxas do aplicativo (Deduzir 10% da receita do produtor)</option>
-            <option value="repassar">Repassar taxas para o cliente (Adicionar 10% no total pago pelo cliente)</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Dynamic Batches */}
-      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h4 style={{ fontSize: '0.82rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Configuração de Lotes</h4>
-          <button
-            type="button"
-            onClick={handleAddBatch}
-            style={{
-              padding: '4px 10px',
-              borderRadius: '8px',
-              backgroundColor: '#fff7e6',
-              color: '#f28d1a',
-              border: 'none',
-              fontSize: '0.68rem',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            + Adicionar Lote
-          </button>
-        </div>
-        
-        {batches.map((b, idx) => (
-          <div key={idx} style={{ padding: '12px', border: '1px solid #f0f0f0', borderRadius: '16px', backgroundColor: '#fafafa', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#f28d1a' }}>Lote #{idx + 1} {b.sold > 0 && `(${b.sold} vendidos)`}</span>
-              {batches.length > 1 && (
-                <button
-                  type="button"
-                  onClick={() => handleRemoveBatch(idx)}
-                  style={{
-                    backgroundColor: 'transparent',
-                    color: '#ff5e5b',
-                    border: 'none',
-                    fontSize: '0.68rem',
-                    fontWeight: 500,
-                    cursor: 'pointer'
-                  }}
-                >
-                  Excluir
-                </button>
-              )}
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
-              <div>
-                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Nome do Lote</label>
-                <input 
-                  type="text" 
-                  value={b.name} 
-                  onChange={(e) => handleBatchChange(idx, 'name', e.target.value)} 
-                  className="input-field" 
-                  style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0 }} 
-                  placeholder="Ex: 1º Lote" 
-                  required
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Tipo</label>
-                <select
-                  value={b.type}
-                  onChange={(e) => handleBatchChange(idx, 'type', e.target.value)}
-                  style={{ width: '100%', padding: '6px 10px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee', backgroundColor: 'white' }}
-                >
-                  <option value="pago">Pago</option>
-                  <option value="gratuito">Gratuito</option>
-                </select>
-              </div>
-              <div>
-                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Preço (R$)</label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  value={b.price} 
-                  disabled={b.type === 'gratuito'}
-                  onChange={(e) => handleBatchChange(idx, 'price', e.target.value)} 
-                  className="input-field" 
-                  style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0 }}
-                  placeholder="0.00"
-                  required={b.type !== 'gratuito'}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Limite de Ingressos</label>
-                <input 
-                  type="number" 
-                  value={b.limit} 
-                  onChange={(e) => handleBatchChange(idx, 'limit', e.target.value)} 
-                  className="input-field" 
-                  style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0 }} 
-                  placeholder="100"
-                  required
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', borderTop: '1px solid #f0f0f0', paddingTop: '6px', marginTop: '2px' }}>
-              <div>
-                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Início das Vendas (Data)</label>
-                <input type="date" value={b.startDate} onChange={(e) => handleBatchChange(idx, 'startDate', e.target.value)} style={{ width: '100%', padding: '5px 8px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Início (Hora)</label>
-                <input type="time" value={b.startTime} onChange={(e) => handleBatchChange(idx, 'startTime', e.target.value)} style={{ width: '100%', padding: '5px 8px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Fim das Vendas (Data)</label>
-                <input type="date" value={b.endDate} onChange={(e) => handleBatchChange(idx, 'endDate', e.target.value)} style={{ width: '100%', padding: '5px 8px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee' }} />
-              </div>
-              <div>
-                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Fim (Hora)</label>
-                <input type="time" value={b.endTime} onChange={(e) => handleBatchChange(idx, 'endTime', e.target.value)} style={{ width: '100%', padding: '5px 8px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee' }} />
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Event Coupons */}
-      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h4 style={{ fontSize: '0.82rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Cupons de Desconto</h4>
-          <button
-            type="button"
-            onClick={handleAddCoupon}
-            style={{
-              padding: '4px 10px',
-              borderRadius: '8px',
-              backgroundColor: '#fff7e6',
-              color: '#f28d1a',
-              border: 'none',
-              fontSize: '0.68rem',
-              fontWeight: 600,
-              cursor: 'pointer'
-            }}
-          >
-            + Adicionar Cupom
-          </button>
-        </div>
-
-        {coupons.length === 0 ? (
-          <span style={{ fontSize: '0.68rem', color: '#999', fontStyle: 'italic', textAlign: 'center' }}>Nenhum cupom cadastrado para este evento.</span>
-        ) : (
-          coupons.map((c, idx) => (
-            <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input 
-                type="text" 
-                placeholder="Código (Ex: VIP20)" 
-                value={c.code} 
-                onChange={(e) => handleCouponChange(idx, 'code', e.target.value)} 
-                className="input-field" 
-                style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0, flex: 2 }} 
-                required
-              />
-              <select
-                value={c.discountType}
-                onChange={(e) => handleCouponChange(idx, 'discountType', e.target.value)}
-                style={{ padding: '6px 10px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee', backgroundColor: 'white', flex: 1.5 }}
-              >
-                <option value="percent">Porcentagem (%)</option>
-                <option value="fixed">Valor Fixo (R$)</option>
-              </select>
-              <input 
-                type="number" 
-                placeholder="Desconto" 
-                value={c.value} 
-                onChange={(e) => handleCouponChange(idx, 'value', e.target.value)} 
-                className="input-field" 
-                style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0, flex: 1.5 }} 
-                required
-              />
-              <button
-                type="button"
-                onClick={() => handleRemoveCoupon(idx)}
-                style={{
-                  backgroundColor: 'transparent',
-                  color: '#ff5e5b',
-                  border: 'none',
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
-                  flexShrink: 0
-                }}
-              >
-                Excluir
-              </button>
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* Event Policy */}
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Política do Evento (Reembolsos, regras de entrada e imagem)</label>
-        <textarea 
-          placeholder="Escreva a política do seu evento..." 
-          value={policy || defaultPolicyTemplate} 
-          onChange={(e) => setPolicy(e.target.value)} 
-          className="input-field" 
-          style={{ height: '90px', resize: 'vertical', fontSize: '0.75rem', lineHeight: 1.4 }}
-        />
-      </div>
-
-      {/* Event Photos */}
-      <div className="form-group" style={{ marginBottom: 4 }}>
-        <label style={{ fontSize: '0.72rem', color: '#555', fontWeight: 600, marginBottom: '4px', display: 'block' }}>Fotos do Evento (Até 10 slots - A primeira é a Capa)</label>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Imagens:</h4>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
           {evImages.map((img, idx) => (
             <div 
@@ -1975,9 +1810,127 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         </div>
       </div>
 
-      {/* Description */}
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Descrição Geral da Festa</label>
+      {/* 3. Mapa de assentos */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Mapa de assentos:</h4>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setHasNumberedSeats(!hasNumberedSeats)}>
+          <input 
+            type="checkbox" 
+            checked={hasNumberedSeats} 
+            onChange={(e) => setHasNumberedSeats(e.target.checked)} 
+            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: '0.78rem', color: '#333', fontWeight: 500 }}>Este evento possui assentos numerados/cadeiras?</span>
+        </div>
+
+        {hasNumberedSeats && (
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Quantidade Total de Assentos Numerados (1 a X)</label>
+            <input 
+              type="number" 
+              placeholder="Ex: 100" 
+              value={totalSeats} 
+              onChange={(e) => setTotalSeats(e.target.value)} 
+              className="input-field" 
+              required={hasNumberedSeats}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* 4. Quando vai acontecer? */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Quando vai acontecer?:</h4>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Data de início</label>
+            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input-field" required />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Hora de início</label>
+            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="input-field" required />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Data de término</label>
+            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input-field" required />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Hora de término</label>
+            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="input-field" required />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Data de início das vendas</label>
+            <input type="date" value={salesStartDate} onChange={(e) => setSalesStartDate(e.target.value)} className="input-field" />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Hora de início das vendas</label>
+            <input type="time" value={salesStartTime} onChange={(e) => setSalesStartTime(e.target.value)} className="input-field" />
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Onde vai acontecer? */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Onde vai acontecer?</h4>
+        
+        {eventType === 'fisico' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>CEP</label>
+                <input type="text" placeholder="Ex: 35400-000" value={addressCep} onChange={(e) => setAddressCep(e.target.value)} className="input-field" />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Rua</label>
+                <input type="text" placeholder="Rua / Avenida" value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} className="input-field" required />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Número</label>
+                <input type="text" placeholder="Ex: 123" value={addressNumber} onChange={(e) => setAddressNumber(e.target.value)} className="input-field" required />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Complemento</label>
+                <input type="text" placeholder="Ex: Sala 2, Bloco B" value={addressComplement} onChange={(e) => setAddressComplement(e.target.value)} className="input-field" />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Bairro</label>
+                <input type="text" placeholder="Bairro" value={addressNeighborhood} onChange={(e) => setAddressNeighborhood(e.target.value)} className="input-field" />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Cidade</label>
+                <input type="text" placeholder="Cidade" value={addressCity} onChange={(e) => setAddressCity(e.target.value)} className="input-field" required />
+              </div>
+              <div className="form-group" style={{ marginBottom: 0 }}>
+                <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Estado</label>
+                <input type="text" placeholder="Ex: MG" value={addressState} onChange={(e) => setAddressState(e.target.value)} className="input-field" required />
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Link (opcional)</label>
+            <input type="text" placeholder="Ex: https://zoom.us/j/123456789" value={onlineLink} onChange={(e) => setOnlineLink(e.target.value)} className="input-field" />
+          </div>
+        )}
+      </div>
+
+      {/* 6. Descrição do Evento */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Descrição do Evento:</h4>
         <textarea 
           placeholder="Escreva sobre as atrações, open bar, etc..." 
           value={evDescription} 
@@ -1985,6 +1938,143 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
           className="input-field" 
           style={{ height: '70px', resize: 'vertical' }}
         />
+      </div>
+
+      {/* 7. Ingressos */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Ingressos:</h4>
+        
+        {/* Ingresso Pago */}
+        <div style={{ marginTop: '10px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h5 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#333', margin: 0 }}>Ingresso Pago</h5>
+            <button
+              type="button"
+              onClick={() => handleAddBatch('pago')}
+              style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#fff7e6', color: '#f28d1a', border: 'none', fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer' }}
+            >
+              + Adicionar Ingresso Pago
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {batches.map((b, idx) => {
+              if (b.type !== 'pago') return null;
+              return (
+                <div key={idx} style={{ padding: '10px', border: '1px solid #eee', borderRadius: '12px', backgroundColor: '#fafafa', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="text" placeholder="Nome" value={b.name} onChange={(e) => handleBatchChange(idx, 'name', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '120px' }} required />
+                  <input type="text" placeholder="Lote" value={b.batchNumber || ''} onChange={(e) => handleBatchChange(idx, 'batchNumber', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} />
+                  <input type="number" placeholder="Valor" value={b.price} onChange={(e) => handleBatchChange(idx, 'price', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} required />
+                  <input type="number" placeholder="Quantidade" value={b.limit} onChange={(e) => handleBatchChange(idx, 'limit', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} required />
+                  <select value={b.feeOption || 'repassar'} onChange={(e) => handleBatchChange(idx, 'feeOption', e.target.value)} style={{ padding: '6px', fontSize: '0.72rem', borderRadius: '8px', border: '1.5px solid #eee', backgroundColor: 'white', minWidth: '110px' }}>
+                    <option value="repassar">Repassar taxas</option>
+                    <option value="absorver">Absorver taxas</option>
+                  </select>
+                  <button type="button" onClick={() => handleRemoveBatch(idx)} style={{ background: 'none', border: 'none', color: '#ff5e5b', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}>Excluir</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Ingresso Gratuito */}
+        <div style={{ marginTop: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <h5 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#333', margin: 0 }}>Ingresso Gratuito</h5>
+            <button
+              type="button"
+              onClick={() => handleAddBatch('gratuito')}
+              style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#f0f9f8', color: '#2ec4b6', border: 'none', fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer' }}
+            >
+              + Adicionar Ingresso Gratuito
+            </button>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {batches.map((b, idx) => {
+              if (b.type !== 'gratuito') return null;
+              return (
+                <div key={idx} style={{ padding: '10px', border: '1px solid #eee', borderRadius: '12px', backgroundColor: '#fafafa', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <input type="text" placeholder="Nome" value={b.name} onChange={(e) => handleBatchChange(idx, 'name', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '120px' }} required />
+                  <input type="text" placeholder="Lote" value={b.batchNumber || ''} onChange={(e) => handleBatchChange(idx, 'batchNumber', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} />
+                  <input type="number" placeholder="Quantidade" value={b.limit} onChange={(e) => handleBatchChange(idx, 'limit', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} required />
+                  <button type="button" onClick={() => handleRemoveBatch(idx)} style={{ background: 'none', border: 'none', color: '#ff5e5b', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}>Excluir</button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* 8. Cupons de Desconto */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Cupons de Desconto:</h4>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+          <span style={{ fontSize: '0.68rem', color: '#777' }}>Cadastre cupons promocionais para seus clientes</span>
+          <button
+            type="button"
+            onClick={handleAddCoupon}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '8px',
+              backgroundColor: '#fff7e6',
+              color: '#f28d1a',
+              border: 'none',
+              fontSize: '0.68rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            + Adicionar Cupom
+          </button>
+        </div>
+
+        {coupons.length === 0 ? (
+          <span style={{ fontSize: '0.68rem', color: '#999', fontStyle: 'italic', textAlign: 'center' }}>Nenhum cupom cadastrado para este evento.</span>
+        ) : (
+          coupons.map((c, idx) => (
+            <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input 
+                type="text" 
+                placeholder="Código (Ex: VIP20)" 
+                value={c.code} 
+                onChange={(e) => handleCouponChange(idx, 'code', e.target.value)} 
+                className="input-field" 
+                style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0, flex: 2 }} 
+                required
+              />
+              <select
+                value={c.discountType}
+                onChange={(e) => handleCouponChange(idx, 'discountType', e.target.value)}
+                style={{ padding: '6px 10px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee', backgroundColor: 'white', flex: 1.5 }}
+              >
+                <option value="percent">Porcentagem (%)</option>
+                <option value="fixed">Valor Fixo (R$)</option>
+              </select>
+              <input 
+                type="number" 
+                placeholder="Desconto" 
+                value={c.value} 
+                onChange={(e) => handleCouponChange(idx, 'value', e.target.value)} 
+                className="input-field" 
+                style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0, flex: 1.5 }} 
+                required
+              />
+              <button
+                type="button"
+                onClick={() => handleRemoveCoupon(idx)}
+                style={{
+                  backgroundColor: 'transparent',
+                  color: '#ff5e5b',
+                  border: 'none',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  flexShrink: 0
+                }}
+              >
+                Excluir
+              </button>
+            </div>
+          ))
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
