@@ -1443,8 +1443,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                     <div style={{ display: 'flex', gap: '6px', fontSize: '0.68rem', color: '#666', fontWeight: 500, alignItems: 'center', flexWrap: 'wrap' }}>
                       {store.distance ? <span>{store.distance}</span> : null}
                       {store.time ? <span>{store.distance ? ' • ' : ''}{store.time}</span> : null}
-                      <span> • </span>
-                      {store.shipping > 0 ? <span style={{ color: '#f28d1a' }}>R$ {(store.shipping * shippingFactor).toFixed(2)}</span> : <span style={{ color: '#27ae60' }}>Frete Grátis</span>}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '2px', fontSize: '0.68rem' }}>
                       {[1, 2, 3, 4, 5].map(star => (
@@ -3336,8 +3334,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', marginTop: '4px' }}>
                             <div style={{ display: 'flex', gap: '6px', fontSize: '0.68rem', color: '#666', fontWeight: 500, alignItems: 'center', flexWrap: 'wrap' }}>
                               <span>{store.deliveryTimeEstimate || '30-40min'}</span>
-                              <span> • </span>
-                              <span>Frete Grátis</span>
                             </div>
                             {(() => {
                               const ratingInfo = getStoreRatingInfo(store.id);
