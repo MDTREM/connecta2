@@ -152,7 +152,7 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   
   // Dynamic Event Form States
   const [batches, setBatches] = useState([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '' }]);
-  const [eventCategory, setEventCategory] = useState('Show e Festival');
+  const [eventCategory, setEventCategory] = useState('');
   const [tags, setTags] = useState('');
   const [eventType, setEventType] = useState('fisico'); // 'fisico' or 'virtual'
   const [hasNumberedSeats, setHasNumberedSeats] = useState(false);
@@ -343,7 +343,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
     setEvDescription('');
     setEvImages(Array(10).fill(''));
     setBatches([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '' }]);
-    setEventCategory('Show e Festival');
+    setEventCategory('');
     setTags('');
     setEventType('fisico');
     setHasNumberedSeats(false);
@@ -1521,7 +1521,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                       } else {
                         setBatches([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '' }]);
                       }
-                      setEventCategory(ev.category || 'Show e Festival');
+                      setEventCategory(ev.category || '');
                       setTags(ev.tags ? ev.tags.join(', ') : '');
                       setEventType(ev.eventType || 'fisico');
                       setHasNumberedSeats(ev.hasNumberedSeats || false);
@@ -1579,7 +1579,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
           <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Nome da Festa / Evento</label>
           <input 
             type="text" 
-            placeholder="Ex: Calourada de Ouro Preto 2026" 
+            placeholder="Ex: Nome do seu Evento" 
             value={evName} 
             onChange={(e) => setEvName(e.target.value)} 
             className="input-field" 
@@ -1590,15 +1590,14 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Categoria de Festa</label>
-            <select
-              value={eventCategory}
-              onChange={(e) => setEventCategory(e.target.value)}
-              style={{ width: '100%', padding: '8px 12px', fontSize: '0.78rem', borderRadius: '12px', border: '1.5px solid #eee', backgroundColor: 'white', outline: 'none' }}
-            >
-              {['Show e Festival', 'Balada e Festa', 'Universitário e República', 'Teatro e Cultural', 'Gastronômico', 'Esportivo', 'Outros'].map(cat => (
-                <option key={cat} value={cat}>{cat}</option>
-              ))}
-            </select>
+            <input 
+              type="text" 
+              placeholder="Ex: Show, Balada, Teatro..." 
+              value={eventCategory} 
+              onChange={(e) => setEventCategory(e.target.value)} 
+              className="input-field" 
+              required 
+            />
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -1645,7 +1644,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
           </label>
           <input 
             type="text" 
-            placeholder={eventType === 'fisico' ? 'Ex: República Pasárgada, Centro, Ouro Preto - MG' : 'Ex: https://zoom.us/j/123456789'} 
+            placeholder={eventType === 'fisico' ? 'Ex: Rua Principal, 123 - Centro, Cidade - UF' : 'Ex: https://linkdatransmissao.com/live'} 
             value={evLocation} 
             onChange={(e) => setEvLocation(e.target.value)} 
             className="input-field" 
