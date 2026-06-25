@@ -173,6 +173,7 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   // Dynamic Event Form States
   const [batches, setBatches] = useState([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '' }]);
   const [eventCategory, setEventCategory] = useState('');
+  const [ticketTypeSelection, setTicketTypeSelection] = useState('pago'); // 'pago' or 'gratuito'
   const [tags, setTags] = useState('');
   const [eventType, setEventType] = useState('fisico'); // 'fisico' or 'virtual'
   const [hasNumberedSeats, setHasNumberedSeats] = useState(false);
@@ -1817,14 +1818,15 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             onChange={(e) => setHasNumberedSeats(e.target.checked)} 
             style={{ width: '16px', height: '16px', cursor: 'pointer' }}
           />
-          <span style={{ fontSize: '0.78rem', color: '#333', fontWeight: 500 }}>Este evento possui assentos numerados/cadeiras?</span>
+          <span style={{ fontSize: '0.78rem', color: '#333', fontWeight: 500 }}>Este evento possui assentos numerados?</span>
         </div>
 
         {hasNumberedSeats && (
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Quantidade Total de Assentos Numerados (1 a X)</label>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Quantidade de assentos</label>
             <input 
               type="number" 
+              placeholder=""
               value={totalSeats} 
               onChange={(e) => setTotalSeats(e.target.value)} 
               className="input-field" 
@@ -1938,64 +1940,104 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Ingressos:</h4>
         
-        {/* Ingresso Pago */}
-        <div style={{ marginTop: '10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <h5 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#333', margin: 0 }}>Ingresso Pago</h5>
-            <button
-              type="button"
-              onClick={() => handleAddBatch('pago')}
-              style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#fff7e6', color: '#f28d1a', border: 'none', fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer' }}
-            >
-              + Adicionar Ingresso Pago
-            </button>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {batches.map((b, idx) => {
-              if (b.type !== 'pago') return null;
-              return (
-                <div key={idx} style={{ padding: '10px', border: '1px solid #eee', borderRadius: '12px', backgroundColor: '#fafafa', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="text" placeholder="Nome" value={b.name} onChange={(e) => handleBatchChange(idx, 'name', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '120px' }} required />
-                  <input type="text" placeholder="Lote" value={b.batchNumber || ''} onChange={(e) => handleBatchChange(idx, 'batchNumber', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} />
-                  <input type="number" placeholder="Valor" value={b.price} onChange={(e) => handleBatchChange(idx, 'price', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} required />
-                  <input type="number" placeholder="Quantidade" value={b.limit} onChange={(e) => handleBatchChange(idx, 'limit', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} required />
-                  <select value={b.feeOption || 'repassar'} onChange={(e) => handleBatchChange(idx, 'feeOption', e.target.value)} style={{ padding: '6px', fontSize: '0.72rem', borderRadius: '8px', border: '1.5px solid #eee', backgroundColor: 'white', minWidth: '110px' }}>
-                    <option value="repassar">Repassar taxas</option>
-                    <option value="absorver">Absorver taxas</option>
-                  </select>
-                  <button type="button" onClick={() => handleRemoveBatch(idx)} style={{ background: 'none', border: 'none', color: '#ff5e5b', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}>Excluir</button>
-                </div>
-              );
-            })}
-          </div>
+        {/* Seletor de tipo de ingresso */}
+        <div style={{ display: 'flex', gap: '8px', backgroundColor: '#fafafa', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
+          <button
+            type="button"
+            onClick={() => setTicketTypeSelection('pago')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: 'none',
+              backgroundColor: ticketTypeSelection === 'pago' ? '#f28d1a' : 'transparent',
+              color: ticketTypeSelection === 'pago' ? 'white' : '#555',
+              transition: 'all 0.2s'
+            }}
+          >
+            Ingresso Pago
+          </button>
+          <button
+            type="button"
+            onClick={() => setTicketTypeSelection('gratuito')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              border: 'none',
+              backgroundColor: ticketTypeSelection === 'gratuito' ? '#f28d1a' : 'transparent',
+              color: ticketTypeSelection === 'gratuito' ? 'white' : '#555',
+              transition: 'all 0.2s'
+            }}
+          >
+            Ingresso Gratuito
+          </button>
         </div>
 
-        {/* Ingresso Gratuito */}
-        <div style={{ marginTop: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-            <h5 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#333', margin: 0 }}>Ingresso Gratuito</h5>
-            <button
-              type="button"
-              onClick={() => handleAddBatch('gratuito')}
-              style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#f0f9f8', color: '#2ec4b6', border: 'none', fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer' }}
-            >
-              + Adicionar Ingresso Gratuito
-            </button>
+        {ticketTypeSelection === 'pago' ? (
+          /* Ingresso Pago */
+          <div style={{ marginTop: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <h5 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#333', margin: 0 }}>Ingresso Pago</h5>
+              <button
+                type="button"
+                onClick={() => handleAddBatch('pago')}
+                style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#fff7e6', color: '#f28d1a', border: 'none', fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                + Adicionar Ingresso Pago
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {batches.map((b, idx) => {
+                if (b.type !== 'pago') return null;
+                return (
+                  <div key={idx} style={{ padding: '10px', border: '1px solid #eee', borderRadius: '12px', backgroundColor: '#fafafa', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input type="text" placeholder="Nome" value={b.name} onChange={(e) => handleBatchChange(idx, 'name', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '120px' }} required />
+                    <input type="text" placeholder="Lote" value={b.batchNumber || ''} onChange={(e) => handleBatchChange(idx, 'batchNumber', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} />
+                    <input type="number" placeholder="Valor" value={b.price} onChange={(e) => handleBatchChange(idx, 'price', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} required />
+                    <input type="number" placeholder="Quantidade" value={b.limit} onChange={(e) => handleBatchChange(idx, 'limit', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} required />
+                    <select value={b.feeOption || 'repassar'} onChange={(e) => handleBatchChange(idx, 'feeOption', e.target.value)} style={{ padding: '6px', fontSize: '0.72rem', borderRadius: '8px', border: '1.5px solid #eee', backgroundColor: 'white', minWidth: '110px' }}>
+                      <option value="repassar">Repassar taxas</option>
+                      <option value="absorver">Absorver taxas</option>
+                    </select>
+                    <button type="button" onClick={() => handleRemoveBatch(idx)} style={{ background: 'none', border: 'none', color: '#ff5e5b', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}>Excluir</button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {batches.map((b, idx) => {
-              if (b.type !== 'gratuito') return null;
-              return (
-                <div key={idx} style={{ padding: '10px', border: '1px solid #eee', borderRadius: '12px', backgroundColor: '#fafafa', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
-                  <input type="text" placeholder="Nome" value={b.name} onChange={(e) => handleBatchChange(idx, 'name', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '120px' }} required />
-                  <input type="text" placeholder="Lote" value={b.batchNumber || ''} onChange={(e) => handleBatchChange(idx, 'batchNumber', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} />
-                  <input type="number" placeholder="Quantidade" value={b.limit} onChange={(e) => handleBatchChange(idx, 'limit', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} required />
-                  <button type="button" onClick={() => handleRemoveBatch(idx)} style={{ background: 'none', border: 'none', color: '#ff5e5b', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}>Excluir</button>
-                </div>
-              );
-            })}
+        ) : (
+          /* Ingresso Gratuito */
+          <div style={{ marginTop: '4px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+              <h5 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#333', margin: 0 }}>Ingresso Gratuito</h5>
+              <button
+                type="button"
+                onClick={() => handleAddBatch('gratuito')}
+                style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#f0f9f8', color: '#2ec4b6', border: 'none', fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                + Adicionar Ingresso Gratuito
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {batches.map((b, idx) => {
+                if (b.type !== 'gratuito') return null;
+                return (
+                  <div key={idx} style={{ padding: '10px', border: '1px solid #eee', borderRadius: '12px', backgroundColor: '#fafafa', display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <input type="text" placeholder="Nome" value={b.name} onChange={(e) => handleBatchChange(idx, 'name', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '120px' }} required />
+                    <input type="text" placeholder="Lote" value={b.batchNumber || ''} onChange={(e) => handleBatchChange(idx, 'batchNumber', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} />
+                    <input type="number" placeholder="Quantidade" value={b.limit} onChange={(e) => handleBatchChange(idx, 'limit', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} required />
+                    <button type="button" onClick={() => handleRemoveBatch(idx)} style={{ background: 'none', border: 'none', color: '#ff5e5b', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}>Excluir</button>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* 8. Cupons de Desconto */}
