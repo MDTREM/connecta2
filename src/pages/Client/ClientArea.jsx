@@ -9566,6 +9566,19 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
           {/* Sections Menu */}
           {[
+            ...(isOwnProfile && currentUser && currentUser.role !== 'client' ? [
+              { 
+                icon: <Layers size={16} />, 
+                label: currentUser.role === 'seller' ? 'Painel do Lojista' :
+                       currentUser.role === 'provider' ? 'Painel do Prestador' :
+                       currentUser.role === 'organizer' ? 'Painel de Eventos' :
+                       currentUser.role === 'motoboy' ? 'Painel do Entregador' :
+                       currentUser.role === 'admin' ? 'Painel do Administrador' : 'Painel de Parceiro', 
+                key: 'menu_painel_parceiro', 
+                count: null, 
+                action: () => onSwitchView('go_to_partner_panel') 
+              }
+            ] : []),
             { icon: <ShoppingCart size={16} />, label: 'Pedidos Feitos', key: 'menu_pedidos_feitos', count: userProductsOrders.length, action: () => setProfileSubSection('orders') },
             { icon: <Ticket size={16} />, label: 'Ingressos Comprados', key: 'menu_ingressos_comprados', count: userTickets.length, action: () => onSwitchView('client_tickets') },
             { icon: <Heart size={16} />, label: 'Favoritos', key: 'menu_favoritos', count: isOwnProfile ? favorites.length : 0, action: () => isOwnProfile ? onSwitchView('client_favorites') : triggerToast("Apenas o próprio usuário pode ver seus favoritos.") },

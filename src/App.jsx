@@ -21,6 +21,9 @@ function AppContent() {
   const [showChatRoom, setShowChatRoom] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAuthScreen, setShowAuthScreen] = useState(false);
+  
+  // Controle de visualização da Home x Painel para parceiros
+  const [viewMode, setViewMode] = useState('panel'); // 'panel' ou 'home'
 
   // Detect desktop
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
@@ -36,6 +39,19 @@ function AppContent() {
     setShowNotifications(false);
     setClientView(viewName);
   };
+
+  // Sincronizar viewMode quando o usuário logar ou deslogar
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.role === 'client') {
+        setViewMode('home');
+      } else {
+        setViewMode('panel');
+      }
+    } else {
+      setViewMode('home');
+    }
+  }, [currentUser]);
 
   // If user log out, reset view
   useEffect(() => {
@@ -169,6 +185,31 @@ function AppContent() {
     }
 
     const activeRole = currentUser ? currentUser.role : 'client';
+
+    // Qualquer parceiro (lojista, prestador, admin, etc.) no modo 'home' vê a interface de cliente
+    if (activeRole !== 'client' && viewMode === 'home') {
+      return (
+        <ClientArea 
+          currentView={clientView} 
+          onSwitchView={(v) => {
+            if (v === 'go_to_partner_panel') {
+              setViewMode('panel');
+            } else if (!currentUser && (v === 'client_checkout' || v === 'client_ourocoins' || v === 'client_favorites')) {
+              setShowAuthScreen(true);
+            } else {
+              setClientView(v);
+            }
+          }} 
+          onOpenChat={() => {
+            if (!currentUser) setShowAuthScreen(true);
+            else setShowChatRoom(true);
+          }} 
+          isVisitor={false}
+          onTriggerLogin={() => setShowAuthScreen(true)}
+        />
+      );
+    }
+
     switch (activeRole) {
       case 'client':
         return (
@@ -206,7 +247,7 @@ function AppContent() {
     }
   };
 
-  const isClientRole = !currentUser || currentUser.role === 'client';
+  const isClientRole = !currentUser || currentUser.role === 'client' || viewMode === 'home';
   const showBottomBar = isClientRole && 
                         !showChatRoom && 
                         ['client_home', 'client_search', 'client_foryou', 'client_favorites', 'client_profile'].includes(clientView);
@@ -301,6 +342,26 @@ function AppContent() {
               )}
             </button>
 
+            {currentUser && currentUser.role !== 'client' && (
+              <button
+                onClick={() => setViewMode('panel')}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '99px',
+                  backgroundColor: '#f28d1a',
+                  color: 'white',
+                  border: 'none',
+                  fontSize: '0.8rem',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  marginRight: '6px',
+                  boxShadow: '0 2px 8px rgba(242, 141, 26, 0.2)'
+                }}
+              >
+                Voltar ao Painel
+              </button>
+            )}
+
             {!currentUser && (
               <button
                 onClick={() => setShowAuthScreen(true)}
@@ -326,6 +387,8 @@ function AppContent() {
   const renderPartnerHeader = () => {
     if (!currentUser || currentUser.role === 'client' || showChatRoom || showNotifications) return null;
 
+    if (viewMode === 'home') return null;
+
     return (
       <div className="partner-header">
         <span style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d' }}>
@@ -335,6 +398,23 @@ function AppContent() {
            currentUser.role === 'motoboy' ? 'Painel Entregador' : 'Painel Admin'}
         </span>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <button
+            onClick={() => setViewMode('home')}
+            style={{
+              padding: '6px 14px',
+              borderRadius: '99px',
+              backgroundColor: '#f28d1a15',
+              color: '#f28d1a',
+              border: '1px solid #f28d1a',
+              fontSize: '0.72rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              marginRight: '6px'
+            }}
+          >
+            Acessar a Home
+          </button>
+
           {currentUser.role !== 'admin' && (
             <button
               onClick={() => {
