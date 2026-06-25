@@ -4392,7 +4392,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
                     {/* Aviso legal obrigatório de reembolso */}
                     <div style={{ padding: '8px 10px', backgroundColor: '#f9f9f9', borderLeft: '3px solid #f28d1a', borderRadius: '8px', fontSize: '0.62rem', color: '#777', marginTop: '12px', lineHeight: 1.4 }}>
-                      <strong>Aviso Legal de Reembolso:</strong> O reembolso pode ser solicitado em até 7 dias após a compra, desde que a solicitação seja feita até 48 horas antes do início do evento.
+                      Atenção! O produtor é o único responsável pela devolução de valores referentes ao(s) ingresso(s). Em caso de arrependimento da compra, o reembolso do valor do ingresso somente será efetuado caso a solicitação seja feita no prazo de até 7 dias a contar da data da compra e desde que realizado o pedido de devolução com no máximo 48h de antecedência do horário de início do evento. Situações fora do descrito estarão condicionadas a decisão dos produtores do evento.
                     </div>
 
                     <button
