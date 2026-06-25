@@ -1671,7 +1671,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
           <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Nome</label>
           <input 
             type="text" 
-            placeholder="Ex: Nome do seu Evento" 
             value={evName} 
             onChange={(e) => setEvName(e.target.value)} 
             className="input-field" 
@@ -1684,7 +1683,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Categoria</label>
             <input 
               type="text" 
-              placeholder="Ex: Show, Balada, Teatro..." 
               value={eventCategory} 
               onChange={(e) => setEventCategory(e.target.value)} 
               className="input-field" 
@@ -1710,7 +1708,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Localização</label>
             <input 
               type="text" 
-              placeholder="Ex: Arena Show, Club Espaço, Online..." 
               value={evLocation} 
               onChange={(e) => setEvLocation(e.target.value)} 
               className="input-field" 
@@ -1722,7 +1719,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Tags</label>
             <input 
               type="text" 
-              placeholder="Ex: sertanejo, balada, vip" 
               value={tags} 
               onChange={(e) => setTags(e.target.value)} 
               className="input-field" 
@@ -1829,7 +1825,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Quantidade Total de Assentos Numerados (1 a X)</label>
             <input 
               type="number" 
-              placeholder="Ex: 100" 
               value={totalSeats} 
               onChange={(e) => setTotalSeats(e.target.value)} 
               className="input-field" 
@@ -1886,44 +1881,44 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>CEP</label>
-                <input type="text" placeholder="Ex: 35400-000" value={addressCep} onChange={(e) => setAddressCep(e.target.value)} className="input-field" />
+                <input type="text" value={addressCep} onChange={(e) => setAddressCep(e.target.value)} className="input-field" />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Rua</label>
-                <input type="text" placeholder="Rua / Avenida" value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} className="input-field" required />
+                <input type="text" value={addressStreet} onChange={(e) => setAddressStreet(e.target.value)} className="input-field" required />
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Número</label>
-                <input type="text" placeholder="Ex: 123" value={addressNumber} onChange={(e) => setAddressNumber(e.target.value)} className="input-field" required />
+                <input type="text" value={addressNumber} onChange={(e) => setAddressNumber(e.target.value)} className="input-field" required />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Complemento</label>
-                <input type="text" placeholder="Ex: Sala 2, Bloco B" value={addressComplement} onChange={(e) => setAddressComplement(e.target.value)} className="input-field" />
+                <input type="text" value={addressComplement} onChange={(e) => setAddressComplement(e.target.value)} className="input-field" />
               </div>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Bairro</label>
-                <input type="text" placeholder="Bairro" value={addressNeighborhood} onChange={(e) => setAddressNeighborhood(e.target.value)} className="input-field" />
+                <input type="text" value={addressNeighborhood} onChange={(e) => setAddressNeighborhood(e.target.value)} className="input-field" />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Cidade</label>
-                <input type="text" placeholder="Cidade" value={addressCity} onChange={(e) => setAddressCity(e.target.value)} className="input-field" required />
+                <input type="text" value={addressCity} onChange={(e) => setAddressCity(e.target.value)} className="input-field" required />
               </div>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Estado</label>
-                <input type="text" placeholder="Ex: MG" value={addressState} onChange={(e) => setAddressState(e.target.value)} className="input-field" required />
+                <input type="text" value={addressState} onChange={(e) => setAddressState(e.target.value)} className="input-field" required />
               </div>
             </div>
           </div>
         ) : (
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Link (opcional)</label>
-            <input type="text" placeholder="Ex: https://zoom.us/j/123456789" value={onlineLink} onChange={(e) => setOnlineLink(e.target.value)} className="input-field" />
+            <input type="text" value={onlineLink} onChange={(e) => setOnlineLink(e.target.value)} className="input-field" />
           </div>
         )}
       </div>
@@ -1932,7 +1927,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Descrição do Evento:</h4>
         <textarea 
-          placeholder="Escreva sobre as atrações, open bar, etc..." 
           value={evDescription} 
           onChange={(e) => setEvDescription(e.target.value)} 
           className="input-field" 
@@ -2034,7 +2028,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <input 
                 type="text" 
-                placeholder="Código (Ex: VIP20)" 
                 value={c.code} 
                 onChange={(e) => handleCouponChange(idx, 'code', e.target.value)} 
                 className="input-field" 
@@ -2051,7 +2044,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
               </select>
               <input 
                 type="number" 
-                placeholder="Desconto" 
                 value={c.value} 
                 onChange={(e) => handleCouponChange(idx, 'value', e.target.value)} 
                 className="input-field" 
