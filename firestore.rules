@@ -183,6 +183,22 @@ service cloud.firestore {
     }
 
     // ========================================
+    // DELETED USERS
+    // ========================================
+    match /deletedUsers/{userId} {
+      allow read, write: if request.auth != null;
+    }
+
+    // ========================================
+    // REPORTS
+    // ========================================
+    match /reports/{reportId} {
+      allow read: if request.auth != null && isAdmin();
+      allow create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+
+    // ========================================
     // HELPER FUNCTIONS
     // ========================================
     function isAdmin() {
