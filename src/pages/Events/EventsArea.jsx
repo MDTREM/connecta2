@@ -150,13 +150,25 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
     });
   };
   
-  // Batch states
-  const [batch1Name, setBatch1Name] = useState('1º Lote');
-  const [batch1Price, setBatch1Price] = useState('40.00');
-  const [batch1Limit, setBatch1Limit] = useState('100');
-  const [batch2Name, setBatch2Name] = useState('2º Lote');
-  const [batch2Price, setBatch2Price] = useState('60.00');
-  const [batch2Limit, setBatch2Limit] = useState('150');
+  // Dynamic Event Form States
+  const [batches, setBatches] = useState([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '' }]);
+  const [eventCategory, setEventCategory] = useState('Show e Festival');
+  const [tags, setTags] = useState('');
+  const [eventType, setEventType] = useState('fisico'); // 'fisico' or 'virtual'
+  const [hasNumberedSeats, setHasNumberedSeats] = useState(false);
+  const [totalSeats, setTotalSeats] = useState('');
+  const [feeOption, setFeeOption] = useState('absorver'); // 'absorver' or 'repassar'
+  const [coupons, setCoupons] = useState([]); // Array of { code, discountType: 'fixed'|'percent', value }
+  const [policy, setPolicy] = useState('');
+
+  const defaultPolicyTemplate = `1. REEMBOLSO E CANCELAMENTO:
+Atenção! O produtor é o único responsável pela devolução de valores referentes ao(s) ingresso(s). Em caso de arrependimento da compra, o reembolso do valor do ingresso somente será efetuado caso a solicitação seja feita no prazo de até 7 dias a contar da data da compra e desde que realizado o pedido de devolução com no máximo 48h de antecedência do horário de início do evento. Situações fora do descrito estarão condicionadas a decisão dos produtores do evento.
+
+2. ENTRADA E CLASSIFICAÇÃO:
+É proibida a entrada de menores de idade sem o acompanhamento e autorização por escrito dos pais ou responsáveis legais. Apresentação de documento oficial com foto é obrigatória na portaria.
+
+3. USO DE IMAGEM:
+Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua imagem e voz em fotografias, vídeos e materiais promocionais do evento, sem direito a compensação financeira.`;
 
   // Promoter states
   const [commName, setCommName] = useState('');
@@ -192,13 +204,13 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
     }
   };
 
-  const myEvents = events.filter(e => e.organizerId === currentUser.id);
+  const myEvents = events ? events.filter(e => e.organizerId === currentUser?.id) : [];
 
   // Compute sales stats
   let totalTicketsSold = 0;
   let grossSales = 0;
   myEvents.forEach(e => {
-    if (e.batches && Array.isArray(e.batches)) {
+    if (e && e.batches && Array.isArray(e.batches)) {
       e.batches.forEach(b => {
         const soldQty = parseInt(b.sold || 0, 10);
         const ticketPrice = parseFloat(b.price || 0);
@@ -212,28 +224,95 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
     }
   });
 
-  const ticketsCommRate = (visualLayoutSettings?.commissions?.tickets !== undefined ? visualLayoutSettings.commissions.tickets : 10);
+  const ticketsCommRate = (visualLayoutSettings?.commissions?.tickets !== undefined ? parseFloat(visualLayoutSettings.commissions.tickets) : 10);
   const netEarnings = grossSales * (1 - ticketsCommRate / 100);
-  const withdrawableBalance = netEarnings; // Real withdrawable balance from ticket sales
+  const withdrawableBalance = isNaN(netEarnings) ? 0 : netEarnings;
+
+  const handleAddBatch = () => {
+    setBatches([...batches, { name: '', type: 'pago', price: '', limit: '', startDate: '', startTime: '', endDate: '', endTime: '', sold: 0 }]);
+  };
+
+  const handleRemoveBatch = (idx) => {
+    if (batches.length > 1) {
+      setBatches(batches.filter((_, i) => i !== idx));
+    }
+  };
+
+  const handleBatchChange = (idx, field, val) => {
+    setBatches(batches.map((b, i) => {
+      if (i !== idx) return b;
+      const updated = { ...b, [field]: val };
+      if (field === 'type' && val === 'gratuito') {
+        updated.price = '0';
+      }
+      return updated;
+    }));
+  };
+
+  const handleAddCoupon = () => {
+    setCoupons([...coupons, { code: '', discountType: 'percent', value: '' }]);
+  };
+
+  const handleRemoveCoupon = (idx) => {
+    setCoupons(coupons.filter((_, i) => i !== idx));
+  };
+
+  const handleCouponChange = (idx, field, val) => {
+    setCoupons(coupons.map((c, i) => {
+      if (i !== idx) return c;
+      return { ...c, [field]: val };
+    }));
+  };
 
   const handleEventSubmit = (e) => {
     e.preventDefault();
-    if (!evName || !evDate || !evLocation) return;
+    if (!evName || !evDate || !evLocation) {
+      alert('Por favor, insira o nome, a data e o local do evento!');
+      return;
+    }
 
     const filteredImages = evImages.filter(img => img !== '');
     const mainImage = filteredImages[0] || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500';
 
-    const rawBatches = [
-      { name: batch1Name || '1º Lote', price: parseFloat(batch1Price), limit: parseInt(batch1Limit) },
-      { name: batch2Name || '2º Lote', price: parseFloat(batch2Price), limit: parseInt(batch2Limit) }
-    ];
-    // Filter only valid batches
-    const batchesData = rawBatches.filter(b => !isNaN(b.price) && !isNaN(b.limit) && b.limit > 0);
+    const parsedBatches = batches.map(b => ({
+      name: b.name || 'Lote Único',
+      type: b.type || 'pago',
+      price: b.type === 'gratuito' ? 0 : parseFloat(b.price || 0),
+      limit: parseInt(b.limit || 0),
+      startDate: b.startDate || '',
+      startTime: b.startTime || '',
+      endDate: b.endDate || '',
+      endTime: b.endTime || '',
+      sold: b.sold || 0
+    })).filter(b => b.limit > 0);
+
+    if (parsedBatches.length === 0) {
+      alert('É necessário ter pelo menos 1 lote com limite de ingressos maior que 0!');
+      return;
+    }
+
+    const eventData = {
+      name: evName,
+      date: evDate,
+      location: evLocation,
+      image: mainImage,
+      cover: mainImage,
+      images: filteredImages,
+      description: evDescription,
+      category: eventCategory,
+      tags: tags.split(',').map(t => t.trim()).filter(t => t !== ''),
+      eventType,
+      hasNumberedSeats,
+      totalSeats: hasNumberedSeats ? parseInt(totalSeats || 0) : null,
+      feeOption,
+      coupons: coupons.filter(c => c.code.trim() !== ''),
+      policy: policy || defaultPolicyTemplate
+    };
 
     if (editingEventId) {
       const originalEv = events.find(ev => ev.id === editingEventId);
-      const updatedBatches = batchesData.map((newB, idx) => {
-        const origB = originalEv?.batches?.[idx];
+      const updatedBatches = parsedBatches.map(newB => {
+        const origB = originalEv?.batches?.find(ob => ob.name.toLowerCase() === newB.name.toLowerCase());
         return {
           ...newB,
           sold: origB ? parseInt(origB.sold || 0) : 0
@@ -241,53 +320,49 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
       });
 
       updateEvent(editingEventId, {
-        name: evName,
-        date: evDate,
-        location: evLocation,
-        image: mainImage,
-        cover: mainImage,
-        images: filteredImages,
-        description: evDescription,
+        ...eventData,
         batches: updatedBatches
       });
       setEditingEventId(null);
+      alert('Evento atualizado com sucesso!');
     } else {
       addEvent({
         organizerId: currentUser.id,
         organizerName: currentUser.name,
-        name: evName,
-        date: evDate,
-        location: evLocation,
-        image: mainImage,
-        cover: mainImage,
-        images: filteredImages,
-        description: evDescription,
-        batches: batchesData
+        ...eventData,
+        batches: parsedBatches,
+        soldSeats: []
       });
+      alert('Evento cadastrado com sucesso!');
     }
 
+    // Reset Form
     setEvName('');
     setEvDate('');
     setEvLocation('');
     setEvDescription('');
     setEvImages(Array(10).fill(''));
-    setBatch1Name('1º Lote');
-    setBatch1Price('40.00');
-    setBatch1Limit('100');
-    setBatch2Name('2º Lote');
-    setBatch2Price('60.00');
-    setBatch2Limit('150');
+    setBatches([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '' }]);
+    setEventCategory('Show e Festival');
+    setTags('');
+    setEventType('fisico');
+    setHasNumberedSeats(false);
+    setTotalSeats('');
+    setFeeOption('absorver');
+    setCoupons([]);
+    setPolicy('');
     setActiveTab('events');
   };
 
   const handleCommissionerSubmit = (e) => {
     e.preventDefault();
-    if (!commName || !commCode || !selectedEventId) {
+    const eventIdToUse = selectedEventId || (myEvents[0]?.id || '');
+    if (!commName || !commCode || !eventIdToUse) {
       alert('Preencha os dados do comissário, sô!');
       return;
     }
 
-    addCommissioner(selectedEventId, commName, commCode);
+    addCommissioner(eventIdToUse, commName, commCode);
     setCommName('');
     setCommCode('');
     alert('Comissário cadastrado com sucesso! Compartilhe o código dele para contabilizar vendas.');
@@ -1432,19 +1507,29 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
                       setEvImages(imagesArray);
 
                       if (ev.batches && ev.batches.length > 0) {
-                        const b1 = ev.batches[0];
-                        setBatch1Name(b1.name || '1º Lote');
-                        setBatch1Price(b1.price?.toString() || '0.00');
-                        setBatch1Limit(b1.limit?.toString() || '0');
-                        
-                        if (ev.batches.length > 1) {
-                          const b2 = ev.batches[1];
-                          setBatch2Name(b2.name || '2º Lote');
-                          setBatch2Price(b2.price?.toString() || '0.00');
-                          setBatch2Limit(b2.limit?.toString() || '0');
-                        }
+                        setBatches(ev.batches.map(b => ({
+                          name: b.name || '',
+                          type: b.type || 'pago',
+                          price: b.price !== undefined ? b.price.toString() : '',
+                          limit: b.limit !== undefined ? b.limit.toString() : '',
+                          startDate: b.startDate || '',
+                          startTime: b.startTime || '',
+                          endDate: b.endDate || '',
+                          endTime: b.endTime || '',
+                          sold: b.sold || 0
+                        })));
+                      } else {
+                        setBatches([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '' }]);
                       }
-                      setActiveTab('new_event');
+                      setEventCategory(ev.category || 'Show e Festival');
+                      setTags(ev.tags ? ev.tags.join(', ') : '');
+                      setEventType(ev.eventType || 'fisico');
+                      setHasNumberedSeats(ev.hasNumberedSeats || false);
+                      setTotalSeats(ev.totalSeats !== null && ev.totalSeats !== undefined ? ev.totalSeats.toString() : '');
+                      setFeeOption(ev.feeOption || 'absorver');
+                      setCoupons(ev.coupons || []);
+                      setPolicy(ev.policy || '');
+                      setActiveTab('add_event');
                     }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a', padding: '4px' }}
                     title="Editar Evento"
@@ -1481,88 +1566,340 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   );
 
   // --- SUBVIEW 3: CREATE EVENT ---
+  // --- SUBVIEW 3: CREATE EVENT ---
   const renderAddEvent = () => (
-    <form onSubmit={handleEventSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }} className="animate-fade-in">
-      <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d' }}>
+    <form onSubmit={handleEventSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }} className="animate-fade-in">
+      <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>
         {editingEventId ? 'Editar Evento' : 'Cadastrar Novo Evento'}
       </h3>
       
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label>Nome da Festa / Evento</label>
-        <input 
-          type="text" 
-          placeholder="Ex: Calourada de Ouro Preto 2026" 
-          value={evName} 
-          onChange={(e) => setEvName(e.target.value)} 
-          className="input-field" 
-          required 
-        />
+      {/* Event Details */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Nome da Festa / Evento</label>
+          <input 
+            type="text" 
+            placeholder="Ex: Calourada de Ouro Preto 2026" 
+            value={evName} 
+            onChange={(e) => setEvName(e.target.value)} 
+            className="input-field" 
+            required 
+          />
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Categoria de Festa</label>
+            <select
+              value={eventCategory}
+              onChange={(e) => setEventCategory(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '0.78rem', borderRadius: '12px', border: '1.5px solid #eee', backgroundColor: 'white', outline: 'none' }}
+            >
+              {['Show e Festival', 'Balada e Festa', 'Universitário e República', 'Teatro e Cultural', 'Gastronômico', 'Esportivo', 'Outros'].map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Data e Horário</label>
+            <input 
+              type="text" 
+              placeholder="Ex: 24/10/2026 às 22h" 
+              value={evDate} 
+              onChange={(e) => setEvDate(e.target.value)} 
+              className="input-field" 
+              required 
+            />
+          </div>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Tipo de Evento</label>
+            <select
+              value={eventType}
+              onChange={(e) => setEventType(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '0.78rem', borderRadius: '12px', border: '1.5px solid #eee', backgroundColor: 'white', outline: 'none' }}
+            >
+              <option value="fisico">Evento Físico (Presencial)</option>
+              <option value="virtual">Evento Virtual (Online)</option>
+            </select>
+          </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Tags de SEO (separadas por vírgula)</label>
+            <input 
+              type="text" 
+              placeholder="Ex: republica, rock, openbar" 
+              value={tags} 
+              onChange={(e) => setTags(e.target.value)} 
+              className="input-field" 
+            />
+          </div>
+        </div>
+
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>
+            {eventType === 'fisico' ? 'Localização Completa (Endereço)' : 'Link de Transmissão Online'}
+          </label>
+          <input 
+            type="text" 
+            placeholder={eventType === 'fisico' ? 'Ex: República Pasárgada, Centro, Ouro Preto - MG' : 'Ex: https://zoom.us/j/123456789'} 
+            value={evLocation} 
+            onChange={(e) => setEvLocation(e.target.value)} 
+            className="input-field" 
+            required 
+          />
+        </div>
       </div>
 
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label>Data e Horário</label>
-        <input 
-          type="text" 
-          placeholder="Ex: 24/10/2026 às 22h" 
-          value={evDate} 
-          onChange={(e) => setEvDate(e.target.value)} 
-          className="input-field" 
-          required 
-        />
-      </div>
-
-      <div className="form-group" style={{ marginBottom: 0 }}>
-        <label>Localização Completa</label>
-        <input 
-          type="text" 
-          placeholder="Ex: República Pasárgada, Centro" 
-          value={evLocation} 
-          onChange={(e) => setEvLocation(e.target.value)} 
-          className="input-field" 
-          required 
-        />
-      </div>
-
-      <div style={{ border: '1px solid #eee', padding: '12px', borderRadius: '16px', backgroundColor: '#ffffff' }}>
-        <h4 style={{ fontSize: '0.78rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '8px' }}>Configuração de Lotes</h4>
+      {/* Seat Config and App Fee Settings */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h4 style={{ fontSize: '0.82rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Configurações de Assentos e Taxas</h4>
         
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '10px', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '0.65rem' }}>Nome do 1º Lote</label>
-              <input type="text" value={batch1Name} onChange={(e) => setBatch1Name(e.target.value)} className="input-field" style={{ padding: '6px 12px', fontSize: '0.75rem', margin: 0 }} placeholder="Ex: Lote Promocional" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '0.65rem' }}>1º Lote Preço (R$)</label>
-              <input type="number" value={batch1Price} onChange={(e) => setBatch1Price(e.target.value)} className="input-field" style={{ padding: '6px 12px', fontSize: '0.75rem', margin: 0 }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '0.65rem' }}>1º Lote Limite (un)</label>
-              <input type="number" value={batch1Limit} onChange={(e) => setBatch1Limit(e.target.value)} className="input-field" style={{ padding: '6px 12px', fontSize: '0.75rem', margin: 0 }} />
-            </div>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => setHasNumberedSeats(!hasNumberedSeats)}>
+          <input 
+            type="checkbox" 
+            checked={hasNumberedSeats} 
+            onChange={(e) => setHasNumberedSeats(e.target.checked)} 
+            style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+          />
+          <span style={{ fontSize: '0.78rem', color: '#333', fontWeight: 500 }}>Este evento possui assentos numerados/cadeiras?</span>
         </div>
 
-        <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '0.65rem' }}>Nome do 2º Lote</label>
-              <input type="text" value={batch2Name} onChange={(e) => setBatch2Name(e.target.value)} className="input-field" style={{ padding: '6px 12px', fontSize: '0.75rem', margin: 0 }} placeholder="Ex: 2º Lote" />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '0.65rem' }}>2º Lote Preço (R$)</label>
-              <input type="number" value={batch2Price} onChange={(e) => setBatch2Price(e.target.value)} className="input-field" style={{ padding: '6px 12px', fontSize: '0.75rem', margin: 0 }} />
-            </div>
-            <div style={{ flex: 1 }}>
-              <label style={{ fontSize: '0.65rem' }}>2º Lote Limite (un)</label>
-              <input type="number" value={batch2Limit} onChange={(e) => setBatch2Limit(e.target.value)} className="input-field" style={{ padding: '6px 12px', fontSize: '0.75rem', margin: 0 }} />
-            </div>
+        {hasNumberedSeats && (
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Quantidade Total de Assentos Numerados (1 a X)</label>
+            <input 
+              type="number" 
+              placeholder="Ex: 100" 
+              value={totalSeats} 
+              onChange={(e) => setTotalSeats(e.target.value)} 
+              className="input-field" 
+              required={hasNumberedSeats}
+            />
           </div>
+        )}
+
+        <div className="form-group" style={{ marginBottom: 0 }}>
+          <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Cobrança de Taxas do Aplicativo (10%)</label>
+          <select
+            value={feeOption}
+            onChange={(e) => setFeeOption(e.target.value)}
+            style={{ width: '100%', padding: '8px 12px', fontSize: '0.78rem', borderRadius: '12px', border: '1.5px solid #eee', backgroundColor: 'white', outline: 'none' }}
+          >
+            <option value="absorver">Absorver taxas do aplicativo (Deduzir 10% da receita do produtor)</option>
+            <option value="repassar">Repassar taxas para o cliente (Adicionar 10% no total pago pelo cliente)</option>
+          </select>
         </div>
       </div>
 
+      {/* Dynamic Batches */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h4 style={{ fontSize: '0.82rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Configuração de Lotes</h4>
+          <button
+            type="button"
+            onClick={handleAddBatch}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '8px',
+              backgroundColor: '#fff7e6',
+              color: '#f28d1a',
+              border: 'none',
+              fontSize: '0.68rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            + Adicionar Lote
+          </button>
+        </div>
+        
+        {batches.map((b, idx) => (
+          <div key={idx} style={{ padding: '12px', border: '1px solid #f0f0f0', borderRadius: '16px', backgroundColor: '#fafafa', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#f28d1a' }}>Lote #{idx + 1} {b.sold > 0 && `(${b.sold} vendidos)`}</span>
+              {batches.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => handleRemoveBatch(idx)}
+                  style={{
+                    backgroundColor: 'transparent',
+                    color: '#ff5e5b',
+                    border: 'none',
+                    fontSize: '0.68rem',
+                    fontWeight: 500,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Excluir
+                </button>
+              )}
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px' }}>
+              <div>
+                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Nome do Lote</label>
+                <input 
+                  type="text" 
+                  value={b.name} 
+                  onChange={(e) => handleBatchChange(idx, 'name', e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0 }} 
+                  placeholder="Ex: 1º Lote" 
+                  required
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Tipo</label>
+                <select
+                  value={b.type}
+                  onChange={(e) => handleBatchChange(idx, 'type', e.target.value)}
+                  style={{ width: '100%', padding: '6px 10px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee', backgroundColor: 'white' }}
+                >
+                  <option value="pago">Pago</option>
+                  <option value="gratuito">Gratuito</option>
+                </select>
+              </div>
+              <div>
+                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Preço (R$)</label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  value={b.price} 
+                  disabled={b.type === 'gratuito'}
+                  onChange={(e) => handleBatchChange(idx, 'price', e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0 }}
+                  placeholder="0.00"
+                  required={b.type !== 'gratuito'}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Limite de Ingressos</label>
+                <input 
+                  type="number" 
+                  value={b.limit} 
+                  onChange={(e) => handleBatchChange(idx, 'limit', e.target.value)} 
+                  className="input-field" 
+                  style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0 }} 
+                  placeholder="100"
+                  required
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', borderTop: '1px solid #f0f0f0', paddingTop: '6px', marginTop: '2px' }}>
+              <div>
+                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Início das Vendas (Data)</label>
+                <input type="date" value={b.startDate} onChange={(e) => handleBatchChange(idx, 'startDate', e.target.value)} style={{ width: '100%', padding: '5px 8px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Início (Hora)</label>
+                <input type="time" value={b.startTime} onChange={(e) => handleBatchChange(idx, 'startTime', e.target.value)} style={{ width: '100%', padding: '5px 8px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Fim das Vendas (Data)</label>
+                <input type="date" value={b.endDate} onChange={(e) => handleBatchChange(idx, 'endDate', e.target.value)} style={{ width: '100%', padding: '5px 8px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Fim (Hora)</label>
+                <input type="time" value={b.endTime} onChange={(e) => handleBatchChange(idx, 'endTime', e.target.value)} style={{ width: '100%', padding: '5px 8px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee' }} />
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Event Coupons */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h4 style={{ fontSize: '0.82rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Cupons de Desconto</h4>
+          <button
+            type="button"
+            onClick={handleAddCoupon}
+            style={{
+              padding: '4px 10px',
+              borderRadius: '8px',
+              backgroundColor: '#fff7e6',
+              color: '#f28d1a',
+              border: 'none',
+              fontSize: '0.68rem',
+              fontWeight: 600,
+              cursor: 'pointer'
+            }}
+          >
+            + Adicionar Cupom
+          </button>
+        </div>
+
+        {coupons.length === 0 ? (
+          <span style={{ fontSize: '0.68rem', color: '#999', fontStyle: 'italic', textAlign: 'center' }}>Nenhum cupom cadastrado para este evento.</span>
+        ) : (
+          coupons.map((c, idx) => (
+            <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input 
+                type="text" 
+                placeholder="Código (Ex: VIP20)" 
+                value={c.code} 
+                onChange={(e) => handleCouponChange(idx, 'code', e.target.value)} 
+                className="input-field" 
+                style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0, flex: 2 }} 
+                required
+              />
+              <select
+                value={c.discountType}
+                onChange={(e) => handleCouponChange(idx, 'discountType', e.target.value)}
+                style={{ padding: '6px 10px', fontSize: '0.72rem', borderRadius: '10px', border: '1.5px solid #eee', backgroundColor: 'white', flex: 1.5 }}
+              >
+                <option value="percent">Porcentagem (%)</option>
+                <option value="fixed">Valor Fixo (R$)</option>
+              </select>
+              <input 
+                type="number" 
+                placeholder="Desconto" 
+                value={c.value} 
+                onChange={(e) => handleCouponChange(idx, 'value', e.target.value)} 
+                className="input-field" 
+                style={{ padding: '6px 10px', fontSize: '0.72rem', margin: 0, flex: 1.5 }} 
+                required
+              />
+              <button
+                type="button"
+                onClick={() => handleRemoveCoupon(idx)}
+                style={{
+                  backgroundColor: 'transparent',
+                  color: '#ff5e5b',
+                  border: 'none',
+                  fontSize: '0.78rem',
+                  cursor: 'pointer',
+                  flexShrink: 0
+                }}
+              >
+                Excluir
+              </button>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Event Policy */}
+      <div className="form-group" style={{ marginBottom: 0 }}>
+        <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Política do Evento (Reembolsos, regras de entrada e imagem)</label>
+        <textarea 
+          placeholder="Escreva a política do seu evento..." 
+          value={policy || defaultPolicyTemplate} 
+          onChange={(e) => setPolicy(e.target.value)} 
+          className="input-field" 
+          style={{ height: '90px', resize: 'vertical', fontSize: '0.75rem', lineHeight: 1.4 }}
+        />
+      </div>
+
+      {/* Event Photos */}
       <div className="form-group" style={{ marginBottom: 4 }}>
-        <label style={{ fontSize: '0.72rem', color: '#666', marginBottom: '4px', display: 'block' }}>Fotos do Evento (Até 10 slots - Primeira é a Capa)</label>
+        <label style={{ fontSize: '0.72rem', color: '#555', fontWeight: 600, marginBottom: '4px', display: 'block' }}>Fotos do Evento (Até 10 slots - A primeira é a Capa)</label>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px' }}>
           {evImages.map((img, idx) => (
             <div 
@@ -1639,20 +1976,23 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
         </div>
       </div>
 
+      {/* Description */}
       <div className="form-group" style={{ marginBottom: 0 }}>
-        <label>Descrição e Regras</label>
+        <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Descrição Geral da Festa</label>
         <textarea 
-          placeholder="Regras de open bar, idade mínima, etc..." 
+          placeholder="Escreva sobre as atrações, open bar, etc..." 
           value={evDescription} 
           onChange={(e) => setEvDescription(e.target.value)} 
           className="input-field" 
-          style={{ height: '50px', resize: 'none' }}
+          style={{ height: '70px', resize: 'vertical' }}
         />
       </div>
 
       <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
         <button type="button" onClick={() => setActiveTab('events')} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
-        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>Criar Evento</button>
+        <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
+          {editingEventId ? 'Salvar Alterações' : 'Criar Evento'}
+        </button>
       </div>
     </form>
   );

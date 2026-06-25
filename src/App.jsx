@@ -9,6 +9,7 @@ import ProviderArea from './pages/Provider/ProviderArea';
 import EventsArea from './pages/Events/EventsArea';
 import DeliveryArea from './pages/Delivery/DeliveryArea';
 import AdminArea from './pages/Admin/AdminArea';
+import CommissionerArea from './pages/Commissioner/CommissionerArea';
 
 import { Home, Search, Play, Heart, Layers, Bell, LogOut, User, ShoppingCart, MapPin, Coins, Ticket } from 'lucide-react';
 
@@ -198,6 +199,8 @@ function AppContent() {
         return <DeliveryArea onOpenChat={() => setShowChatRoom(true)} />;
       case 'admin':
         return <AdminArea />;
+      case 'commissioner':
+        return <CommissionerArea onOpenChat={() => setShowChatRoom(true)} />;
       default:
         return <div>Papel desconhecido.</div>;
     }

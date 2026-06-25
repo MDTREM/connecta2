@@ -26,6 +26,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
   const [serviceCategory, setServiceCategory] = useState('Guia Turístico');
   const [storeCategory, setStoreCategory] = useState('Artesanato');
   const [licenseFileName, setLicenseFileName] = useState('');
+  const [commissionerCode, setCommissionerCode] = useState('');
 
   // Sync category once loaded
   useEffect(() => {
@@ -176,6 +177,12 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
         return;
       }
       extraData = { cpf, address, licenseFileName };
+    } else if (selectedRole === 'commissioner') {
+      if (!cpf || !commissionerCode) {
+        setErrorMsg('Preencha CPF ou CNPJ e defina seu Código de Comissário!');
+        return;
+      }
+      extraData = { cpf, commissionerCode: commissionerCode.toUpperCase() };
     }
 
     const res = await signup({
@@ -558,6 +565,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                 <option value="provider">Prestador de Serviços</option>
                 <option value="organizer">Organizador de Eventos</option>
                 <option value="motoboy">Entregador</option>
+                <option value="commissioner">Comissário de Eventos</option>
               </select>
             </div>
 
@@ -855,6 +863,49 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                       style={{ display: 'none' }}
                     />
                   </label>
+                </div>
+              </>
+            )}
+
+            {selectedRole === 'commissioner' && (
+              <>
+                <div className="form-group">
+                  <label className="auth-card-label">CPF ou CNPJ</label>
+                  <input
+                    type="text"
+                    placeholder="Digite aqui..."
+                    value={cpf}
+                    onChange={(e) => setCpf(formatCPFOrCNPJ(e.target.value))}
+                    className="auth-card-input"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="auth-card-label">Telefone celular</label>
+                  <input
+                    type="text"
+                    placeholder="(31) 99999-9999"
+                    value={phone}
+                    onChange={(e) => setPhone(formatPhone(e.target.value))}
+                    className="auth-card-input"
+                    required
+                  />
+                </div>
+
+                <div className="form-group">
+                  <label className="auth-card-label">Código de Comissário (Ex: VITIN10)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: VITIN10"
+                    value={commissionerCode}
+                    onChange={(e) => setCommissionerCode(e.target.value)}
+                    className="auth-card-input"
+                    required
+                  />
+                  <span style={{ fontSize: '0.62rem', color: '#ffeaad', marginTop: '4px', display: 'block' }}>
+                    Código promocional para computar suas vendas de ingressos.
+                  </span>
                 </div>
               </>
             )}

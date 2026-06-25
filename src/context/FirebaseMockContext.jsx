@@ -944,24 +944,65 @@ export const FirebaseMockProvider = ({ children }) => {
     return { success: true, order: newOrder };
   };
 
-  const buyTicket = (eventId, batchIndex, qty, commissionerCode = '', useCoins = false) => {
+  const buyTicket = (eventId, batchIndex, qty, commissionerCode = '', useCoins = false, couponAppliedCode = '', selectedSeat = null) => {
     if (!currentUser) return { success: false, message: 'Faça login para comprar ingressos!' };
 
     const event = events.find(e => e.id === eventId);
     if (!event) return { success: false, message: 'Evento não encontrado.' };
 
     const batch = event.batches[batchIndex];
+    if (!batch) return { success: false, message: 'Lote não encontrado.' };
+
+    // Validar datas de venda do lote
+    const now = new Date();
+    if (batch.startDate) {
+      const startDateTimeStr = `${batch.startDate}T${batch.startTime || '00:00'}`;
+      const startDateTime = new Date(startDateTimeStr);
+      if (now < startDateTime) {
+        return { success: false, message: `Vendas para este lote ainda não iniciaram. Iniciam em ${batch.startDate.split('-').reverse().join('/')} às ${batch.startTime || '00:00'}.` };
+      }
+    }
+    if (batch.endDate) {
+      const endDateTimeStr = `${batch.endDate}T${batch.endTime || '23:59'}`;
+      const endDateTime = new Date(endDateTimeStr);
+      if (now > endDateTime) {
+        return { success: false, message: `Vendas para este lote já foram encerradas em ${batch.endDate.split('-').reverse().join('/')} às ${batch.endTime || '23:59'}.` };
+      }
+    }
+
     if (batch.sold + qty > batch.limit) {
       return { success: false, message: 'Ops! Lote esgotado ou sem ingressos suficientes!' };
     }
 
-    const price = batch.price;
-    const subtotal = price * qty;
-    
+    // Validar assento numerado
+    if (event.hasNumberedSeats && selectedSeat) {
+      const soldSeats = event.soldSeats || [];
+      if (soldSeats.includes(selectedSeat)) {
+        return { success: false, message: `O assento ${selectedSeat} já foi reservado por outro cliente. Por favor, escolha outro!` };
+      }
+    }
+
+    const price = parseFloat(batch.price || 0);
+    let subtotal = price * qty;
+
+    // Validar e aplicar Cupom do Evento
+    let couponDiscount = 0;
+    if (couponAppliedCode && event.coupons && event.coupons.length > 0) {
+      const foundCoupon = event.coupons.find(c => c.code.toUpperCase() === couponAppliedCode.toUpperCase());
+      if (foundCoupon) {
+        if (foundCoupon.discountType === 'percent') {
+          couponDiscount = subtotal * (parseFloat(foundCoupon.value || 0) / 100);
+        } else {
+          couponDiscount = parseFloat(foundCoupon.value || 0);
+        }
+      }
+    }
+    subtotal = Math.max(0, subtotal - couponDiscount);
+
     // Apply Coins
     let coinsUsed = 0;
     let coinDiscount = 0;
-    if (useCoins && currentUser.ouroCoins > 0) {
+    if (useCoins && currentUser.ouroCoins > 0 && subtotal > 0) {
       const dailyUsed = getCoinsUsedInPeriod(1);
       const weeklyUsed = getCoinsUsedInPeriod(7);
       const dailyRemaining = Math.max(0, 10000 - dailyUsed);
@@ -975,15 +1016,30 @@ export const FirebaseMockProvider = ({ children }) => {
       coinDiscount = coinsUsed * 0.01;
     }
 
-    const total = subtotal - coinDiscount;
-    const ticketsCommRate = (visualLayoutSettings?.commissions?.tickets !== undefined ? visualLayoutSettings.commissions.tickets : 10) / 100;
-    const commissionFee = subtotal * ticketsCommRate;
+    const ticketPriceAfterDiscount = subtotal - coinDiscount;
+
+    // Calcular Taxa do Aplicativo (10%)
+    const appFeeRate = 0.10;
+    const appFeeAmount = subtotal * appFeeRate;
+    
+    let totalClientPays = ticketPriceAfterDiscount;
+    let commissionFee = appFeeAmount;
+
+    if (event.feeOption === 'repassar') {
+      totalClientPays += appFeeAmount;
+      commissionFee = appFeeAmount;
+    } else {
+      commissionFee = appFeeAmount;
+    }
+
     const ticketOrderId = generateRandomTicketOrderId();
 
     const newTicketOrder = {
       id: ticketOrderId,
       customerId: currentUser.id,
       customerName: currentUser.name,
+      customerCpf: currentUser.cpf || '',
+      customerPhone: currentUser.phone || '',
       type: 'ticket',
       eventId,
       eventName: event.name,
@@ -993,15 +1049,28 @@ export const FirebaseMockProvider = ({ children }) => {
       batchName: batch.name,
       quantity: qty,
       ticketPrice: price,
-      total,
+      subtotal: price * qty,
+      couponCode: couponAppliedCode || null,
+      couponDiscount,
+      seatNumber: selectedSeat || null,
+      feeOption: event.feeOption || 'absorver',
+      appFeeAmount,
+      total: totalClientPays,
       coinsUsed,
       commissionFee,
       date: new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      status: 'delivered'
+      status: 'delivered',
+      commissionerCode: commissionerCode ? commissionerCode.toUpperCase() : null,
+      legalAttentionNotice: "Atenção! O produtor é o único responsável pela devolução de valores referentes ao(s) ingresso(s). Em caso de arrependimento da compra, o reembolso do valor do ingresso somente será efetuado caso a solicitação seja feita no prazo de até 7 dias a contar da data da compra e desde que realizado o pedido de devolução com no máximo 48h de antecedência do horário de início do evento. Situações fora do descrito estarão condicionadas a decisão dos produtores do evento."
     };
 
     const newBatches = [...event.batches];
     newBatches[batchIndex].sold += qty;
+
+    const newSoldSeats = [...(event.soldSeats || [])];
+    if (event.hasNumberedSeats && selectedSeat) {
+      newSoldSeats.push(selectedSeat);
+    }
     
     let newCommissioners = [...(event.commissioners || [])];
     if (commissionerCode) {
@@ -1012,10 +1081,15 @@ export const FirebaseMockProvider = ({ children }) => {
       );
     }
 
-    updateDoc(doc(db, 'events', eventId), { batches: newBatches, commissioners: newCommissioners }).catch(err => console.error(err));
+    updateDoc(doc(db, 'events', eventId), { 
+      batches: newBatches, 
+      commissioners: newCommissioners,
+      soldSeats: newSoldSeats
+    }).catch(err => console.error(err));
+
     setDoc(doc(db, 'orders', ticketOrderId), newTicketOrder).catch(err => console.error(err));
 
-    const earnedCoins = Math.floor(total);
+    const earnedCoins = Math.floor(totalClientPays);
     const finalCoins = Math.max(0, currentUser.ouroCoins - coinsUsed + earnedCoins);
     updateDoc(doc(db, 'users', currentUser.id), { ouroCoins: finalCoins }).catch(err => console.error(err));
     
@@ -1068,6 +1142,42 @@ export const FirebaseMockProvider = ({ children }) => {
     } catch (err) {
       console.error("Erro ao validar ingresso no Firestore:", err);
       return { success: false, message: 'Erro ao validar o ingresso na base de dados.' };
+    }
+  };
+
+  const reportEvent = async (eventId, reason, description = '') => {
+    const event = events.find(e => e.id === eventId);
+    if (!event) return { success: false, message: 'Evento não encontrado.' };
+
+    const reportsCount = (event.reportsCount || 0) + 1;
+    const reportDetails = [...(event.reportDetails || [])];
+    const reportText = `Motivo: ${reason}${description ? ` - Detalhes: ${description}` : ''} (por ${currentUser?.name || 'Anônimo'})`;
+    reportDetails.push(reportText);
+
+    try {
+      await updateDoc(doc(db, 'events', eventId), {
+        reported: true,
+        reportsCount,
+        reportDetails
+      });
+      return { success: true, message: 'Denúncia registrada com sucesso. O Administrador do sistema analisará este evento.' };
+    } catch (err) {
+      console.error(err);
+      return { success: false, message: 'Erro ao registrar a denúncia.' };
+    }
+  };
+
+  const dismissReport = async (eventId) => {
+    try {
+      await updateDoc(doc(db, 'events', eventId), {
+        reported: false,
+        reportsCount: 0,
+        reportDetails: []
+      });
+      return { success: true, message: 'Denúncias limpas com sucesso.' };
+    } catch (err) {
+      console.error(err);
+      return { success: false, message: 'Erro ao limpar as denúncias.' };
     }
   };
 
@@ -1531,6 +1641,8 @@ export const FirebaseMockProvider = ({ children }) => {
       placeOrder,
       buyTicket,
       validateTicket,
+      reportEvent,
+      dismissReport,
       updateOrderStatus,
       callRider,
       cancelCallRider,

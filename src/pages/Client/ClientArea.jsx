@@ -6,7 +6,7 @@ import {
   Trash, Ticket, Check, X, Flame, Sparkles, Play, 
   Coins, Star, Palette, Gift, Wrench, Phone, MessageSquare, Layers, User,
   Plus, Camera, Edit, Bell, LogOut, ChevronRight, Share2,
-  Tag, Truck, CreditCard, Receipt,
+  Tag, Truck, CreditCard, Receipt, AlertTriangle,
   Music, Coffee, Book, Gem, Scissors, Brush, Utensils, Wine, Mountain, Sun, Umbrella, Zap, Leaf
 } from 'lucide-react';
 
@@ -355,6 +355,11 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const [ticketQty, setTicketQty] = useState(1);
   const [commissionerCode, setCommissionerCode] = useState('');
   const [selectedTicketForModal, setSelectedTicketForModal] = useState(null);
+  const [selectedBatchIndex, setSelectedBatchIndex] = useState(0);
+  const [selectedSeat, setSelectedSeat] = useState(null);
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [reportReason, setReportReason] = useState('Outros');
+  const [reportDescription, setReportDescription] = useState('');
 
   // ForYou state
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
@@ -563,12 +568,24 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const handleBuyTicketSubmit = () => {
     const ev = events.find(e => e.id === selectedEventId);
     if (!ev) return;
-    const availableBatch = ev.batches.findIndex(b => b.sold < b.limit);
-    if (availableBatch === -1) return;
-    const res = buyTicket(ev.id, availableBatch, ticketQty, commissionerCode, useCoins);
+
+    if (ev.hasNumberedSeats && !selectedSeat) {
+      alert('Por favor, selecione um assento antes de prosseguir com a compra!');
+      return;
+    }
+
+    const res = buyTicket(ev.id, selectedBatchIndex, ticketQty, commissionerCode, useCoins, couponApplied ? couponCode : '', selectedSeat);
     if (res.success) {
       setPlacedOrderId(res.order.id);
       setShowPaymentModal(false);
+      
+      // Reset
+      setSelectedSeat(null);
+      setCouponCode('');
+      setCouponApplied(false);
+      setCommissionerCode('');
+      setTicketQty(1);
+
       onSwitchView('client_payment_success');
     } else {
       alert(res.message);
@@ -619,6 +636,26 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       handleHiringSubmit();
     } else {
       handlePlaceOrderSubmit();
+    }
+  };
+
+  const handleReportSubmit = () => {
+    if (!reportReason) {
+      alert('Por favor, selecione o motivo da denúncia!');
+      return;
+    }
+    if (!reportDescription.trim()) {
+      alert('Por favor, detalhe sua denúncia!');
+      return;
+    }
+    const res = reportEvent(selectedEventId, reportReason, reportDescription);
+    if (res.success) {
+      alert('Obrigado! Sua denúncia foi registrada com sucesso e será analisada pela equipe de moderação.');
+      setShowReportModal(false);
+      setReportReason('');
+      setReportDescription('');
+    } else {
+      alert(res.message);
     }
   };
 
@@ -3894,15 +3931,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     const availableBatch = ev.batches.findIndex(b => parseInt(b.sold || 0, 10) < parseInt(b.limit || 0, 10));
     const activeBatch = availableBatch !== -1 ? ev.batches[availableBatch] : null;
 
-    const handleBuyTicketSubmit = () => {
-      if (!activeBatch) return;
-      const res = buyTicket(ev.id, availableBatch, ticketQty, commissionerCode);
-      if (res.success) {
-        onSwitchView('client_payment_success');
-      } else {
-        alert(res.message);
-      }
-    };
     const imgBase = ev.cover || ev.image || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500';
     const images = (ev.images && ev.images.filter(img => img)) || [];
     if (images.length === 0 && imgBase) {
@@ -4102,7 +4130,40 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   <div style={{ fontSize: '0.68rem', color: '#888', fontWeight: 400 }}>Organizado por</div>
                   <div style={{ fontSize: '0.8rem', fontWeight: 450, color: '#2d2d2d' }}>{ev.organizerName}</div>
                 </div>
-                <ChevronRight size={16} style={{ color: '#aaa' }} />
+              </div>
+
+              {/* Event Policies */}
+              {ev.policies && ev.policies.trim() !== '' && (
+                <div style={{ marginTop: '14px', borderTop: '1px solid #eee', paddingTop: '12px' }}>
+                  <h4 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#2d2d2d', margin: '0 0 6px 0' }}>Políticas do Evento</h4>
+                  <p style={{ fontSize: '0.68rem', color: '#666', lineHeight: 1.4, whiteSpace: 'pre-wrap', margin: 0 }}>
+                    {ev.policies}
+                  </p>
+                </div>
+              )}
+
+              {/* Report Event button */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '14px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+                <span style={{ fontSize: '0.72rem', color: '#777' }}>Problemas com este evento?</span>
+                <button
+                  type="button"
+                  onClick={() => setShowReportModal(true)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    backgroundColor: 'transparent',
+                    color: '#ff5e5b',
+                    border: 'none',
+                    fontSize: '0.72rem',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                >
+                  <AlertTriangle size={14} />
+                  Denunciar Evento
+                </button>
               </div>
             </div>
 
@@ -4115,11 +4176,17 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   const bSold = parseInt(b.sold || 0, 10);
                   const bLimit = parseInt(b.limit || 0, 10);
                   const isSoldOut = bLimit > 0 && bSold >= bLimit;
-                  const isActive = availableBatch === idx;
+                  const isActive = selectedBatchIndex === idx;
                   const percent = bLimit > 0 ? Math.round((bSold / bLimit) * 100) : 0;
                   return (
                     <div
                       key={b.name}
+                      onClick={() => {
+                        if (!isSoldOut) {
+                          setSelectedBatchIndex(idx);
+                          setSelectedSeat(null);
+                        }
+                      }}
                       style={{
                         display: 'flex',
                         flexDirection: 'column',
@@ -4128,12 +4195,14 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                         borderRadius: '12px',
                         backgroundColor: isActive ? '#f9bb1a15' : '#ffffff',
                         border: isActive ? '1px solid #f28d1a' : '1px solid #eee',
-                        opacity: isSoldOut ? 0.6 : 1
+                        opacity: isSoldOut ? 0.6 : 1,
+                        cursor: isSoldOut ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.15s'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 500, color: '#2d2d2d' }}>{b.name}</span>
-                        <span style={{ fontSize: '0.78rem', color: isSoldOut ? '#999' : (isVisitor ? '#ff5e5b' : '#f28d1a'), fontWeight: 500 }}>
+                        <span style={{ fontSize: '0.72rem', fontWeight: isActive ? 600 : 500, color: '#2d2d2d' }}>{b.name}</span>
+                        <span style={{ fontSize: '0.78rem', color: isSoldOut ? '#999' : (isVisitor ? '#ff5e5b' : '#f28d1a'), fontWeight: 600 }}>
                           {isSoldOut ? 'Esgotado' : (isVisitor ? 'Bloqueado' : `R$ ${b.price.toFixed(2)}`)}
                         </span>
                       </div>
@@ -4150,79 +4219,206 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 })}
               </div>
 
-              {activeBatch && (
-                <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '16px', border: '1px solid #eee' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{ fontSize: '0.72rem', color: '#666' }}>Quantidade</span>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <button 
-                        onClick={() => setTicketQty(Math.max(1, ticketQty - 1))}
-                        style={{ border: '1px solid #ccc', background: 'white', width: '24px', height: '24px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
-                      >
-                        -
-                      </button>
-                      <span style={{ fontSize: '0.78rem', fontWeight: 500 }}>{ticketQty}</span>
-                      <button 
-                        onClick={() => setTicketQty(ticketQty + 1)}
-                        style={{ border: '1px solid #ccc', background: 'white', width: '24px', height: '24px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
-                      >
-                        +
-                      </button>
-                    </div>
+              {/* Seat Map for numbered seats */}
+              {ev.hasNumberedSeats && (
+                <div style={{ marginTop: '12px', marginBottom: '12px', border: '1px solid #eee', padding: '12px', borderRadius: '16px', backgroundColor: '#fafafa' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#2d2d2d', display: 'block', marginBottom: '8px' }}>Selecione seu Assento / Cadeira:</span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '6px', maxHeight: '160px', overflowY: 'auto', padding: '4px' }}>
+                    {Array.from({ length: ev.totalSeats || 0 }, (_, i) => {
+                      const seatNum = (i + 1).toString();
+                      const isSold = (ev.soldSeats || []).includes(seatNum);
+                      const isSelected = selectedSeat === seatNum;
+                      return (
+                        <button
+                          key={seatNum}
+                          type="button"
+                          disabled={isSold}
+                          onClick={() => setSelectedSeat(seatNum)}
+                          style={{
+                            padding: '6px 0',
+                            fontSize: '0.68rem',
+                            borderRadius: '6px',
+                            border: isSelected ? '1.5px solid #f28d1a' : '1px solid #ddd',
+                            backgroundColor: isSold ? '#2d2d2d' : (isSelected ? '#fff7e6' : '#ffffff'),
+                            color: isSold ? '#ffffff' : (isSelected ? '#f28d1a' : '#333'),
+                            fontWeight: isSelected ? 'bold' : 'normal',
+                            cursor: isSold ? 'not-allowed' : 'pointer',
+                            transition: 'all 0.15s'
+                          }}
+                          title={isSold ? 'Ocupado' : `Assento ${seatNum}`}
+                        >
+                          {seatNum}
+                        </button>
+                      );
+                    })}
                   </div>
-                  
-                  {/* Cupom e Comissário Inputs */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '8px' }}>
-                    <div>
-                      <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>Cupom de Desconto</label>
-                      <input 
-                        type="text" 
-                        placeholder="Digite o cupom (opcional)" 
-                        value={couponCode} 
-                        onChange={e => setCouponCode(e.target.value)}
-                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', marginTop: '4px', outline: 'none' }}
-                      />
+                  {selectedSeat && (
+                    <div style={{ fontSize: '0.7rem', color: '#2ec4b6', marginTop: '6px', fontWeight: 600 }}>
+                      Assento selecionado: {selectedSeat}
                     </div>
-                    <div>
-                      <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>Código do Comissário</label>
-                      <input 
-                        type="text" 
-                        placeholder="Digite o código (opcional)" 
-                        value={commissionerCode} 
-                        onChange={e => setCommissionerCode(e.target.value)}
-                        style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', marginTop: '4px', outline: 'none' }}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '8px' }}>
-                    <span style={{ fontSize: '0.75rem', color: '#666' }}>Total:</span>
-                    <span style={{ fontSize: '0.88rem', color: isVisitor ? '#ff5e5b' : '#f28d1a', fontWeight: 500 }}>{isVisitor ? 'Bloqueado' : `R$ ${(activeBatch ? activeBatch.price * ticketQty : 0).toFixed(2)}`}</span>
-                  </div>
-
-                  <button
-                    onClick={() => {
-                      if (isVisitor) {
-                        onTriggerLogin();
-                      } else if (currentUser?.phone && currentUser?.cpf && currentUser?.name) {
-                        setPaymentModalType('event');
-                        setActivePaymentTab('pix');
-                        setShowPaymentModal(true);
-                      } else {
-                        setPreCheckoutType('event');
-                        setPreCheckoutName(currentUser?.name || '');
-                        setPreCheckoutPhone(currentUser?.phone || '');
-                        setPreCheckoutCpf(currentUser?.cpf || '');
-                        setShowPreCheckoutModal(true);
-                      }
-                    }}
-                    className="btn btn-primary"
-                    style={{ width: '100%', height: '48px', marginTop: '16px', fontWeight: 500 }}
-                  >
-                    {isVisitor ? 'Cadastre-se ou Entre para comprar' : 'comprar ingresso'}
-                  </button>
+                  )}
                 </div>
               )}
+
+              {(() => {
+                const activeBatch = ev.batches[selectedBatchIndex] || ev.batches[0];
+                if (!activeBatch) return null;
+
+                const handleApplyEventCoupon = () => {
+                  if (!couponCode) return;
+                  const found = ev.coupons?.find(c => c.code.toUpperCase() === couponCode.toUpperCase());
+                  if (found) {
+                    setCouponApplied(true);
+                  } else {
+                    setCouponApplied(false);
+                    alert('Cupom inválido para este evento!');
+                  }
+                };
+
+                let discountAmount = 0;
+                let couponSuccess = '';
+                let couponError = '';
+                if (couponApplied && couponCode) {
+                  const found = ev.coupons?.find(c => c.code.toUpperCase() === couponCode.toUpperCase());
+                  if (found) {
+                    if (found.discountType === 'percent') {
+                      discountAmount = activeBatch.price * (parseFloat(found.value) / 100);
+                    } else {
+                      discountAmount = parseFloat(found.value);
+                    }
+                    couponSuccess = `Cupom "${found.code}" aplicado com sucesso!`;
+                  } else {
+                    couponError = 'Cupom inválido para este evento!';
+                  }
+                }
+
+                const subtotal = activeBatch.price * ticketQty;
+                const totalDiscount = discountAmount * ticketQty;
+                const finalPriceAfterDiscount = Math.max(0, subtotal - totalDiscount);
+                const hasServiceFee = ev.feeOption === 'repassar';
+                const serviceFee = hasServiceFee ? finalPriceAfterDiscount * 0.10 : 0;
+                const finalTotal = finalPriceAfterDiscount + serviceFee;
+
+                return (
+                  <div style={{ backgroundColor: 'white', padding: '12px', borderRadius: '16px', border: '1px solid #eee' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '0.72rem', color: '#666' }}>Quantidade</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <button 
+                          onClick={() => setTicketQty(Math.max(1, ticketQty - 1))}
+                          style={{ border: '1px solid #ccc', background: 'white', width: '24px', height: '24px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
+                        >
+                          -
+                        </button>
+                        <span style={{ fontSize: '0.78rem', fontWeight: 500 }}>{ticketQty}</span>
+                        <button 
+                          onClick={() => setTicketQty(ticketQty + 1)}
+                          style={{ border: '1px solid #ccc', background: 'white', width: '24px', height: '24px', borderRadius: '50%', cursor: 'pointer', fontSize: '0.8rem' }}
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                    
+                    {/* Cupom e Comissário Inputs */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '8px' }}>
+                      <div>
+                        <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>Cupom de Desconto</label>
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                          <input 
+                            type="text" 
+                            placeholder="Digite o cupom (opcional)" 
+                            value={couponCode} 
+                            onChange={e => setCouponCode(e.target.value)}
+                            disabled={couponApplied}
+                            style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', outline: 'none' }}
+                          />
+                          {couponApplied ? (
+                            <button
+                              type="button"
+                              onClick={() => { setCouponApplied(false); setCouponCode(''); }}
+                              style={{ padding: '0 12px', borderRadius: '8px', backgroundColor: '#ff5e5b', color: 'white', border: 'none', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              Remover
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleApplyEventCoupon}
+                              style={{ padding: '0 12px', borderRadius: '8px', backgroundColor: '#f28d1a', color: 'white', border: 'none', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              Aplicar
+                            </button>
+                          )}
+                        </div>
+                        {couponSuccess && <span style={{ fontSize: '0.62rem', color: '#2ec4b6', display: 'block', marginTop: '3px' }}>{couponSuccess}</span>}
+                        {couponError && <span style={{ fontSize: '0.62rem', color: '#ff5e5b', display: 'block', marginTop: '3px' }}>{couponError}</span>}
+                      </div>
+
+                      <div>
+                        <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>Código do Comissário</label>
+                        <input 
+                          type="text" 
+                          placeholder="Digite o código (opcional)" 
+                          value={commissionerCode} 
+                          onChange={e => setCommissionerCode(e.target.value)}
+                          style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', marginTop: '4px', outline: 'none' }}
+                        />
+                      </div>
+                    </div>
+
+                    <div style={{ borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#666' }}>
+                        <span>Subtotal ({ticketQty}x):</span>
+                        <span>R$ {subtotal.toFixed(2)}</span>
+                      </div>
+                      {totalDiscount > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#2ec4b6' }}>
+                          <span>Desconto Cupom:</span>
+                          <span>- R$ {totalDiscount.toFixed(2)}</span>
+                        </div>
+                      )}
+                      {hasServiceFee && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#666' }}>
+                          <span>Taxa de Serviço (10%):</span>
+                          <span>R$ {serviceFee.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', fontWeight: 600, color: '#f28d1a', marginTop: '4px', paddingTop: '4px', borderTop: '1px dotted #eee' }}>
+                        <span>Total Final:</span>
+                        <span>R$ {finalTotal.toFixed(2)}</span>
+                      </div>
+                    </div>
+
+                    {/* Aviso legal obrigatório de reembolso */}
+                    <div style={{ padding: '8px 10px', backgroundColor: '#f9f9f9', borderLeft: '3px solid #f28d1a', borderRadius: '8px', fontSize: '0.62rem', color: '#777', marginTop: '12px', lineHeight: 1.4 }}>
+                      <strong>Aviso Legal de Reembolso:</strong> O reembolso pode ser solicitado em até 7 dias após a compra, desde que a solicitação seja feita até 48 horas antes do início do evento.
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        if (isVisitor) {
+                          onTriggerLogin();
+                        } else if (currentUser?.phone && currentUser?.cpf && currentUser?.name) {
+                          setPaymentModalType('event');
+                          setActivePaymentTab('pix');
+                          setShowPaymentModal(true);
+                        } else {
+                          setPreCheckoutType('event');
+                          setPreCheckoutName(currentUser?.name || '');
+                          setPreCheckoutPhone(currentUser?.phone || '');
+                          setPreCheckoutCpf(currentUser?.cpf || '');
+                          setShowPreCheckoutModal(true);
+                        }
+                      }}
+                      className="btn btn-primary"
+                      style={{ width: '100%', height: '48px', marginTop: '16px', fontWeight: 500 }}
+                    >
+                      {isVisitor ? 'Cadastre-se ou Entre para comprar' : 'comprar ingresso'}
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -9661,6 +9857,117 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Report Event Modal */}
+      {showReportModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1300,
+            padding: '20px'
+          }}
+        >
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '24px',
+            padding: '24px',
+            width: '100%',
+            maxWidth: '360px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+            color: '#2d2d2d',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: '#2d2d2d', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <AlertTriangle size={18} style={{ color: '#ff5e5b' }} />
+                Denunciar Evento
+              </h3>
+              <button 
+                onClick={() => setShowReportModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#999' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: '0.75rem', color: '#666', margin: 0 }}>
+              Sua denúncia ajuda a manter nossa comunidade segura. Por favor, escolha a categoria e dê detalhes.
+            </p>
+
+            <div>
+              <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 600 }}>Motivo da Denúncia</label>
+              <select
+                value={reportReason}
+                onChange={(e) => setReportReason(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  fontSize: '0.78rem',
+                  borderRadius: '12px',
+                  border: '1px solid #ddd',
+                  backgroundColor: 'white',
+                  marginTop: '4px',
+                  outline: 'none',
+                  color: '#2d2d2d'
+                }}
+              >
+                <option value="">Selecione um motivo...</option>
+                <option value="fraude">Fraude ou Golpe (Evento Inexistente)</option>
+                <option value="conteudo_inadequado">Conteúdo Inadequado / Violento</option>
+                <option value="direitos_autorais">Violação de Direitos Autorais / Marca</option>
+                <option value="venda_proibida">Venda de Itens Proibidos</option>
+                <option value="outro">Outro Motivo</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 600 }}>Descrição dos Detalhes</label>
+              <textarea
+                placeholder="Por favor, descreva detalhadamente o problema..."
+                value={reportDescription}
+                onChange={(e) => setReportDescription(e.target.value)}
+                rows={4}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  fontSize: '0.78rem',
+                  borderRadius: '12px',
+                  border: '1px solid #ddd',
+                  marginTop: '4px',
+                  outline: 'none',
+                  resize: 'none',
+                  fontFamily: 'inherit'
+                }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+              <button
+                onClick={() => setShowReportModal(false)}
+                className="btn"
+                style={{ flex: 1, height: '44px', border: '1px solid #ddd', backgroundColor: '#ffffff', color: '#666', borderRadius: '12px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 500 }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleReportSubmit}
+                className="btn btn-primary"
+                style={{ flex: 1, height: '44px', color: '#ffffff', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 500 }}
+              >
+                Enviar Denúncia
+              </button>
+            </div>
           </div>
         </div>
       )}

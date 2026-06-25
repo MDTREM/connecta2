@@ -107,15 +107,19 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
    const [withdrawSuccess, setWithdrawSuccess] = useState(false);
    const [showTaxInfoModal, setShowTaxInfoModal] = useState(false);
 
-  const providerServices = services.filter(s => s.providerId === currentUser.id);
-  const providerHirings = servicesHired.filter(h => h.providerId === currentUser.id);
+  const providerServices = services ? services.filter(s => s.providerId === currentUser?.id) : [];
+  const providerHirings = servicesHired ? servicesHired.filter(h => h.providerId === currentUser?.id) : [];
   const activeHirings = providerHirings.filter(h => h.status === 'pending' || h.status === 'accepted');
 
   const totalEarnings = providerHirings
     .filter(h => h.status === 'completed')
-    .reduce((acc, h) => acc + h.total - h.commissionFee, 0);
+    .reduce((acc, h) => {
+      const valTotal = parseFloat(h.total || 0);
+      const valFee = parseFloat(h.commissionFee || 0);
+      return acc + (isNaN(valTotal) ? 0 : valTotal) - (isNaN(valFee) ? 0 : valFee);
+    }, 0);
 
-  const withdrawableBalance = totalEarnings; // Real withdrawable balance from completed services
+  const withdrawableBalance = isNaN(totalEarnings) ? 0 : totalEarnings; // Real withdrawable balance from completed services
 
   const myReviews = serviceReviews ? serviceReviews.filter(r => r.providerId === currentUser.id) : [];
   const totalReviewsCount = myReviews.length;
