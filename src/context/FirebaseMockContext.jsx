@@ -1556,9 +1556,17 @@ export const FirebaseMockProvider = ({ children }) => {
       // Find the user document first to copy their data
       const userDoc = users.find(u => u.id === userId);
       if (userDoc) {
+        // Sanitizar objeto para remover campos undefined, que causam erro no Firestore
+        const sanitizedDoc = {};
+        Object.keys(userDoc).forEach(key => {
+          if (userDoc[key] !== undefined) {
+            sanitizedDoc[key] = userDoc[key];
+          }
+        });
+
         // Save the deleted user to 'deletedUsers' collection
         await setDoc(doc(db, 'deletedUsers', userId), {
-          ...userDoc,
+          ...sanitizedDoc,
           deletedAt: Date.now()
         });
       }
