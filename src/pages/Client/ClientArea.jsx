@@ -1426,8 +1426,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   borderRadius: '20px',
                   boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
                   cursor: 'pointer',
-                  minWidth: '240px',
-                  flex: '0 0 80%',
+                  minWidth: isDesktop ? '280px' : '240px',
+                  flex: isDesktop ? '0 0 280px' : '0 0 80%',
                   border: '1px solid #f7f7f7'
                 }}
               >
