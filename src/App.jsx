@@ -11,7 +11,7 @@ import DeliveryArea from './pages/Delivery/DeliveryArea';
 import AdminArea from './pages/Admin/AdminArea';
 import CommissionerArea from './pages/Commissioner/CommissionerArea';
 
-import { Home, Search, Play, Heart, Layers, Bell, LogOut, User, ShoppingCart, MapPin, Coins, Ticket } from 'lucide-react';
+import { Home, Search, Play, Heart, Layers, Bell, LogOut, User, ShoppingCart, MapPin, Coins, Ticket, Bus } from 'lucide-react';
 
 function AppContent() {
   const { currentUser, logout, notifications, markNotificationsRead, categories, cart, isAuthLoading, isDataLoading } = useFirebaseMock();
@@ -261,6 +261,15 @@ function AppContent() {
 
           {/* Right actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
+            {/* Ônibus */}
+            <button
+              onClick={() => handleClientTabClick('client_bus')}
+              className={`desktop-icon-btn ${clientView === 'client_bus' ? 'active' : ''}`}
+              title="Horários de Ônibus"
+            >
+              <Bus size={18} style={{ color: '#f28d1a' }} />
+            </button>
+
             {/* Cupons */}
             <button
               onClick={() => {

@@ -5,7 +5,7 @@ import {
   Store as StoreIcon, Calendar, Award, ArrowLeft, 
   Trash, Ticket, Check, X, Flame, Sparkles, Play, 
   Coins, Star, Palette, Gift, Wrench, Phone, MessageSquare, Layers, User,
-  Plus, Camera, Edit, Bell, LogOut, ChevronRight, Share2,
+  Plus, Camera, Edit, Bell, LogOut, ChevronRight, Share2, Bus,
   Tag, Truck, CreditCard, Receipt, AlertTriangle,
   Music, Coffee, Book, Gem, Scissors, Brush, Utensils, Wine, Mountain, Sun, Umbrella, Zap, Leaf
 } from 'lucide-react';
@@ -380,6 +380,12 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const [toastMessage, setToastMessage] = useState('');
   const [activeStorePage, setActiveStorePage] = useState(0);
   const [activeEventPage, setActiveEventPage] = useState(0);
+  
+  // Bus schedule states
+  const [selectedBusRoute, setSelectedBusRoute] = useState('bauxita'); // 'bauxita' or 'saramenha'
+  const [selectedBusDay, setSelectedBusDay] = useState('weekday'); // 'weekday', 'saturday', 'sunday'
+  const [selectedLineForModal, setSelectedLineForModal] = useState(null);
+  const [selectedModalBusDay, setSelectedModalBusDay] = useState(0);
 
   // Detail View Thumbnail states
   const [activeProductImageIdx, setActiveProductImageIdx] = useState(0);
@@ -2366,6 +2372,24 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             />
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
+            <button 
+              onClick={() => onSwitchView('client_bus')}
+              style={{
+                position: 'relative',
+                background: '#ffffff',
+                border: '1px solid #eaeaea',
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title="Horários de Ônibus"
+            >
+              <Bus size={16} style={{ color: '#f28d1a' }} />
+            </button>
             <button 
               onClick={() => isVisitor ? onTriggerLogin() : onSwitchView('client_coupons')}
               style={{
@@ -7394,6 +7418,906 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     );
   };
 
+  // --- SUBVIEW: BUS SCHEDULES ---
+  const renderBusSchedule = () => {
+    const linesData = {
+      'BAUXITA X RODOVIÁRIA': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['12:00', '12:30', '13:10', '13:40', '14:20', '14:50', '15:30', '16:00', '16:40', '17:10', '17:50*Cooperouro', '18:20*Cooperouro'],
+            volta: ['11:20', '11:40', '12:35', '13:05', '13:45', '14:55', '15:25', '16:05', '16:35', '17:15', '17:45']
+          }
+        ],
+        notes: 'Os horários de 17:50 e 18:20 têm o ponto final na Cooperouro. Não opera sábados, domingos e feriados.'
+      },
+      'COOPEROURO X M. S. SEBASTIÃO': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['06:20*Via Veloso', '07:30', '08:20*Saída do Pocinho', '09:20*Não passa na UFOP', '10:30*Saída do Pocinho', '11:25*Reforço até Morro Santana', '12:00', '13:00*Saída do Pocinho', '14:20', '15:10*Saída do Pocinho', '16:30*Reforço até Morro Santana', '16:40', '17:30', '19:20', '21:45'],
+            volta: ['05:40', '06:30', '07:00*Em Trânsito', '07:10', '08:30', '09:20', '11:00', '12:00', '13:10', '14:00', '15:30', '16:20', '17:40', '18:40', '20:20']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['06:10*Saída do Pocinho', '08:10*Saída do Pocinho', '10:20*Saída do Pocinho', '12:10*Saída do Pocinho', '14:10*Saída do Pocinho', '16:10*Saída do Pocinho', '18:20*Saída do Pocinho', '21:45*Saída do Pocinho'],
+            volta: ['07:05', '09:10', '11:10', '13:10', '15:10', '17:10', '19:10']
+          }
+        ],
+        notes: 'Viagens especiais partem do Pocinho ou Morro Santana. Não há atendimento aos domingos e feriados.'
+      },
+      'COOPEROURO X PIEDADE': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['08:50', '11:00', '13:00', '15:20', '17:00*Via Praça', '19:10*Via Praça', '21:20*Via Praça', '22:40*Via Praça'],
+            volta: ['06:10', '07:30', '10:00', '12:00', '14:20', '16:10*Via Praça', '18:10', '20:20', '22:10*Rota Estendida']
+          },
+          {
+            tabLabel: 'Sábado, Domingo e Feriado',
+            ida: ['17:00', '19:10'],
+            volta: ['06:10', '20:00']
+          }
+        ],
+        notes: 'Viagem das 22:10 realiza itinerário estendido via Praça Tiradentes, Av. JK e Fundação Gorceix.'
+      },
+      'COOPEROURO X SANTA CRUZ': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['09:40', '11:45', '15:40', '17:00', '19:20', '21:30', '22:40'],
+            volta: ['06:20', '07:20', '08:35', '10:40', '12:50', '18:10', '20:25']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: [],
+            volta: ['06:20']
+          }
+        ],
+        notes: 'Não há atendimento aos domingos e feriados.'
+      },
+      'JARDIM ALVORADA X HOSPITAL': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['06:20', '07:15'],
+            volta: []
+          }
+        ],
+        notes: 'Não há atendimento aos sábados, domingos e feriados.'
+      },
+      'M. SANTANA X SÃO CRISTÓVÃO': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Atendimento pela linha Morro São Sebastião',
+            ida: [],
+            volta: []
+          }
+        ],
+        notes: 'Esta linha é atendida pela linha do Morro São Sebastião.'
+      },
+      'M. S. SEBASTIÃO X SÃO CRISTÓVÃO': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['06:00*Saída Morro Santana', '06:15*Saída Morro São Sebastião', '06:30*Saída Morro Santana', '06:30*Saída Morro São Sebastião', '07:00*Saída Morro Santana', '07:30*Saída Morro Santana', '07:30*Saída Morro São Sebastião', '08:00*Saída Morro Santana', '08:00*Saída Morro São Sebastião', '08:30*Saída Morro Santana', '09:00*Saída Morro Santana', '09:00*Saída Morro São Sebastião', '09:30*Saída Morro Santana', '09:30*Saída Morro São Sebastião', '10:00*Saída Morro Santana', '10:30*Saída Morro Santana', '10:30*Saída Morro São Sebastião', '11:00*Saída Morro Santana', '11:00*Saída Morro São Sebastião', '11:30*Saída Morro Santana', '12:00*Saída Morro Santana', '12:00*Saída Morro São Sebastião', '12:30*Saída Morro Santana', '12:30*Saída Morro São Sebastião', '13:00*Saída Morro Santana', '13:15*Saída Morro São Sebastião', '13:30*Saída Morro Santana', '14:00*Saída Morro Santana', '14:00*Saída Morro São Sebastião', '14:45*Saída Morro São Sebastião', '15:00*Saída Morro Santana', '15:30*Saída Morro Santana', '15:30*Saída Morro São Sebastião', '16:15*Saída Morro Santana', '16:15*Saída Morro São Sebastião', '16:40*Saída Morro São Sebastião', '17:00*Saída Morro Santana', '17:05*Saída Morro São Sebastião', '17:25*Saída Morro São Sebastião', '17:45*Saída Morro Santana', '17:50*Saída Morro São Sebastião', '18:15*Saída Morro São Sebastião', '18:30*Saída Morro Santana', '18:35*Saída Morro São Sebastião', '19:00*Saída Morro Santana', '19:15*Saída Morro São Sebastião', '19:25*Saída Morro São Sebastião', '20:00*Saída Morro Santana', '20:30*Saída Morro São Sebastião', '21:00*Saída Morro Santana', '21:30*Saída Morro São Sebastião', '21:55*Saída Morro São Sebastião'],
+            volta: ['05:40*Destino Morro Santana', '06:00*Destino Morro São Sebastião', '06:30*Destino Morro São Sebastião', '07:00*Destino Morro Santana', '07:00*Destino Morro São Sebastião', '07:15*Destino Morro Santana', '07:30*Destino Morro São Sebastião', '08:00*Destino Morro Santana', '08:15*Destino Morro São Sebastião', '08:30*Destino Morro Santana', '08:45*Destino Morro São Sebastião', '09:00*Destino Morro Santana', '09:30*Destino Morro Santana', '09:45*Destino Morro São Sebastião', '10:00*Destino Morro Santana', '10:15*Destino Morro São Sebastião', '10:30*Destino Morro Santana', '11:00*Destino Morro Santana', '11:15*Destino Morro São Sebastião', '11:30*Destino Morro Santana', '11:45*Destino Morro São Sebastião', '12:00*Destino Morro Santana', '12:30*Destino Morro Santana', '12:30*Destino Morro São Sebastião', '13:00*Destino Morro Santana', '13:30*Destino Morro Santana', '13:15*Destino Morro São Sebastião', '14:00*Destino Morro Santana', '14:30*Destino Morro Santana', '14:45*Destino Morro São Sebastião', '15:00*Destino Morro Santana', '15:30*Destino Morro Santana', '15:40*Destino Morro São Sebastião', '16:05*Destino Morro São Sebastião', '16:15*Destino Morro Santana', '16:30*Destino Morro São Sebastião', '16:50*Destino Morro São Sebastião', '17:00*Destino Morro Santana', '17:15*Destino Morro São Sebastião', '17:40*Destino Morro São Sebastião', '17:45*Destino Morro Santana', '18:00*Destino Morro São Sebastião', '18:25*Destino Morro São Sebastião', '18:30*Destino Morro Santana', '18:50*Destino Morro São Sebastião', '19:15*Destino Morro São Sebastião', '20:00*Destino Morro Santana', '20:30*Destino Morro São Sebastião', '21:00*Destino Morro Santana', '21:30*Destino Morro São Sebastião', '22:00*Destino Morro São Sebastião', '22:40*Saída da Cooperouro']
+          },
+          {
+            tabLabel: 'Sábado, Domingo e Feriado',
+            ida: ['06:00', '06:30', '07:15', '08:00', '08:45', '09:30', '10:15', '11:00', '11:45', '12:30', '13:20', '14:00', '14:45', '15:30', '16:15', '17:00', '17:45', '18:30', '19:15', '20:30', '21:45', '23:00'],
+            volta: ['06:00', '06:30', '07:15', '08:00', '08:45', '09:30', '11:00', '12:05', '12:40', '13:20', '14:00', '14:45', '15:30', '16:15', '17:00', '17:45', '18:30', '19:15', '20:30', '22:30']
+          }
+        ],
+        notes: 'Itinerários e pontos de partida variam entre Morro Santana e Morro São Sebastião. Horário das 22:40 parte da Cooperouro.'
+      },
+      'POCINHO X S. CRISTÓVÃO (VIA UPA)': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['06:10*Não passa na UFOP', '06:20', '07:10', '08:20', '09:20*Não passa na UFOP', '10:30', '12:10', '13:00', '14:00', '15:10', '16:00', '16:30*Morro Santana', '18:00', '19:20', '20:00', '22:50*Via Saramenha'],
+            volta: ['05:40*Partida Morro São Sebastião', '08:20', '10:20', '13:00', '15:00', '17:00', '19:00', '20:50', '23:30*Via Saramenha']
+          },
+          {
+            tabLabel: 'Sábado, Domingo e Feriado',
+            ida: ['07:00', '08:40', '10:20', '12:00', '13:40', '15:20', '17:00', '18:40', '20:20'],
+            volta: ['07:50', '09:30', '11:10', '12:50', '14:30', '16:10', '17:50', '19:30', '21:10']
+          }
+        ],
+        notes: 'Viagens via Saramenha de Cima destacadas. Horário de 05:40 parte do Morro São Sebastião.'
+      },
+      'RODOVIÁRIA X SANTA CRUZ': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['05:25', '06:00', '06:20', '06:30', '06:45', '07:10', '07:30', '07:55', '08:20', '08:40', '09:05', '09:30', '09:55', '10:20', '10:40', '11:00', '11:20', '11:40', '12:00', '12:20', '12:40', '13:00', '13:20', '13:40', '14:00', '14:20', '14:44', '15:00', '15:20', '15:40', '16:00', '16:20', '16:40', '17:00', '17:20', '17:40', '18:00', '18:20', '18:40', '19:00', '19:40', '20:00', '20:20', '21:00'],
+            volta: ['05:50', '07:15', '07:35', '08:00', '08:30', '08:55', '09:20', '09:40', '10:05', '10:30', '10:55', '11:20', '11:40', '12:00', '12:20', '12:40', '13:00', '13:20', '13:40', '14:00', '14:20', '14:40', '15:00', '15:20', '15:40', '16:00', '16:20', '16:40', '17:00', '17:20', '17:40', '18:00', '18:20', '18:40', '19:00', '19:20', '19:40', '20:00', '20:45', '21:20', '22:10']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['05:25*Via Padre Faria', '06:00*Via Padre Faria', '06:40*Via Padre Faria', '07:00*Via Padre Faria', '07:20*Via Padre Faria', '08:00*Via Padre Faria', '08:40*Via Padre Faria', '09:20*Via Padre Faria', '10:00*Via Padre Faria', '10:40*Via Padre Faria', '11:20*Via Padre Faria', '12:00*Via Padre Faria', '12:40*Via Padre Faria', '13:20*Via Padre Faria', '14:00*Via Padre Faria', '14:40*Via Padre Faria', '15:20*Via Padre Faria', '16:00*Via Padre Faria', '16:40*Via Padre Faria', '17:20*Via Padre Faria', '18:00*Via Padre Faria', '18:40*Via Padre Faria', '19:10*Via Padre Faria', '20:00*Via Padre Faria', '21:00*Via Padre Faria'],
+            volta: ['07:40*Via Padre Faria', '08:20*Via Padre Faria', '09:00*Via Padre Faria', '09:40*Via Padre Faria', '10:20*Via Padre Faria', '11:00*Via Padre Faria', '11:40*Via Padre Faria', '12:20*Via Padre Faria', '13:00*Via Padre Faria', '13:40*Via Padre Faria', '14:20*Via Padre Faria', '15:00*Via Padre Faria', '15:40*Via Padre Faria', '16:20*Via Padre Faria', '17:00*Via Padre Faria', '17:40*Via Padre Faria', '18:20*Via Padre Faria', '19:00*Via Padre Faria', '19:30*Via Padre Faria', '20:00*Via Padre Faria', '21:00*Via Padre Faria', '22:00*Via Padre Faria']
+          },
+          {
+            tabLabel: 'Domingo e Feriado',
+            ida: ['05:25*Via Padre Faria', '06:30*Via Padre Faria', '07:20*Via Padre Faria', '08:10*Via Padre Faria', '09:00*Via Padre Faria', '09:50*Via Padre Faria', '10:40*Via Padre Faria', '11:30*Via Padre Faria', '12:20*Via Padre Faria', '13:10*Via Padre Faria', '14:00*Via Padre Faria', '14:50*Via Padre Faria', '15:40*Via Padre Faria', '16:30*Via Padre Faria', '17:20*Via Padre Faria', '18:10*Via Padre Faria', '19:00*Via Padre Faria', '20:00*Via Padre Faria', '21:00*Via Padre Faria'],
+            volta: ['06:20*Via Padre Faria', '07:20*Via Padre Faria', '08:10*Via Padre Faria', '09:00*Via Padre Faria', '09:50*Via Padre Faria', '10:40*Via Padre Faria', '11:30*Via Padre Faria', '12:20*Via Padre Faria', '13:10*Via Padre Faria', '14:00*Via Padre Faria', '14:50*Via Padre Faria', '15:40*Via Padre Faria', '16:30*Via Padre Faria', '17:20*Via Padre Faria', '18:10*Via Padre Faria', '19:00*Via Padre Faria', '20:00*Via Padre Faria', '21:00*Via Padre Faria', '22:00*Via Padre Faria']
+          }
+        ],
+        notes: 'Viagens via Padre Faria destacadas aos sábados, domingos e feriados.'
+      },
+      'SARAMENHA X SÃO CRISTÓVÃO': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['05:30', '06:05', '06:30', '06:55', '07:20', '07:45', '08:10', '08:35', '09:00', '09:25', '09:50', '10:15', '10:40', '11:05', '11:30', '11:50', '12:20', '12:45', '13:10', '13:35', '14:00', '14:25', '14:50', '15:15', '15:40', '16:05', '16:30', '16:55', '17:20', '17:55', '18:25', '19:00', '19:35', '20:10', '20:40', '21:30', '22:30*Saída do Pocinho via Saramenha'],
+            volta: ['05:55', '06:00*Saída Bairro Liberdade via UFOP', '06:30', '06:55', '07:20', '07:45', '08:10', '08:35', '09:00', '09:25', '09:55', '10:15', '10:45', '11:05', '11:30', '12:00', '12:30', '12:50', '13:10', '13:35', '14:00', '14:25', '14:50', '15:15', '15:40', '16:05', '16:30', '17:00', '17:20', '17:50', '18:10', '18:35', '19:10', '19:45', '20:00', '20:20', '20:40', '21:00', '21:40', '22:30', '23:30*Viagem atendida pela linha do Pocinho via Saramenha']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['05:30', '06:30', '07:20', '08:10', '09:00', '09:50', '10:45', '11:30', '12:20', '13:10', '14:00', '14:50', '15:40', '16:30', '17:20', '18:10', '19:00', '19:50', '20:40', '21:30', '22:20'],
+            volta: ['05:50', '06:30', '07:20', '08:10', '09:00', '09:45', '10:45', '11:00', '11:30', '12:20', '12:30', '13:10', '14:00', '14:50', '15:40', '16:30', '17:30', '18:10', '19:00', '19:50', '20:40', '21:30', '22:00', '23:00']
+          },
+          {
+            tabLabel: 'Domingo e Feriado',
+            ida: ['05:30', '06:30', '07:20', '08:10', '09:00', '09:50', '10:45', '11:30', '12:20', '13:10', '14:00', '14:50', '15:40', '16:30', '17:20', '18:10', '19:00', '19:50', '20:40', '22:20'],
+            volta: ['05:50', '06:30', '07:20', '08:10', '09:00', '09:50', '10:45', '11:30', '12:20', '13:10', '14:00', '14:50', '15:40', '16:30', '17:30', '18:10', '19:00', '19:50', '20:40', '21:30', '23:00']
+          }
+        ],
+        notes: 'Viagens via UFOP, Bairro Liberdade e Pocinho sinalizadas.'
+      },
+      'TAQUARAL X COOPEROURO': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['05:20', '05:20', '06:00', '06:15', '06:30', '06:30', '06:45', '07:00', '07:20', '07:40', '07:50', '08:00', '08:10', '08:20', '08:40', '09:00', '09:20', '09:30', '09:40', '10:00', '10:20', '10:30', '10:40', '11:00', '11:10', '11:20', '11:40', '12:00', '12:20', '12:40', '12:50', '12:55', '13:00', '13:20', '13:40', '14:00', '14:20', '14:40', '15:00', '15:20', '15:40', '15:55', '16:00', '16:20', '16:40', '17:00', '17:10', '17:20', '17:30', '17:40', '18:00', '18:10', '18:20', '18:40', '19:00', '19:20', '19:40', '19:50', '20:00', '20:20', '20:40', '21:00', '21:40', '22:00*Não passa na UFOP'],
+            volta: ['06:00', '06:15', '06:30', '07:00', '07:10', '07:20', '07:35', '07:50', '08:10', '08:30', '08:40', '08:50', '09:10', '09:20', '09:30', '09:50', '10:10', '10:20', '10:30', '10:50', '11:10', '11:30', '11:40', '11:50', '11:55', '12:10', '12:30', '12:50', '13:10', '13:30', '13:50', '14:10', '14:30', '14:40', '14:50', '15:00', '15:10', '15:30', '15:50', '16:00', '16:10', '16:20', '16:30', '16:50', '16:50', '17:10', '17:10', '17:30', '17:50', '18:10', '18:30', '18:40', '18:50', '19:10', '19:30', '19:50', '20:10', '20:30', '20:50', '21:00', '21:40', '22:10', '22:40']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['05:20', '06:00', '06:15', '06:30', '06:45', '07:00', '07:20', '07:40', '08:00', '08:20', '08:40', '09:00', '09:20', '09:40', '10:00', '10:20', '10:40', '11:00', '11:20', '11:40', '12:00', '12:20', '12:40', '13:00', '13:20', '13:40', '14:00', '14:20', '14:40', '15:00', '15:20', '15:40', '16:00', '16:20', '16:40', '17:00', '17:20', '17:40', '18:00', '18:20', '18:40', '19:00', '19:20', '19:40', '20:00', '20:20', '20:40', '21:15', '21:40'],
+            volta: ['06:10', '06:30', '06:50', '07:10', '07:30', '07:40', '08:00', '08:20', '08:40', '09:00', '09:20', '09:40', '10:00', '10:20', '10:40', '11:00', '11:20', '11:40', '12:00', '12:20', '12:40', '13:00', '13:20', '13:40', '14:00', '14:20', '14:40', '15:00', '15:20', '15:40', '16:00', '16:20', '16:40', '17:00', '17:20', '17:40', '18:00', '18:20', '18:40', '19:00', '19:20', '19:40', '20:00', '20:20', '20:40', '21:40', '22:10']
+          },
+          {
+            tabLabel: 'Domingo e Feriado',
+            ida: ['05:20', '06:00', '06:20', '06:40', '07:00', '07:25', '07:50', '08:15', '08:40', '09:00', '09:25', '09:50', '10:15', '10:40', '11:00', '11:25', '11:50', '12:15', '12:40', '13:00', '13:25', '13:50', '14:15', '14:40', '15:00', '15:25', '15:50', '16:15', '16:40', '17:00', '17:25', '17:50', '18:15', '18:40', '19:00', '19:30', '19:50', '20:15', '20:40', '21:00'],
+            volta: ['06:20', '07:00', '07:20', '07:40', '08:00', '08:25', '08:50', '09:15', '09:40', '10:00', '10:25', '10:50', '11:15', '11:40', '12:00', '12:25', '12:50', '13:15', '13:40', '14:00', '14:25', '14:50', '15:15', '15:40', '16:00', '16:25', '16:50', '17:15', '17:40', '18:00', '18:25', '18:50', '19:15', '19:40', '20:00', '20:50', '21:15', '21:40', '22:10']
+          }
+        ],
+        notes: 'Itinerários e horários de saída de segunda a sexta, sábados, domingos e feriados.'
+      },
+      'VILA APARECIDA X PIEDADE': {
+        category: 'urbana',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['06:10*Direto Cooperouro', '07:00*Direto Cooperouro', '08:00', '09:00', '09:40', '10:50', '11:40', '12:30', '13:20', '14:10', '15:00', '15:50', '16:40', '17:30', '18:20', '19:10', '20:00'],
+            volta: ['06:20', '07:15', '08:15', '08:50', '09:50', '10:30', '11:40', '12:30', '13:20', '14:10', '15:00', '15:50', '16:40', '17:30', '18:20', '19:10', '20:10*Via Cooperouro']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['06:10*Para Cooperouro', '08:00', '09:40', '11:20', '13:00', '14:40', '16:15', '18:00', '20:00*Para Cooperouro'],
+            volta: ['07:15', '08:50', '10:30', '12:10', '13:50', '15:30', '17:00*Via Cooperouro', '19:00*Via Cooperouro']
+          },
+          {
+            tabLabel: 'Domingos e Feriados',
+            ida: ['06:10', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00*Para Cooperouro'],
+            volta: ['07:15', '09:00', '11:00', '13:00', '15:00', '17:00*Via Cooperouro para Piedade', '19:00*Via Cooperouro para Piedade']
+          }
+        ],
+        notes: 'Viagens via Cooperouro destacadas nos horários especiais.'
+      },
+      'ANT. PEREIRA X O. PRETO': {
+        category: 'urbana_distrito',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['06:00', '14:00'],
+            volta: ['12:00', '16:30']
+          }
+        ],
+        notes: 'Linha EXPRESSA DIRETA. Por determinação regulamentar, não é permitido embarque/desembarque em Mariana. Não opera sábados, domingos e feriados.'
+      },
+      'CACHOEIRA(AMAR.) X O. PRETO': {
+        category: 'urbana_distrito',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['06:00', '06:10', '06:15', '06:50', '07:20', '07:30', '08:20', '08:20', '09:00', '09:40', '10:20', '11:00', '11:10', '11:40', '12:20', '13:00', '13:20', '13:40', '14:20', '15:00', '15:40', '15:50', '16:20', '17:00', '17:40', '18:10', '18:20', '18:20', '19:00', '20:10*Hospital', '20:40', '22:00'],
+            volta: ['06:15', '06:50', '07:10', '07:40', '08:20', '09:00', '09:30', '09:40', '10:20', '10:00*Rodrigo Silva', '11:00', '11:40', '12:20', '12:20', '13:00', '13:40', '14:20', '14:35', '15:00', '15:40', '16:20', '17:00', '17:20', '17:40', '18:20', '19:00', '19:50', '21:20', '22:40']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['07:00*Partida do Ratinho', '07:00*Partida de Cachoeira', '08:30*Partida de Cachoeira', '09:00*Partida de Amarantina', '10:20*Partida de Cachoeira', '11:00*Partida do Ratinho', '13:00*Partida de Cachoeira', '15:00*Partida de Cachoeira', '17:00*Partida do Ratinho', '19:00*Partida de Amarantina'],
+            volta: ['07:40*Ponto final Cachoeira', '08:00*Ponto final Amarantina', '09:20*Ponto final Cachoeira', '10:00*Ponto final Ratinho', '11:00*Ponto final Cachoeira', '12:00*Ponto final Cachoeira', '14:00*Ponto final Cachoeira', '16:00*Ponto final Ratinho', '18:00*Ponto final Amarantina', '20:00*Ponto final Cachoeira']
+          },
+          {
+            tabLabel: 'Domingo e Feriado',
+            ida: ['07:00*Partida do Ratinho', '09:00*Partida de Amarantina', '11:00*Partida do Ratinho', '13:00*Partida de Cachoeira', '15:00*Partida de Cachoeira', '17:00*Partida do Ratinho', '19:00*Partida de Amarantina'],
+            volta: ['08:00*Ponto final Amarantina', '10:00*Ponto final Ratinho', '12:00*Ponto final Cachoeira', '14:00*Ponto final Cachoeira', '16:00*Ponto final Ratinho', '18:00*Ponto final Amarantina', '20:00*Ponto final Cachoeira']
+          }
+        ],
+        notes: 'Algumas partidas partem ou finalizam em Amarantina ou Ratinho. Consórcio Rota Real Linha 370.'
+      },
+      'LAVRAS NOVAS X OURO PRETO': {
+        category: 'urbana_distrito',
+        schedule: [
+          {
+            tabLabel: 'Segunda, Quarta e Sexta',
+            ida: ['05:45', '11:00'],
+            volta: ['07:00', '17:00']
+          },
+          {
+            tabLabel: 'Terça e Quinta',
+            ida: ['05:45'],
+            volta: ['17:00']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['05:45'],
+            volta: ['13:20']
+          }
+        ],
+        notes: 'Não há atendimento aos domingos e feriados.'
+      },
+      'RODRIGO SILVA X OURO PRETO': {
+        category: 'urbana_distrito',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['06:30*Via Cachoeira do Campo', '12:10*Via Cachoeira do Campo'],
+            volta: ['10:00*Via Cachoeira do Campo', '17:00*Via Cachoeira do Campo']
+          }
+        ],
+        notes: 'Esta linha opera exclusivamente de segunda a sexta-feira via Cachoeira do Campo.'
+      },
+      'SALTO X OURO PRETO': {
+        category: 'urbana_distrito',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['06:45'],
+            volta: ['16:00']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['06:45'],
+            volta: ['13:00']
+          }
+        ],
+        notes: 'Linha atende o distrito de Santo Antônio do Salto. Não opera aos domingos e feriados.'
+      },
+      'SANTA RITA X OURO PRETO': {
+        category: 'urbana_distrito',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['07:15'],
+            volta: ['16:00']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['07:15'],
+            volta: ['13:00']
+          }
+        ],
+        notes: 'Não opera aos domingos e feriados.'
+      },
+      'ALTO DO BELEZA': {
+        category: 'distrital',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['05:45', '06:10', '06:40', '07:05', '07:30', '07:55', '08:20', '08:45', '09:10', '09:35', '10:00', '10:25', '11:00', '11:25', '11:55', '12:00', '12:25', '13:00', '13:25', '14:00', '14:25', '15:00', '15:00*Em Trânsito', '15:25', '16:00', '16:05*Em Trânsito', '16:25', '17:00', '17:05*Em Trânsito', '17:25', '18:00', '18:00*Em Trânsito', '18:25', '19:00', '19:25', '20:00', '20:25', '21:00', '21:25', '22:10', '22:35'],
+            volta: ['05:45', '06:10', '06:40', '07:10', '07:30', '08:20', '09:10', '10:00', '11:00', '12:00', '12:15', '13:00', '14:00', '15:00', '15:20', '16:00', '16:25', '17:00', '17:30', '18:00', '18:30', '19:00', '20:00', '21:50']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['06:40', '07:50', '08:15', '08:35', '09:15', '09:45', '10:25', '10:55', '11:35', '12:05', '12:45', '13:15', '14:25', '15:35', '16:45', '17:55', '19:05', '20:05', '21:05'],
+            volta: ['06:00', '07:00', '07:40', '08:10', '08:50', '09:20', '10:00', '10:30', '11:10', '11:40', '12:20', '12:50', '14:00', '15:10', '16:20', '17:30', '18:40', '19:40', '20:40']
+          },
+          {
+            tabLabel: 'Domingo e Feriado',
+            ida: ['06:45', '07:45', '08:55', '10:05', '11:15', '12:25', '13:35', '14:45', '15:55', '17:05', '18:15', '19:25', '20:25', '21:25'],
+            volta: ['07:00', '08:10', '09:20', '10:30', '11:40', '12:50', '14:00', '15:10', '16:20', '17:30', '18:40', '19:50', '20:50', '21:50']
+          }
+        ],
+        notes: 'Algumas viagens via Vila Alegre e UPA. Carros em trânsito previstos passar na Rodoviária.'
+      },
+      'METALURGICO': {
+        category: 'distrital',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['07:05*Em Trânsito', '08:05*Em Trânsito', '09:05*Em Trânsito', '10:05*Em Trânsito', '11:05*Em Trânsito', '12:05*Em Trânsito', '13:05*Em Trânsito', '14:05*Em Trânsito', '15:05*Em Trânsito', '16:05*Em Trânsito', '17:05*Em Trânsito', '18:05*Em Trânsito', '19:05*Em Trânsito', '20:05*Em Trânsito'],
+            volta: ['06:25', '07:30', '08:30', '09:30', '10:30', '11:30', '12:30', '13:30', '14:30', '15:30', '16:30', '17:30', '18:30', '19:30']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['07:05*Em Trânsito', '08:05*Em Trânsito', '09:05*Em Trânsito', '14:05*Em Trânsito', '15:15*Em Trânsito', '16:25*Em Trânsito', '17:35*Em Trânsito', '18:45*Em Trânsito'],
+            volta: ['06:30', '07:30', '08:30', '13:30', '14:40', '15:50', '17:00', '18:10']
+          }
+        ],
+        notes: 'Saídas do Metalúrgico para o Vila Alegre. Previsões de passagem em trânsito pela Rodoviária de Cachoeira do Campo.'
+      },
+      'VILA ALEGRE': {
+        category: 'distrital',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['05:50', '06:05', '06:30', '06:40', '07:00', '07:30', '07:40', '07:45', '07:50', '08:20', '08:40', '09:10', '09:30', '09:40', '10:00', '10:20', '10:40', '11:00', '11:20', '11:40', '12:00', '12:20', '12:35', '12:40', '13:00', '13:20', '13:40', '14:00', '14:20', '14:44', '15:00', '15:20', '15:40', '16:00', '16:20', '16:35', '16:45', '17:00', '17:20', '17:40', '18:00', '18:20', '18:40', '18:50', '19:00', '19:20', '19:35', '20:00', '20:20', '21:00', '22:10'],
+            volta: ['06:15', '07:20', '08:30', '09:40', '10:50', '12:00', '13:10', '14:20', '15:30', '16:40', '17:50', '19:00', '20:00', '21:00']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['06:00', '06:20', '06:30', '07:20', '08:00', '08:30', '09:10', '09:40', '10:20', '10:50', '11:30', '12:00', '12:40', '13:10', '14:20', '15:30', '16:40', '17:50', '19:00', '20:00', '21:00'],
+            volta: ['06:15', '07:20', '08:30', '09:40', '10:50', '12:00', '13:10', '14:20', '15:30', '16:40', '17:50', '19:00', '20:00', '21:00']
+          },
+          {
+            tabLabel: 'Domingo e Feriado',
+            ida: ['06:00', '07:00', '08:00', '09:10', '10:20', '11:30', '12:40', '13:50', '15:00', '16:10', '17:20', '18:30', '19:40', '20:40'],
+            volta: ['06:15', '07:20', '08:30', '09:40', '10:50', '12:00', '13:10', '14:20', '15:30', '16:40', '17:50', '19:00', '20:00', '21:00']
+          }
+        ],
+        notes: 'Horários via BR-356, Posto Painha, Vila do Cruzeiro e Vila Alegre. Carros em trânsito previstos passar pelo centro.'
+      },
+      'CACHOEIRA X GLAURA': {
+        category: 'distrital',
+        schedule: [
+          {
+            tabLabel: 'Segunda',
+            ida: ['05:40*Via Ilha', '06:45*Via Ilha e Soares', '10:00*Via Centro', '13:10*Via Ilha', '16:00*Via Ilha e Soares', '18:05*Via Centro'],
+            volta: ['06:00', '07:20*Via Soares', '10:20', '13:20', '16:30*Via Soares', '18:30']
+          },
+          {
+            tabLabel: 'Terça, Quarta e Quinta',
+            ida: ['05:40*Via Ilha', '07:00*Via Ilha', '10:00*Via Centro', '13:10*Via Ilha', '16:10*Via Ilha', '18:05*Via Centro'],
+            volta: ['06:00', '07:20', '10:20', '13:20', '16:30', '18:30']
+          },
+          {
+            tabLabel: 'Sexta',
+            ida: ['05:40*Via Ilha', '06:45*Via Ilha e Soares', '07:00*Via Ilha', '10:00*Via Centro', '13:10*Via Ilha', '16:00*Via Ilha e Soares', '18:05*Via Centro'],
+            volta: ['06:00', '07:20*Via Soares', '10:20', '13:20', '16:30*Via Soares', '18:30']
+          },
+          {
+            tabLabel: 'Sábados',
+            ida: ['06:00', '08:00', '10:00', '12:30', '15:30', '17:30'],
+            volta: ['06:20', '08:30', '10:30', '13:00', '16:00', '18:00']
+          }
+        ],
+        notes: 'Viagens via Soares destacadas nas Segundas e Sextas. Não há atendimento aos domingos e feriados.'
+      },
+      'CACHOEIRA X SÃO BARTOLOMEU': {
+        category: 'distrital',
+        schedule: [
+          {
+            tabLabel: 'Segundas e Sextas',
+            ida: ['08:00', '15:00'],
+            volta: ['08:40', '15:40']
+          }
+        ],
+        notes: 'Opera apenas às segundas e sextas-feiras.'
+      },
+      'CACHOEIRA X S. A. DO LEITE': {
+        category: 'distrital',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['06:25', '08:40', '11:15', '13:00', '14:30', '16:40', '18:15'],
+            volta: ['06:00', '06:50', '09:00', '11:30', '14:00', '16:00', '17:00']
+          },
+          {
+            tabLabel: 'Sábado',
+            ida: ['08:40', '11:30', '16:40', '17:30'],
+            volta: ['06:40', '09:00', '15:00', '17:00']
+          }
+        ],
+        notes: 'Algumas viagens realizam trajeto via Catete/Chapada. Não há atendimento aos domingos e feriados.'
+      },
+      'CACHOEIRA X SERRA SIQUEIRA': {
+        category: 'distrital',
+        schedule: [
+          {
+            tabLabel: 'Segunda a Sexta',
+            ida: ['17:15'],
+            volta: ['06:00', '17:35']
+          }
+        ],
+        notes: 'Linha em caráter experimental. Não opera aos sábados, domingos e feriados.'
+      },
+      'CACHOEIRA X SOARES': {
+        category: 'distrital',
+        sundays: null,
+        notes: 'Opera apenas às segundas e sextas-feiras.'
+      }
+    };
+
+    const col1 = [
+      'BAUXITA X RODOVIÁRIA',
+      'COOPEROURO X M. S. SEBASTIÃO',
+      'COOPEROURO X PIEDADE',
+      'COOPEROURO X SANTA CRUZ',
+      'JARDIM ALVORADA X HOSPITAL',
+      'M. SANTANA X SÃO CRISTÓVÃO',
+      'M. S. SEBASTIÃO X SÃO CRISTÓVÃO',
+      'POCINHO X S. CRISTÓVÃO (VIA UPA)',
+      'RODOVIÁRIA X SANTA CRUZ',
+      'SARAMENHA X SÃO CRISTÓVÃO',
+      'TAQUARAL X COOPEROURO',
+      'VILA APARECIDA X PIEDADE'
+    ];
+
+    const col2 = [
+      'ANT. PEREIRA X O. PRETO',
+      'CACHOEIRA(AMAR.) X O. PRETO',
+      'LAVRAS NOVAS X OURO PRETO',
+      'RODRIGO SILVA X OURO PRETO',
+      'SALTO X OURO PRETO',
+      'SANTA RITA X OURO PRETO'
+    ];
+
+    const col3 = [
+      'ALTO DO BELEZA',
+      'METALURGICO',
+      'VILA ALEGRE',
+      'CACHOEIRA X GLAURA',
+      'CACHOEIRA X SÃO BARTOLOMEU',
+      'CACHOEIRA X S. A. DO LEITE',
+      'CACHOEIRA X SERRA SIQUEIRA',
+      'CACHOEIRA X SOARES'
+    ];
+
+    const renderLineItem = (lineName) => {
+      return (
+        <div
+          key={lineName}
+          onClick={() => {
+            setSelectedLineForModal(lineName);
+            setSelectedModalBusDay(0);
+          }}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            padding: '8px 12px',
+            borderRadius: '12px',
+            backgroundColor: '#eef6fc',
+            border: '1px solid #d0e3f4',
+            cursor: 'pointer',
+            transition: 'all 0.2s',
+            minHeight: '48px',
+            userSelect: 'none'
+          }}
+          className="bus-line-hover"
+        >
+          {/* Decorativo listrado à esquerda estilo Rota Real */}
+          <div style={{
+            position: 'relative',
+            width: '34px',
+            height: '34px',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+            background: 'linear-gradient(90deg, #1e3a8a 0%, #1e3a8a 50%, #facc15 50%, #facc15 100%)'
+          }}>
+            <div style={{
+              width: '22px',
+              height: '22px',
+              borderRadius: '50%',
+              backgroundColor: '#1e3a8a',
+              border: '1px solid #ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1
+            }}>
+              <Bus size={11} style={{ color: '#ffffff' }} />
+            </div>
+          </div>
+          <span style={{
+            fontSize: '0.76rem',
+            fontWeight: 600,
+            color: '#1e40af',
+            textTransform: 'uppercase',
+            lineHeight: 1.2
+          }}>
+            - {lineName}
+          </span>
+        </div>
+      );
+    };
+
+    const renderBusModal = () => {
+      if (!selectedLineForModal) return null;
+      const data = linesData[selectedLineForModal];
+      if (!data) return null;
+
+      const scheduleTabs = data.schedule || [];
+      const activeTabIdx = selectedModalBusDay >= scheduleTabs.length ? 0 : selectedModalBusDay;
+      const currentTab = scheduleTabs[activeTabIdx] || { ida: [], volta: [] };
+      const activeTimes = { ida: currentTab.ida || [], volta: currentTab.volta || [] };
+
+      return (
+        <div 
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+            boxSizing: 'border-box'
+          }}
+          onClick={() => setSelectedLineForModal(null)}
+        >
+          <div 
+            style={{
+              backgroundColor: '#ffffff',
+              borderRadius: '24px',
+              width: '100%',
+              maxWidth: '480px',
+              maxHeight: '85vh',
+              display: 'flex',
+              flexDirection: 'column',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.15)',
+              overflow: 'hidden'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '18px 20px',
+              borderBottom: '1px solid #eaeaea',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'flex-start',
+              backgroundColor: '#f8fafc'
+            }}>
+              <div>
+                <span style={{
+                  fontSize: '0.65rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '1px',
+                  color: '#64748b',
+                  fontWeight: 700
+                }}>
+                  {data.category === 'urbana' ? 'Linha Urbana' : data.category === 'urbana_distrito' ? 'Linha Distrito' : 'Linha Distrital'}
+                </span>
+                <h3 style={{
+                  margin: '2px 0 0 0',
+                  fontSize: '0.95rem',
+                  color: '#1e3a8a',
+                  fontWeight: 700,
+                  textTransform: 'uppercase',
+                  lineHeight: 1.3
+                }}>
+                  {selectedLineForModal}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelectedLineForModal(null)}
+                style={{
+                  background: '#f1f5f9',
+                  border: 'none',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#64748b'
+                }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Day Selector */}
+            <div style={{
+              display: 'flex',
+              padding: '12px 20px',
+              gap: '8px',
+              backgroundColor: '#ffffff',
+              borderBottom: '1px solid #f1f5f9',
+              overflowX: 'auto',
+              msOverflowStyle: 'none',
+              scrollbarWidth: 'none'
+            }}>
+              {scheduleTabs.map((tab, idx) => {
+                const isActive = activeTabIdx === idx;
+                return (
+                  <button
+                    key={idx}
+                    onClick={() => setSelectedModalBusDay(idx)}
+                    style={{
+                      flex: scheduleTabs.length > 2 ? '0 0 auto' : 1,
+                      padding: '8px 14px',
+                      borderRadius: '12px',
+                      border: '1px solid',
+                      borderColor: isActive ? '#1e3a8a' : '#e2e8f0',
+                      backgroundColor: isActive ? '#eff6ff' : '#ffffff',
+                      color: isActive ? '#1e3a8a' : '#64748b',
+                      fontSize: '0.7rem',
+                      fontWeight: isActive ? 600 : 500,
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                      whiteSpace: 'nowrap'
+                    }}
+                  >
+                    {tab.tabLabel}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Horarios Content */}
+            <div style={{
+              padding: '20px',
+              overflowY: 'auto',
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              backgroundColor: '#f8fafc'
+            }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                
+                {/* Ida */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  <h4 style={{
+                    margin: '0 0 12px 0',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    color: '#334155',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    borderBottom: '1px solid #f1f5f9',
+                    paddingBottom: '8px'
+                  }}>
+                    Saídas / Ida
+                  </h4>
+                  {activeTimes.ida && activeTimes.ida.length > 0 ? (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))',
+                      gap: '8px'
+                    }}>
+                      {activeTimes.ida.map((time, idx) => {
+                        const parts = time.split('*');
+                        const timeStr = parts[0];
+                        const labelStr = parts[1];
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              padding: '6px 0',
+                              textAlign: 'center',
+                              borderRadius: '8px',
+                              border: '1px solid #e2e8f0',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: '#0f172a',
+                              backgroundColor: labelStr ? '#fff7ed' : '#f8fafc',
+                              borderColor: labelStr ? '#fed7aa' : '#e2e8f0'
+                            }}
+                          >
+                            {timeStr}
+                            {labelStr && (
+                              <div style={{ fontSize: '0.48rem', color: '#ea580c', fontWeight: 500, marginTop: '2px', lineHeight: 1 }}>
+                                {labelStr}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>
+                      Sem viagens registradas.
+                    </div>
+                  )}
+                </div>
+
+                {/* Volta */}
+                <div style={{
+                  backgroundColor: '#ffffff',
+                  borderRadius: '16px',
+                  padding: '16px',
+                  border: '1px solid #e2e8f0'
+                }}>
+                  <h4 style={{
+                    margin: '0 0 12px 0',
+                    fontSize: '0.75rem',
+                    fontWeight: 700,
+                    color: '#334155',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                    borderBottom: '1px solid #f1f5f9',
+                    paddingBottom: '8px'
+                  }}>
+                    Retornos / Volta
+                  </h4>
+                  {activeTimes.volta && activeTimes.volta.length > 0 ? (
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))',
+                      gap: '8px'
+                    }}>
+                      {activeTimes.volta.map((time, idx) => {
+                        const parts = time.split('*');
+                        const timeStr = parts[0];
+                        const labelStr = parts[1];
+                        return (
+                          <div
+                            key={idx}
+                            style={{
+                              padding: '6px 0',
+                              textAlign: 'center',
+                              borderRadius: '8px',
+                              border: '1px solid #e2e8f0',
+                              fontSize: '0.75rem',
+                              fontWeight: 600,
+                              color: '#0f172a',
+                              backgroundColor: labelStr ? '#fff7ed' : '#f8fafc',
+                              borderColor: labelStr ? '#fed7aa' : '#e2e8f0'
+                            }}
+                          >
+                            {timeStr}
+                            {labelStr && (
+                              <div style={{ fontSize: '0.48rem', color: '#ea580c', fontWeight: 500, marginTop: '2px', lineHeight: 1 }}>
+                                {labelStr}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontStyle: 'italic', textAlign: 'center', padding: '10px 0' }}>
+                      Sem viagens registradas.
+                    </div>
+                  )}
+                </div>
+
+              </div>
+
+              {data.notes && (
+                <div style={{
+                  fontSize: '0.68rem',
+                  color: '#64748b',
+                  lineHeight: 1.4,
+                  backgroundColor: '#f1f5f9',
+                  padding: '10px 14px',
+                  borderRadius: '10px',
+                  borderLeft: '3px solid #1e3a8a'
+                }}>
+                  <strong>Observações:</strong> {data.notes}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div style={{ padding: '16px', paddingBottom: '90px', width: '100%', boxSizing: 'border-box' }} className="animate-fade-in">
+        {/* Subview Header */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+          <button 
+            onClick={() => onSwitchView('client_home')}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4px' }}
+          >
+            <ArrowLeft size={22} />
+          </button>
+          <h2 style={{ fontSize: '1.1rem', color: '#2d2d2d', margin: 0, fontWeight: 600 }}>
+            Horários de Ônibus
+          </h2>
+        </div>
+
+        {/* 3 Columns Layout mirroring original UI */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+          gap: '24px',
+          alignItems: 'start',
+          marginBottom: '24px'
+        }}>
+          {/* Column 1: Urbano 1 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ padding: '10px', backgroundColor: '#f0f7ff', borderRadius: '12px', border: '1px solid #d0e3f4', textAlign: 'center' }}>
+              <p style={{ fontSize: '0.78rem', color: '#1e40af', margin: 0, fontWeight: 500 }}>
+                Selecione uma <strong>linha urbana</strong> na lista abaixo para visualizar seus horários.
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {col1.map(line => renderLineItem(line))}
+            </div>
+          </div>
+
+          {/* Column 2: Urbano 2 */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ padding: '10px', backgroundColor: '#f0f7ff', borderRadius: '12px', border: '1px solid #d0e3f4', textAlign: 'center' }}>
+              <p style={{ fontSize: '0.78rem', color: '#1e40af', margin: 0, fontWeight: 500 }}>
+                Selecione uma <strong>linha urbana</strong> na lista abaixo para visualizar seus horários.
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {col2.map(line => renderLineItem(line))}
+            </div>
+          </div>
+
+          {/* Column 3: Distrital */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{ padding: '10px', backgroundColor: '#f0f7ff', borderRadius: '12px', border: '1px solid #d0e3f4', textAlign: 'center' }}>
+              <p style={{ fontSize: '0.78rem', color: '#1e40af', margin: 0, fontWeight: 500 }}>
+                Selecione uma <strong>linha Distrital</strong> na lista abaixo para visualizar seus horários.
+              </p>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {col3.map(line => renderLineItem(line))}
+            </div>
+          </div>
+        </div>
+
+        {/* Redirect Button - Icon removed as requested */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <a
+            href="https://consorciorotareal.com.br/horarios-linhas-onibus/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: 'inline-block',
+              width: '100%',
+              maxWidth: '380px',
+              padding: '14px',
+              borderRadius: '24px',
+              backgroundColor: '#2d2d2d',
+              color: '#ffffff',
+              fontSize: '0.82rem',
+              fontWeight: 500,
+              textDecoration: 'none',
+              textAlign: 'center',
+              boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+              transition: 'background-color 0.2s'
+            }}
+          >
+            Ver Todas as Linhas no Site Oficial
+          </a>
+        </div>
+
+        {/* Pop-up Modal */}
+        {renderBusModal()}
+      </div>
+    );
+  };
+
   // --- SUBVIEW 14: OUROCOINS LEDGER ---
   const renderOuroCoins = () => {
     return (
@@ -8851,6 +9775,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       case 'client_tickets': return renderTicketsView();
       case 'client_following': return renderFollowingView();
       case 'client_coupons': return renderCoupons();
+      case 'client_bus': return renderBusSchedule();
       case 'client_ourocoins': return renderOuroCoins();
       case 'client_search': return renderSearch();
       case 'client_profile': return renderClientProfile();
