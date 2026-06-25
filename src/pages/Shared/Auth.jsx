@@ -45,6 +45,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [showTerms, setShowTerms] = useState(false);
+  const [termsTab, setTermsTab] = useState('terms'); // 'terms' or 'privacy'
 
   // Feedback States
   const [errorMsg, setErrorMsg] = useState('');
@@ -941,7 +942,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                 Li e aceito os{' '}
                 <button
                   type="button"
-                  onClick={() => setShowTerms(true)}
+                  onClick={() => { setTermsTab('terms'); setShowTerms(true); }}
                   style={{
                     background: 'none',
                     border: 'none',
@@ -955,6 +956,24 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   }}
                 >
                   Termos de Uso
+                </button>
+                {' '}e a{' '}
+                <button
+                  type="button"
+                  onClick={() => { setTermsTab('privacy'); setShowTerms(true); }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#ffffff',
+                    textDecoration: 'underline',
+                    padding: 0,
+                    fontSize: 'inherit',
+                    fontWeight: 400,
+                    cursor: 'pointer',
+                    display: 'inline'
+                  }}
+                >
+                  Política de Privacidade
                 </button>
               </label>
             </div>
@@ -1007,52 +1026,145 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             borderRadius: '24px',
             padding: '24px',
             width: '100%',
-            maxWidth: '480px',
-            maxHeight: '80vh',
+            maxWidth: '500px',
+            maxHeight: '85vh',
             display: 'flex',
             flexDirection: 'column',
             boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
             boxSizing: 'border-box'
           }}>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '16px', borderBottom: '1px solid #eaeaea', paddingBottom: '12px', textAlign: 'center' }}>
-              Termos de Uso - Connecta+
-            </h2>
+            {/* Header com Abas */}
+            <div style={{ display: 'flex', borderBottom: '1px solid #eaeaea', marginBottom: '16px', paddingBottom: '8px', justifyContent: 'center', gap: '16px' }}>
+              <button
+                type="button"
+                onClick={() => setTermsTab('terms')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  color: termsTab === 'terms' ? '#f28d1a' : '#888',
+                  borderBottom: termsTab === 'terms' ? '2.5px solid #f28d1a' : 'none',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Termos de Uso
+              </button>
+              <button
+                type="button"
+                onClick={() => setTermsTab('privacy')}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                  color: termsTab === 'privacy' ? '#f28d1a' : '#888',
+                  borderBottom: termsTab === 'privacy' ? '2.5px solid #f28d1a' : 'none',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                Política de Privacidade
+              </button>
+            </div>
             
             <div style={{
               flex: 1,
               overflowY: 'auto',
-              fontSize: '0.85rem',
-              color: '#555555',
-              lineHeight: 1.5,
+              fontSize: '0.78rem',
+              color: '#444444',
+              lineHeight: 1.6,
               paddingRight: '8px',
               marginBottom: '20px',
               textAlign: 'left'
             }} className="custom-scroll">
-              <p style={{ marginBottom: '12px' }}>
-                Bem-vindo ao <span style={{ fontWeight: 500 }}>Connecta+</span>, o marketplace e rede social oficial de Ouro Preto - MG. Ao se cadastrar em nossa plataforma, você concorda com as seguintes condições:
-              </p>
+              {termsTab === 'terms' ? (
+                <>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '10px' }}>Termos e Condições Gerais de Uso</h3>
+                  <p style={{ marginBottom: '10px' }}>
+                    Estes Termos e Condições Gerais de Uso regem a utilização da plataforma Connecta+, um marketplace multi-merchant local de Ouro Preto - MG, acessível por meio de seu website e aplicativo. Ao cadastrar-se e utilizar a plataforma, o usuário aceita integralmente e sem reservas as regras estabelecidas a seguir.
+                  </p>
+                  
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>1. Objeto e Descrição dos Serviços</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    O Connecta+ atua exclusivamente como provedor de tecnologia e intermediador de negócios, oferecendo uma infraestrutura digital que conecta consumidores finais, comerciantes locais (vendedores de produtos físicos), prestadores de serviços autônomos, organizadores de eventos presenciais e virtuais, e entregadores logísticos parceiros na cidade de Ouro Preto e região adjacente.
+                  </p>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>2. Cadastro, Elegibilidade e Validação</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    Para a utilização dos serviços da plataforma, é obrigatório o preenchimento completo dos dados cadastrais com informações verdadeiras, exatas e atualizadas. Contas comerciais (vendedores, prestadores de serviços, organizadores de eventos e entregadores) estão sujeitas à auditoria interna de dados e verificação de documentos legais, tais como CPF, CNPJ e alvarás, reservando-se à plataforma o direito de suspender cadastros inconsistentes.
+                  </p>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>3. Modelo Tarifário e Comissões</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    A intermediação comercial na plataforma está sujeita a uma taxa de comissão administrativa acordada, que é descontada diretamente e na fonte sobre o montante bruto de cada venda de produto, agendamento de serviço ou venda de ingresso. Os repasses financeiros são processados e pagos aos parceiros de acordo com as regras de liberação estabelecidas no painel administrativo.
+                  </p>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>4. Responsabilidade Civil das Partes</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    Considerando a natureza de intermediação da plataforma, a Connecta+ não assume qualquer responsabilidade civil pela fabricação, garantia, entrega, vícios de qualidade ou quantidade dos produtos comercializados; pela execução técnica e pontualidade dos serviços contratados; pela integridade física e segurança dos eventos organizados; nem tampouco pela conduta civil ou acidentes de trânsito envolvendo os entregadores logísticos independentes. Cada parceiro responde integralmente por suas respectivas atividades comerciais e condutas.
+                  </p>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>5. Política de Reembolso e Cancelamento</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    <strong>Produtos Físicos:</strong> O direito de arrependimento e devolução das mercadorias compradas em canais eletrônicos respeitará o prazo legal de até 7 dias corridos a contar do recebimento, devendo ser solicitado e acordado diretamente com o lojista comercial responsável.
+                  </p>
+                  <p style={{ marginBottom: '10px' }}>
+                    <strong>Ingressos de Eventos:</strong> Conforme a legislação aplicável, o reembolso do ingresso em caso de arrependimento da compra será efetuado pelo organizador caso a solicitação seja realizada em até 7 dias a contar da data de compra da entrada, com limite máximo de antecedência de até 48h do início efetivo do evento. Situações divergentes ficam sob a exclusiva deliberação do produtor do respectivo evento.
+                  </p>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>6. Moderação de Conteúdo e Suspensão de Contas</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    A administração da plataforma se reserva o direito de remover qualquer publicação inadequada e banir sumariamente usuários e lojistas que descumprirem as diretrizes comunitárias, leis locais ou praticarem atos fraudulentos.
+                  </p>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>7. Legislação Aplicável e Foro</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    Estes Termos de Uso são regidos pelas leis da República Federativa do Brasil. Para a resolução de litígios decorrentes do presente instrumento, fica eleito o Foro da Comarca de Ouro Preto - MG, com renúncia expressa a qualquer outro por mais privilegiado que seja.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '10px' }}>Diretrizes da Política de Privacidade</h3>
+                  <p style={{ marginBottom: '10px' }}>
+                    A sua privacidade é fundamental para a Connecta+. Esta Política de Privacidade descreve as práticas adotadas pela nossa plataforma para a coleta, tratamento, uso, compartilhamento e eliminação de seus dados pessoais em total conformidade com a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018).
+                  </p>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>1. Informações Coletadas</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    Coletamos dados necessários para a prestação de nossos serviços tecnológicos, divididos em:
+                  </p>
+                  <ul style={{ paddingLeft: '16px', marginBottom: '10px' }}>
+                    <li><strong>Dados cadastrais:</strong> Nome completo, endereço de e-mail, número de celular, CPF/CNPJ, endereços de entrega e dados bancários para repasses financeiros.</li>
+                    <li><strong>Dados de uso e geolocalização:</strong> Histórico de pedidos, dados de navegação no aplicativo e localização geográfica precisa em tempo real (obrigatória para entregadores e opcional para consumidores).</li>
+                  </ul>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>2. Finalidade do Tratamento de Dados</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    Os dados coletados são tratados exclusivamente para os fins de: viabilização técnica das compras e entregas de mercadorias; processamento de pagamentos eletrônicos seguros; liberação e rastreamento de fretes de entregadores; auditoria interna de novos parceiros comerciais; segurança cibernética contra atividades fraudulentas; e envio de avisos e notificações urgentes sobre pedidos.
+                  </p>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>3. Compartilhamento de Dados com Terceiros</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    Para operacionalizar o fluxo de marketplace, compartilhamos os dados indispensáveis dos usuários compradores com os vendedores responsáveis pelos produtos e com os entregadores encarregados da logística de entrega. Também podemos compartilhar dados com intermediadores financeiros integrados para processamento de transações, ou sob ordem de autoridades públicas em cumprimento de obrigações legais.
+                  </p>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>4. Armazenamento Seguro e Criptografia</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    Todos os dados coletados são hospedados em servidores de nuvem de alto padrão de segurança digital, contando com firewalls e criptografia de ponta a ponta. Adotamos as melhores práticas técnicas para assegurar a inviolabilidade física e lógica de seus dados.
+                  </p>
+
+                  <h4 style={{ color: '#2d2d2d', fontWeight: 600, margin: '12px 0 4px 0' }}>5. Direitos dos Titulares de Dados</h4>
+                  <p style={{ marginBottom: '10px' }}>
+                    O usuário possui pleno controle de seus dados e, nos termos da LGPD, pode a qualquer momento requerer a retificação de inconsistências cadastrais ou solicitar a exclusão permanente de todas as suas informações da nossa base de dados. Para tal, basta entrar em contato com o nosso canal integrado de ouvidoria e suporte técnico nas configurações do perfil do usuário.
+                  </p>
+                </>
+              )}
               
-              <h4 style={{ color: '#2d2d2d', fontWeight: 500, margin: '14px 0 6px 0' }}>1. Descrição do Serviço</h4>
-              <p style={{ marginBottom: '12px' }}>
-                O Connecta+ é uma plataforma que conecta consumidores, comerciantes locais, prestadores de serviços, organizadores de eventos e entregadores parceiros na cidade de Ouro Preto e região.
-              </p>
-
-              <h4 style={{ color: '#2d2d2d', fontWeight: 500, margin: '14px 0 6px 0' }}>2. Comissões e Taxas</h4>
-              <p style={{ marginBottom: '12px' }}>
-                A intermediação de vendas e ingressos está sujeita a uma taxa de comissão administrativa retida automaticamente sobre o valor total de cada pedido aprovado. Prestadores de serviços e organizadores de eventos também concordam com a retenção conforme as taxas acordadas previamente.
-              </p>
-
-              <h4 style={{ color: '#2d2d2d', fontWeight: 500, margin: '14px 0 6px 0' }}>3. Moderação e Segurança</h4>
-              <p style={{ marginBottom: '12px' }}>
-                A administração do Connecta+ reserva-se o direito de moderar, suspender ou banir contas que infrinjam a segurança, publiquem conteúdo inadequado ou prestem serviços em desacordo com as leis locais. Novos cadastros comerciais passam por auditoria documental (CNPJ/CPF).
-              </p>
-
-              <h4 style={{ color: '#2d2d2d', fontWeight: 500, margin: '14px 0 6px 0' }}>4. Responsabilidade de Entrega</h4>
-              <p style={{ marginBottom: '12px' }}>
-                As entregas são realizadas por entregadores autônomos parceiros. A plataforma atua apenas como facilitadora de conexão e rastreamento de entregas.
-              </p>
-              
-              <p style={{ marginTop: '16px', fontWeight: 400, color: '#f28d1a' }}>
+              <p style={{ marginTop: '16px', fontWeight: 500, color: '#f28d1a' }}>
                 Última atualização: Junho de 2026.
               </p>
             </div>
