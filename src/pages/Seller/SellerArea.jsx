@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { uploadAvatar, uploadCover, uploadProductImage, uploadVideoFile } from '../../firebase/storage';
 
-export default function SellerArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout }) {
+export default function SellerArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout, onGoToHome }) {
   const { 
     currentUser, products, orders, addProduct, editProduct,
     deleteProduct, toggleProductActive, updateOrderStatus, callRider, cancelCallRider, addVideo,
@@ -2595,7 +2595,8 @@ export default function SellerArea({ onOpenChat, onToggleNotifications, unreadNo
           {/* Nav links */}
           <nav className="desktop-nav">
             {[
-              { id: 'dashboard', label: 'Painel', icon: <Home size={18} /> },
+              { id: 'home', label: 'Home', icon: <Home size={18} /> },
+              { id: 'dashboard', label: 'Painel', icon: <Layers size={18} /> },
               { id: 'profile', label: 'Loja', icon: <StoreIcon size={18} /> },
               { id: 'products', label: 'Produtos', icon: <ShoppingBag size={18} /> },
               { id: 'categories', label: 'Categorias', icon: <Layers size={18} /> },
@@ -2606,8 +2607,12 @@ export default function SellerArea({ onOpenChat, onToggleNotifications, unreadNo
                 key={item.id}
                 type="button"
                 onClick={() => {
-                  setEditingProductId(null);
-                  setActiveTab(item.id);
+                  if (item.id === 'home') {
+                    onGoToHome();
+                  } else {
+                    setEditingProductId(null);
+                    setActiveTab(item.id);
+                  }
                 }}
                 className={`desktop-nav-item ${activeTab === item.id ? 'active' : ''}`}
               >
@@ -2687,7 +2692,7 @@ export default function SellerArea({ onOpenChat, onToggleNotifications, unreadNo
       {/* Menu Fixo Embaixo com Ícones */}
       <div className="bottom-nav">
         {[
-          { id: 'dashboard', label: 'Painel', icon: <Home size={20} /> },
+          { id: 'dashboard', label: 'Painel', icon: <Layers size={20} /> },
           { id: 'profile', label: 'Loja', icon: <StoreIcon size={20} /> },
           { id: 'products', label: 'Produtos', icon: <ShoppingBag size={20} /> },
           { id: 'categories', label: 'Categorias', icon: <Layers size={20} /> },

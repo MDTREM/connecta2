@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
 import { 
   Calendar, MessageSquare, Home, Play, Upload, X, 
-  User, MapPin, Phone, Clock, Star, Users, Camera, Save, Edit, Trash2,
-  Bell, LogOut
+  User, MapPin, Phone, Clock, Star, Users, Camera, Save, Edit, Trash2, QrCode,
+  Bell, LogOut, Layers
 } from 'lucide-react';
 import { uploadAvatar, uploadCover, uploadEventImage, uploadVideoFile } from '../../firebase/storage';
 
-export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout }) {
+export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout, onGoToHome }) {
   const { 
     currentUser, events, addEvent, updateEvent, addCommissioner, addVideo, 
     setUsers, deleteEvent, visualLayoutSettings, updateUserProfile, categories, users,
@@ -101,7 +101,7 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
     // Suporta formato com ou sem '#' e limpa espaços
     const formattedCode = codeToValidate.replace('Ticket #', '').replace('#', '').trim();
     
-    const res = await validateTicket(formattedCode, currentUser.id);
+    const res = await validateTicket(formattedCode, currentUser.id, scannerFilterEventId);
     if (res.success) {
       setScannerResult({ success: true, message: res.message, ticket: res.ticket });
       setScannerInputValue('');
@@ -194,6 +194,11 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
   // Promoter states
   const [commName, setCommName] = useState('');
   const [commCode, setCommCode] = useState('');
+  const [commEmail, setCommEmail] = useState('');
+  const [commPhone, setCommPhone] = useState('');
+  const [commPassword, setCommPassword] = useState('');
+  const [commAvatar, setCommAvatar] = useState('');
+  const [generatedLink, setGeneratedLink] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('');
   const [editingEventId, setEditingEventId] = useState(null);
 
@@ -428,18 +433,45 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
     setActiveTab('events');
   };
 
-  const handleCommissionerSubmit = (e) => {
+  const handleCommissionerSubmit = async (e) => {
     e.preventDefault();
     const eventIdToUse = selectedEventId || (myEvents[0]?.id || '');
-    if (!commName || !commCode || !eventIdToUse) {
-      alert('Preencha os dados do comissário, sô!');
+    if (!eventIdToUse) {
+      alert('Selecione um evento para cadastrar o comissário!');
+      return;
+    }
+    if (!commName || !commEmail || !commPhone) {
+      alert('Nome, e-mail e telefone são obrigatórios para criar o comissário!');
       return;
     }
 
-    addCommissioner(eventIdToUse, commName, commCode);
-    setCommName('');
-    setCommCode('');
-    alert('Comissário cadastrado com sucesso! Compartilhe o código dele para contabilizar vendas.');
+    const finalCode = commCode.trim() || (commName.replace(/\s+/g, '').substring(0, 4).toUpperCase() + Math.floor(100 + Math.random() * 900));
+    const finalPassword = commPassword.trim() || Math.random().toString(36).substring(2, 8);
+
+    const res = await addCommissioner(eventIdToUse, {
+      name: commName,
+      email: commEmail,
+      phone: commPhone,
+      avatar: commAvatar,
+      password: finalPassword,
+      code: finalCode
+    });
+
+    if (res.success) {
+      const loginUrl = `${window.location.origin}/?login_email=${encodeURIComponent(commEmail.toLowerCase().trim())}&login_pass=${encodeURIComponent(finalPassword)}`;
+      setGeneratedLink(loginUrl);
+
+      setCommName('');
+      setCommEmail('');
+      setCommPhone('');
+      setCommPassword('');
+      setCommAvatar('');
+      setCommCode('');
+      
+      alert('Comissário criado com sucesso e vinculado ao evento! O link de acesso direto para ele logar foi gerado abaixo.');
+    } else {
+      alert(res.message || 'Erro ao criar comissário.');
+    }
   };
 
   const startEditing = (field, initialVal) => {
@@ -910,6 +942,103 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             </button>
           </div>
 
+          {/* Event Selector (Global for both camera and list validation) */}
+          <div style={{ marginBottom: '14px' }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555', display: 'block', marginBottom: '6px' }}>
+              Selecionar Evento para Validação
+            </label>
+            <select
+              value={scannerFilterEventId}
+              onChange={(e) => {
+                setScannerFilterEventId(e.target.value);
+                setScannerResult(null);
+              }}
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: '12px',
+                border: '1.5px solid #eee',
+                fontSize: '0.8rem',
+                outline: 'none',
+                backgroundColor: '#fafafa',
+                fontWeight: 500,
+                color: '#333'
+              }}
+            >
+              <option value="all">Todos os eventos</option>
+              {myEvents.map(e => (
+                <option key={e.id} value={e.id}>{e.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {(() => {
+            const selectedEvent = myEvents.find(e => e.id === scannerFilterEventId);
+            if (!selectedEvent) return null;
+
+            const activeBatch = selectedEvent.batches 
+              ? selectedEvent.batches.find(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) < parseInt(b.limit || 0, 10)) || selectedEvent.batches[0] 
+              : null;
+            const isSoldOut = selectedEvent.batches && selectedEvent.batches.length > 0 
+              ? selectedEvent.batches.every(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) >= parseInt(b.limit || 0, 10)) 
+              : false;
+
+            return (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px',
+                backgroundColor: '#fdfbf7',
+                border: '1px solid #f6e8d5',
+                borderRadius: '16px',
+                marginBottom: '14px',
+                animation: 'fadeIn 0.2s ease'
+              }}>
+                <img 
+                  src={selectedEvent.image} 
+                  alt={selectedEvent.name} 
+                  style={{
+                    width: '44px',
+                    height: '44px',
+                    borderRadius: '10px',
+                    objectFit: 'cover'
+                  }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <h4 style={{
+                    fontSize: '0.82rem',
+                    fontWeight: 600,
+                    color: '#2d2d2d',
+                    margin: '0 0 2px 0',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {selectedEvent.name}
+                  </h4>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      fontSize: '0.64rem',
+                      backgroundColor: '#f28d1a15',
+                      color: '#f28d1a',
+                      padding: '2px 8px',
+                      borderRadius: '20px',
+                      fontWeight: 500
+                    }}>
+                      Lote: {activeBatch?.name || 'Lote Único'}
+                    </span>
+                    {activeBatch && (
+                      <span style={{ fontSize: '0.64rem', color: '#666', fontWeight: 500 }}>
+                        {isSoldOut ? 'Esgotado' : `R$ ${parseFloat(activeBatch.price || 0).toFixed(2)}`}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+
           {/* Scanner Feedback (Success/Error Message) */}
           {scannerResult && (
             <div style={{
@@ -1137,24 +1266,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <select
-                    value={scannerFilterEventId}
-                    onChange={(e) => setScannerFilterEventId(e.target.value)}
-                    style={{
-                      flex: 1,
-                      padding: '8px',
-                      borderRadius: '10px',
-                      border: '1.5px solid #eee',
-                      fontSize: '0.75rem',
-                      outline: 'none',
-                      backgroundColor: '#fafafa'
-                    }}
-                  >
-                    <option value="all">Todos os eventos</option>
-                    {myEvents.map(e => (
-                      <option key={e.id} value={e.id}>{e.name}</option>
-                    ))}
-                  </select>
                   <input
                     type="text"
                     placeholder="Buscar titular ou ID..."
@@ -1162,10 +1273,10 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                     onChange={(e) => setScannerSearchTerm(e.target.value)}
                     style={{
                       flex: 1,
-                      padding: '8px',
+                      padding: '8px 12px',
                       borderRadius: '10px',
                       border: '1.5px solid #eee',
-                      fontSize: '0.75rem',
+                      fontSize: '0.78rem',
                       outline: 'none'
                     }}
                   />
@@ -1626,6 +1737,18 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                     title="Editar Evento"
                   >
                     <Edit size={16} />
+                  </button>
+                  <button
+                    onClick={() => {
+                      setScannerFilterEventId(ev.id);
+                      setScannerResult(null);
+                      setScannerInputValue('');
+                      setShowScannerModal(true);
+                    }}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2ec4b6', padding: '4px' }}
+                    title="Portaria e Validação"
+                  >
+                    <QrCode size={16} />
                   </button>
                   <button
                     onClick={() => {
@@ -2791,30 +2914,160 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             </div>
             
             {/* Add promoter form */}
-            <form onSubmit={handleCommissionerSubmit} style={{ borderTop: '1px solid #eaeaea', marginTop: '12px', paddingTop: '12px' }}>
-              <h4 style={{ fontSize: '0.75rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '6px' }}>Cadastrar Novo Comissário</h4>
-              <div style={{ display: 'flex', gap: '8px', marginBottom: '6px' }}>
-                <input 
-                  type="text" 
-                  placeholder="Nome do Promoter" 
-                  value={commName}
-                  onChange={(e) => setCommName(e.target.value)}
-                  className="input-field" 
-                  style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '10px', margin: 0 }} 
-                />
-                <input 
-                  type="text" 
-                  placeholder="Código" 
-                  value={commCode}
-                  onChange={(e) => setCommCode(e.target.value)}
-                  className="input-field" 
-                  style={{ padding: '6px 12px', fontSize: '0.75rem', borderRadius: '10px', margin: 0 }} 
-                />
+            <form onSubmit={handleCommissionerSubmit} style={{ borderTop: '1px solid #eaeaea', marginTop: '12px', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <h4 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '4px' }}>Cadastrar Novo Comissário</h4>
+              
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Nome Completo *</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: Maria Souza" 
+                    value={commName}
+                    onChange={(e) => setCommName(e.target.value)}
+                    className="input-field" 
+                    style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>E-mail de Acesso *</label>
+                  <input 
+                    type="email" 
+                    placeholder="Ex: maria@gmail.com" 
+                    value={commEmail}
+                    onChange={(e) => setCommEmail(e.target.value)}
+                    className="input-field" 
+                    style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                    required
+                  />
+                </div>
               </div>
-              <button type="submit" className="btn btn-primary" style={{ padding: '6px 14px', fontSize: '0.72rem', borderRadius: '10px', width: '100%', backgroundColor: '#f28d1a' }}>
-                Vincular Promotor
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Telefone *</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: (31) 99999-9999" 
+                    value={commPhone}
+                    onChange={(e) => setCommPhone(e.target.value)}
+                    className="input-field" 
+                    style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Senha (Opcional - gerada se vazia)</label>
+                  <input 
+                    type="password" 
+                    placeholder="Escolha ou deixe em branco" 
+                    value={commPassword}
+                    onChange={(e) => setCommPassword(e.target.value)}
+                    className="input-field" 
+                    style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Código Promocional (Opcional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="Ex: MARIA10" 
+                    value={commCode}
+                    onChange={(e) => setCommCode(e.target.value)}
+                    className="input-field" 
+                    style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Foto URL (Opcional)</label>
+                  <input 
+                    type="text" 
+                    placeholder="URL da imagem de perfil" 
+                    value={commAvatar}
+                    onChange={(e) => setCommAvatar(e.target.value)}
+                    className="input-field" 
+                    style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                  />
+                </div>
+              </div>
+
+              <button type="submit" className="btn btn-primary" style={{ padding: '10px 14px', fontSize: '0.78rem', borderRadius: '10px', width: '100%', backgroundColor: '#f28d1a', border: 'none', color: 'white', fontWeight: 600, cursor: 'pointer', marginTop: '6px' }}>
+                Criar e Vincular Comissário
               </button>
             </form>
+
+            {generatedLink && (
+              <div style={{
+                marginTop: '16px',
+                padding: '14px',
+                backgroundColor: '#f6fff8',
+                border: '1.5px solid #d8f3dc',
+                borderRadius: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1b4332' }}>
+                  Acesso do Comissário Gerado!
+                </span>
+                <span style={{ fontSize: '0.68rem', color: '#2d6a4f' }}>
+                  Envie este link direto para o comissário. Ele só precisa clicar para entrar automaticamente no painel dele:
+                </span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="text"
+                    readOnly
+                    value={generatedLink}
+                    style={{
+                      flex: 1,
+                      padding: '8px',
+                      borderRadius: '10px',
+                      border: '1px solid #b7e4c7',
+                      fontSize: '0.7rem',
+                      backgroundColor: '#fff',
+                      color: '#2d6a4f',
+                      outline: 'none'
+                    }}
+                  />
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(generatedLink);
+                      alert('Link copiado para a área de transferência!');
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: '#2ec4b6',
+                      color: 'white',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Copiar
+                  </button>
+                  <button
+                    onClick={() => setGeneratedLink('')}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: '#e5e5e5',
+                      color: '#666',
+                      fontSize: '0.72rem',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -2840,7 +3093,8 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
           {/* Nav links */}
           <nav className="desktop-nav">
             {[
-              { id: 'dashboard', label: 'Painel', icon: <Home size={18} /> },
+              { id: 'home', label: 'Home', icon: <Home size={18} /> },
+              { id: 'dashboard', label: 'Painel', icon: <Layers size={18} /> },
               { id: 'profile', label: 'Perfil', icon: <User size={18} /> },
               { id: 'events', label: 'Eventos', icon: <Calendar size={18} /> },
               { id: 'commissioners', label: 'Comissários', icon: <Users size={18} /> },
@@ -2849,7 +3103,13 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.id === 'home') {
+                    onGoToHome();
+                  } else {
+                    setActiveTab(item.id);
+                  }
+                }}
                 className={`desktop-nav-item ${(activeTab === item.id || (item.id === 'events' && activeTab === 'add_event')) ? 'active' : ''}`}
               >
                 {item.icon}
@@ -2928,7 +3188,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       {/* Menu Fixo Embaixo com Ícones */}
       <div className="bottom-nav">
         {[
-          { id: 'dashboard', label: 'Painel', icon: <Home size={20} /> },
+          { id: 'dashboard', label: 'Painel', icon: <Layers size={20} /> },
           { id: 'profile', label: 'Perfil', icon: <User size={20} /> },
           { id: 'events', label: 'Eventos', icon: <Calendar size={20} /> },
           { id: 'commissioners', label: 'Comissários', icon: <Users size={20} /> },
@@ -2937,7 +3197,13 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
           <button
             key={item.id}
             type="button"
-            onClick={() => setActiveTab(item.id)}
+            onClick={() => {
+              if (item.id === 'home') {
+                onGoToHome();
+              } else {
+                setActiveTab(item.id);
+              }
+            }}
             className={`bottom-nav-item ${(activeTab === item.id || (item.id === 'events' && activeTab === 'add_event')) ? 'active' : ''}`}
           >
             {item.icon}

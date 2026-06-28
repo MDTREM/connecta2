@@ -3,6 +3,7 @@ import { useFirebaseMock, EditableText } from '../../context/FirebaseMockContext
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../firebase/config';
 import { ShieldCheck, AlertCircle, Upload, Clock } from 'lucide-react';
+import { IS_BETA_EVENTS_ONLY } from '../../config';
 
 export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'login' }) {
   const { login, signup, categories } = useFirebaseMock();
@@ -27,6 +28,27 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
   const [storeCategory, setStoreCategory] = useState('Artesanato');
   const [licenseFileName, setLicenseFileName] = useState('');
   const [commissionerCode, setCommissionerCode] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const emailParam = params.get('login_email');
+    const passParam = params.get('login_pass');
+    if (emailParam && passParam) {
+      setEmail(emailParam);
+      setPassword(passParam);
+      setTab('login');
+      
+      const autoLogin = async () => {
+        const res = await login(emailParam, passParam);
+        if (res.success) {
+          onAuthSuccess(res.user);
+          window.history.replaceState({}, document.title, window.location.pathname);
+        }
+      };
+      const timer = setTimeout(autoLogin, 800);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Sync category once loaded
   useEffect(() => {
@@ -562,11 +584,10 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                 className="auth-card-select"
               >
                 <option value="client">Cliente</option>
-                <option value="seller">Loja (Vendedor)</option>
-                <option value="provider">Prestador de Serviços</option>
+                {!IS_BETA_EVENTS_ONLY && <option value="seller">Loja (Vendedor)</option>}
+                {!IS_BETA_EVENTS_ONLY && <option value="provider">Prestador de Serviços</option>}
                 <option value="organizer">Organizador de Eventos</option>
-                <option value="motoboy">Entregador</option>
-                <option value="commissioner">Comissário de Eventos</option>
+                {!IS_BETA_EVENTS_ONLY && <option value="motoboy">Entregador</option>}
               </select>
             </div>
 

@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
-import { ToggleLeft, ToggleRight, Bike, MapPin, MessageSquare, Home, X, Bell, LogOut, User, Camera, Edit, Save, Calendar, Clock } from 'lucide-react';
+import { ToggleLeft, ToggleRight, Bike, MapPin, MessageSquare, Home, X, Bell, LogOut, User, Camera, Edit, Save, Calendar, Clock, Layers } from 'lucide-react';
 import { uploadAvatar, uploadCover } from '../../firebase/storage';
 
-export default function DeliveryArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout }) {
+export default function DeliveryArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout, onGoToHome }) {
   const { currentUser, orders, acceptDelivery, updateOrderStatus, setUsers, categories, updateUserProfile } = useFirebaseMock();
 
   const [activeTab, setActiveTab] = useState(() => {
@@ -732,14 +732,21 @@ export default function DeliveryArea({ onOpenChat, onToggleNotifications, unread
           {/* Nav links */}
           <nav className="desktop-nav">
             {[
-              { id: 'dashboard', label: 'Painel', icon: <Home size={18} /> },
+              { id: 'home', label: 'Home', icon: <Home size={18} /> },
+              { id: 'dashboard', label: 'Painel', icon: <Layers size={18} /> },
               { id: 'active_job', label: 'Corrida Ativa', icon: <Bike size={18} /> },
               { id: 'profile', label: 'Perfil', icon: <User size={18} /> }
             ].map(item => (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.id === 'home') {
+                    onGoToHome();
+                  } else {
+                    setActiveTab(item.id);
+                  }
+                }}
                 className={`desktop-nav-item ${activeTab === item.id ? 'active' : ''}`}
                 style={{ position: 'relative' }}
               >
@@ -819,7 +826,7 @@ export default function DeliveryArea({ onOpenChat, onToggleNotifications, unread
       {/* Menu Fixo Embaixo com Ícones */}
       <div className="bottom-nav">
         {[
-          { id: 'dashboard', label: 'Painel', icon: <Home size={20} /> },
+          { id: 'dashboard', label: 'Painel', icon: <Layers size={20} /> },
           { id: 'active_job', label: 'Corrida Ativa', icon: <Bike size={20} /> },
           { id: 'profile', label: 'Perfil', icon: <User size={20} /> }
         ].map(item => (

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
 import { 
-  Home, UserCheck, Ticket, Bell, Layers, LogOut,
+  Home, UserCheck, Ticket, Bell, Layers, LogOut, BarChart2,
   Sparkles, Palette, Gift, Wrench, Star, Award, Heart, 
   ShoppingCart, MapPin, Camera, Music, Coffee, Book, 
   Gem, Scissors, Brush, Utensils, Wine, Mountain, 
@@ -51,7 +51,7 @@ const compressImage = (file, maxWidth, maxHeight, callback) => {
   };
 };
 
-export default function AdminArea() {
+export default function AdminArea({ onLogout, onGoToHome }) {
   const { 
     users, orders, servicesHired, coupons, updateRegistrationStatus, 
     setUserBanStatus, createCoupon, triggerGlobalNotification, setUsers,
@@ -1733,17 +1733,24 @@ export default function AdminArea() {
         {/* Center: Tabs */}
         <div style={{ display: 'flex', gap: '16px' }}>
           {[
-            { id: 'metrics', label: 'Relatórios', icon: <Home size={16} /> },
+            { id: 'home', label: 'Home', icon: <Home size={16} /> },
+            { id: 'metrics', label: 'Relatórios', icon: <BarChart2 size={16} /> },
             { id: 'users_mod', label: 'Moderar', icon: <UserCheck size={16} /> },
             { id: 'support_chat', label: 'Suporte', icon: <MessageSquare size={16} /> },
             { id: 'coupons_mod', label: 'Cupons', icon: <Ticket size={16} /> },
-            { id: 'home_editor', label: 'Home', icon: <Layers size={16} /> },
+            { id: 'home_editor', label: 'Home Editor', icon: <Layers size={16} /> },
             { id: 'notifications', label: 'Alertas', icon: <Bell size={16} /> }
           ].map(item => (
             <button
               key={item.id}
               type="button"
-              onClick={() => setActiveTab(item.id)}
+              onClick={() => {
+                if (item.id === 'home') {
+                  onGoToHome();
+                } else {
+                  setActiveTab(item.id);
+                }
+              }}
               className={`desktop-admin-nav-item ${activeTab === item.id ? 'active' : ''}`}
             >
               {item.icon}
@@ -1755,7 +1762,7 @@ export default function AdminArea() {
         {/* Right: Sair */}
         <div>
           <button 
-            onClick={logout} 
+            onClick={onLogout} 
             className="desktop-admin-logout-btn"
           >
             <LogOut size={16} />
@@ -1781,11 +1788,11 @@ export default function AdminArea() {
       {/* Menu Fixo Embaixo com Ícones (Somente Mobile) */}
       <div className="bottom-nav">
         {[
-          { id: 'metrics', label: 'Relatórios', icon: <Home size={20} /> },
+          { id: 'metrics', label: 'Relatórios', icon: <BarChart2 size={20} /> },
           { id: 'users_mod', label: 'Moderar', icon: <UserCheck size={20} /> },
           { id: 'support_chat', label: 'Suporte', icon: <MessageSquare size={20} /> },
           { id: 'coupons_mod', label: 'Cupons', icon: <Ticket size={20} /> },
-          { id: 'home_editor', label: 'Home', icon: <Layers size={20} /> },
+          { id: 'home_editor', label: 'Editor', icon: <Layers size={20} /> },
           { id: 'notifications', label: 'Alertas', icon: <Bell size={20} /> }
         ].map(item => (
           <button

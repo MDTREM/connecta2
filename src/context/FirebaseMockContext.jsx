@@ -28,6 +28,8 @@ export const FirebaseMockProvider = ({ children }) => {
   const [products, setProducts] = useState([]);
   const [events, setEvents] = useState([]);
   const [services, setServices] = useState([]);
+  const [jobs, setJobs] = useState([]);
+  const [jobsLoaded, setJobsLoaded] = useState(false);
   const [videos, setVideos] = useState([]);
   const [coupons, setCoupons] = useState([]);
   const [videoComments, setVideoComments] = useState([]);
@@ -252,6 +254,66 @@ export const FirebaseMockProvider = ({ children }) => {
       setHomeSectionsLoaded(true);
     });
 
+    const unsubJobs = onSnapshot(collection(db, 'jobs'), (snapshot) => {
+      if (snapshot.empty) {
+        const defaultJobs = [
+          {
+            id: 'job_default_1',
+            companyName: 'Café das Flores',
+            cnpj: '12.345.678/0001-90',
+            title: 'Auxiliar Administrativo',
+            description: 'Atendimento ao público, controle de caixa e organização de planilhas. Necessário conhecimento básico de Excel e boa comunicação.',
+            location: 'Centro Histórico, Ouro Preto - MG',
+            contactType: 'both',
+            whatsapp: '31988888888',
+            email: 'vagas@cafedasflores.com.br',
+            photo: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=500',
+            createdAt: Date.now()
+          },
+          {
+            id: 'job_default_2',
+            companyName: 'Pedra Sabão Arte',
+            cnpj: '98.765.432/0001-10',
+            title: 'Atendente de Vendas',
+            description: 'Venda de artesanatos locais, recepção e atendimento caloroso a turistas e moradores. Organização de vitrines e controle de estoque básico.',
+            location: 'Feirinha de Pedra Sabão, Ouro Preto - MG',
+            contactType: 'whatsapp',
+            whatsapp: '31977777777',
+            email: '',
+            photo: 'https://images.unsplash.com/photo-1605721911519-3dfeb3be25e7?w=500',
+            createdAt: Date.now() - 3600000
+          },
+          {
+            id: 'job_default_3',
+            companyName: 'Restaurante Contos de Réis',
+            cnpj: '45.678.901/0001-23',
+            title: 'Garçom / Garçonete',
+            description: 'Apresentar cardápio, servir mesas, tirar pedidos e zelar pela higiene e boa experiência do cliente. Desejável inglês ou espanhol básico.',
+            location: 'Centro, Ouro Preto - MG',
+            contactType: 'email',
+            whatsapp: '',
+            email: 'rh@contosdereis.com.br',
+            photo: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=500',
+            createdAt: Date.now() - 7200000
+          }
+        ];
+        defaultJobs.forEach(job => {
+          setDoc(doc(db, 'jobs', job.id), job).catch(err => console.error("Error seeding job:", err));
+        });
+        setJobs(defaultJobs);
+        setJobsLoaded(true);
+      } else {
+        const list = [];
+        snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+        setJobs(list);
+        setJobsLoaded(true);
+      }
+    }, (error) => {
+      console.warn("Jobs subscription warning:", error);
+      setJobsLoaded(true);
+    });
+
     const unsubSettings = onSnapshot(doc(db, 'settings', 'visualLayout'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
@@ -348,6 +410,7 @@ export const FirebaseMockProvider = ({ children }) => {
       unsubCategories();
       unsubBanners();
       unsubHomeSections();
+      unsubJobs();
       unsubSettings();
       cleanAuthSubscriptions();
       unsubAuth();
@@ -415,6 +478,22 @@ export const FirebaseMockProvider = ({ children }) => {
 
   // --- AUTH SERVICES ---
   const login = async (email, password) => {
+    // 1. Verificar primeiro se é um comissário cadastrado localmente pelo organizador
+    const localUser = users.find(u => u.email?.toLowerCase() === email?.toLowerCase() && u.role === 'commissioner');
+    if (localUser) {
+      if (localUser.banned) {
+        return { success: false, message: 'Eita! Esta conta foi suspensa por descumprir as regras.' };
+      }
+      if (localUser.commissionerPassword && localUser.commissionerPassword === password) {
+        setCurrentUser(localUser);
+        return { success: true, user: localUser };
+      }
+      if (localUser.commissionerPassword) {
+        return { success: false, message: 'Senha incorreta para esta conta de comissário.' };
+      }
+    }
+
+    // 2. Autenticação padrão do Firebase para os demais usuários
     try {
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const uid = userCredential.user.uid;
@@ -605,6 +684,19 @@ export const FirebaseMockProvider = ({ children }) => {
     const service = services.find(s => s.id === serviceId);
     if (!service) return { success: false, message: 'Serviço não encontrado.' };
 
+    // Check double booking
+    if (service.schedule?.enabled) {
+      const isAlreadyBooked = (servicesHired || []).some(sh => 
+        sh.serviceId === serviceId && 
+        sh.date === date && 
+        sh.time === time && 
+        sh.status !== 'rejected'
+      );
+      if (isAlreadyBooked) {
+        return { success: false, message: 'Desculpe, este horário já foi reservado por outro cliente!' };
+      }
+    }
+
     const newHiringId = generateRandomHiringId();
     const variationPrice = variation?.price || 0;
     const subtotal = (service.pricePerHour * hours) + variationPrice;
@@ -692,14 +784,67 @@ export const FirebaseMockProvider = ({ children }) => {
     setDoc(doc(db, 'events', newId), newEvent).catch(err => console.error(err));
   };
 
-  const addCommissioner = (eventId, commName, code) => {
+  const addJobVacancy = async (jobData) => {
+    try {
+      const newJobId = 'job_' + Math.random().toString(36).substr(2, 9);
+      const newJob = {
+        id: newJobId,
+        createdAt: Date.now(),
+        ...jobData
+      };
+      await setDoc(doc(db, 'jobs', newJobId), newJob);
+      return { success: true, job: newJob };
+    } catch (err) {
+      console.error("Error adding job:", err);
+      return { success: false, message: err.message };
+    }
+  };
+
+  const addCommissioner = async (eventId, { name, email, phone, avatar, password, code }) => {
     const e = events.find(event => event.id === eventId);
-    if (!e) return;
+    if (!e) return { success: false, message: 'Evento não encontrado.' };
+
     const commissioners = [...(e.commissioners || [])];
-    if (commissioners.some(c => c.code.toUpperCase() === code.toUpperCase())) return;
-    commissioners.push({ name: commName, code: code.toUpperCase(), sales: 0 });
+    const upperCode = code.toUpperCase().trim();
     
-    updateDoc(doc(db, 'events', eventId), { commissioners }).catch(err => console.error(err));
+    if (commissioners.some(c => c.code.toUpperCase() === upperCode)) {
+      return { success: false, message: 'Já existe um comissário com este código vinculado a este evento!' };
+    }
+
+    const commUserId = 'comm_' + Math.random().toString(36).substr(2, 9);
+    const newUser = {
+      id: commUserId,
+      email: email.toLowerCase().trim(),
+      role: 'commissioner',
+      name: name.trim(),
+      phone: phone.trim(),
+      avatar: avatar || 'https://www.w3schools.com/howto/img_avatar.png',
+      registrationStatus: 'approved',
+      banned: false,
+      createdAt: Date.now(),
+      ouroCoins: 0,
+      commissionerCode: upperCode,
+      commissionerPassword: password
+    };
+
+    try {
+      await setDoc(doc(db, 'users', commUserId), newUser);
+
+      commissioners.push({ 
+        name: name.trim(), 
+        code: upperCode, 
+        sales: 0,
+        email: email.toLowerCase().trim(),
+        phone: phone.trim(),
+        avatar: newUser.avatar
+      });
+      await updateDoc(doc(db, 'events', eventId), { commissioners });
+
+      return { success: true, user: newUser, code: upperCode };
+    } catch (err) {
+      console.error("Erro ao cadastrar comissário:", err);
+      return { success: false, message: 'Erro ao cadastrar comissário no Firestore.' };
+    }
   };
 
   const updateEvent = (eventId, eventData) => {
@@ -1099,7 +1244,7 @@ export const FirebaseMockProvider = ({ children }) => {
     return { success: true, order: newTicketOrder };
   };
 
-  const validateTicket = async (ticketId, organizerId) => {
+  const validateTicket = async (ticketId, organizerId, filterEventId = 'all') => {
     const ticket = orders.find(o => o.id === ticketId);
     if (!ticket) {
       return { success: false, message: 'Ingresso não encontrado!' };
@@ -1114,6 +1259,14 @@ export const FirebaseMockProvider = ({ children }) => {
     }
     if (event.organizerId !== organizerId) {
       return { success: false, message: 'Este ingresso pertence a um evento de outro organizador!' };
+    }
+
+    if (filterEventId && filterEventId !== 'all' && ticket.eventId !== filterEventId) {
+      const selectedEvent = events.find(e => e.id === filterEventId);
+      return { 
+        success: false, 
+        message: `Este ingresso pertence ao evento "${event.name}", mas a validação está configurada apenas para o evento "${selectedEvent?.name || 'evento selecionado'}"!` 
+      };
     }
 
     if (ticket.status === 'checked_in') {
@@ -1690,8 +1843,10 @@ export const FirebaseMockProvider = ({ children }) => {
       reorderHomeSections,
       deleteUser,
       setSectionOrder,
+      jobs,
+      addJobVacancy,
       isAuthLoading,
-      isDataLoading: !usersLoaded || !productsLoaded || !eventsLoaded || !servicesLoaded || !bannersLoaded || !categoriesLoaded || !homeSectionsLoaded
+      isDataLoading: !usersLoaded || !productsLoaded || !eventsLoaded || !servicesLoaded || !bannersLoaded || !categoriesLoaded || !homeSectionsLoaded || !jobsLoaded
     }}>
       {children}
     </FirebaseMockContext.Provider>

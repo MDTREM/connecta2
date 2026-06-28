@@ -3,7 +3,7 @@ import { useFirebaseMock } from '../../context/FirebaseMockContext';
 import { 
   Trash2, MessageSquare, Home, Wrench, Play, Camera, Upload, 
   ArrowLeft, X, Save, Edit, User, ClipboardList, MapPin, Phone, Clock, Star, Users,
-  Bell, LogOut
+  Bell, LogOut, Layers
 } from 'lucide-react';
 import { uploadAvatar, uploadServiceImage, uploadVideoFile } from '../../firebase/storage';
 
@@ -40,7 +40,7 @@ const compressImage = (file, maxWidth, maxHeight, callback) => {
     };
   };
 };
-export default function ProviderArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout }) {
+export default function ProviderArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout, onGoToHome }) {
   const { 
     currentUser, services, servicesHired, addService, editService, deleteService, 
     updateHiringStatus, addVideo, setUsers, updateUserProfile, users,
@@ -77,6 +77,15 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
   const [servImages, setServImages] = useState(Array(10).fill(''));
   const [servVariations, setServVariations] = useState([]);
   const [servDescription, setServDescription] = useState('');
+
+  // Scheduling states
+  const [servScheduleEnabled, setServScheduleEnabled] = useState(false);
+  const [servScheduleType, setServScheduleType] = useState('variable');
+  const [servVariableSlots, setServVariableSlots] = useState([]);
+  const [servFixedSlots, setServFixedSlots] = useState([]);
+  const [newSlotDate, setNewSlotDate] = useState('');
+  const [newSlotTime, setNewSlotTime] = useState('');
+  const [newSlotDay, setNewSlotDay] = useState('1'); // 1 = Segunda-feira
 
   // Inline variation states
   const [newVarText, setNewVarText] = useState('');
@@ -213,6 +222,15 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
       setServDescription(serv.description || '');
       setServVariations(serv.variations || []);
       
+      // Load schedule
+      setServScheduleEnabled(serv.schedule?.enabled || false);
+      setServScheduleType(serv.schedule?.type || 'variable');
+      setServVariableSlots(serv.schedule?.variableSlots || []);
+      setServFixedSlots(serv.schedule?.fixedSlots || []);
+      setNewSlotDate('');
+      setNewSlotTime('');
+      setNewSlotDay('1');
+
       const imagesArray = Array(10).fill('');
       if (serv.images && serv.images.length > 0) {
         serv.images.forEach((img, idx) => {
@@ -238,6 +256,16 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
     setServDescription('');
     setServImages(Array(10).fill(''));
     setServVariations([]);
+
+    // Reset schedule
+    setServScheduleEnabled(false);
+    setServScheduleType('variable');
+    setServVariableSlots([]);
+    setServFixedSlots([]);
+    setNewSlotDate('');
+    setNewSlotTime('');
+    setNewSlotDay('1');
+
     setActiveTab('add_service');
   };
 
@@ -275,7 +303,13 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
       image: mainImage,
       images: filteredImages,
       variations: servVariations,
-      description: servDescription
+      description: servDescription,
+      schedule: {
+        enabled: servScheduleEnabled,
+        type: servScheduleType,
+        variableSlots: servVariableSlots,
+        fixedSlots: servFixedSlots
+      }
     };
 
     if (editingServiceId === 'new' || !editingServiceId) {
@@ -1503,7 +1537,225 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+      {/* Calendário e Disponibilidade de Agenda */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '16px', backgroundColor: '#fafafa', marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#2d2d2d', display: 'block' }}>Disponibilidade de Agenda</span>
+            <span style={{ fontSize: '0.65rem', color: '#777' }}>Permita que os clientes agendem dias e horários específicos</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <input 
+              type="checkbox" 
+              checked={servScheduleEnabled} 
+              onChange={(e) => setServScheduleEnabled(e.target.checked)}
+              id="servScheduleEnabled"
+              style={{
+                width: '18px',
+                height: '18px',
+                accentColor: '#f28d1a',
+                cursor: 'pointer'
+              }}
+            />
+          </div>
+        </div>
+
+        {servScheduleEnabled && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', borderTop: '1px solid #eee', paddingTop: '12px' }}>
+            {/* Tipo de Agenda */}
+            <div>
+              <label style={{ fontSize: '0.72rem', color: '#666', fontWeight: 500, display: 'block', marginBottom: '6px' }}>Tipo de Agenda</label>
+              <div style={{ display: 'flex', gap: '0', borderRadius: '10px', overflow: 'hidden', border: '1px solid #ddd' }}>
+                <button
+                  type="button"
+                  onClick={() => setServScheduleType('variable')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    background: servScheduleType === 'variable' ? 'linear-gradient(135deg, #f9bb1a, #f28d1a)' : '#ffffff',
+                    color: servScheduleType === 'variable' ? 'white' : '#666',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Datas Específicas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setServScheduleType('fixed')}
+                  style={{
+                    flex: 1,
+                    padding: '8px 12px',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    background: servScheduleType === 'fixed' ? 'linear-gradient(135deg, #f9bb1a, #f28d1a)' : '#ffffff',
+                    color: servScheduleType === 'fixed' ? 'white' : '#666',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  Agenda Semanal Fixa
+                </button>
+              </div>
+            </div>
+
+            {/* Adicionar Slots - Variável (Datas Específicas) */}
+            {servScheduleType === 'variable' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #eee' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#444' }}>Adicionar Data/Hora Disponível</span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input 
+                    type="date" 
+                    value={newSlotDate}
+                    onChange={(e) => setNewSlotDate(e.target.value)}
+                    style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', outline: 'none' }}
+                  />
+                  <input 
+                    type="time" 
+                    value={newSlotTime}
+                    onChange={(e) => setNewSlotTime(e.target.value)}
+                    style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', outline: 'none' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newSlotDate || !newSlotTime) {
+                        alert('Selecione data e horário para adicionar o slot!');
+                        return;
+                      }
+                      const slotId = 'slot_' + Math.random().toString(36).substr(2, 9);
+                      setServVariableSlots(prev => [...prev, { id: slotId, date: newSlotDate, time: newSlotTime }]);
+                      setNewSlotDate('');
+                      setNewSlotTime('');
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: '#2ec4b6',
+                      color: 'white',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Adicionar
+                  </button>
+                </div>
+
+                {/* Lista de Slots Adicionados */}
+                {servVariableSlots.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px', maxHeight: '150px', overflowY: 'auto', paddingRight: '4px' }} className="custom-scroll">
+                    {servVariableSlots.map(slot => (
+                      <div key={slot.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fcfcfc', padding: '6px 10px', borderRadius: '8px', border: '1px solid #f0f0f0', fontSize: '0.72rem' }}>
+                        <span style={{ color: '#333', fontWeight: 500 }}>{slot.date.split('-').reverse().join('/')} às {slot.time}</span>
+                        <button
+                          type="button"
+                          onClick={() => setServVariableSlots(prev => prev.filter(s => s.id !== slot.id))}
+                          style={{ background: 'none', border: 'none', color: '#ff5e5b', cursor: 'pointer', fontWeight: 600 }}
+                        >
+                          Remover
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: '0.68rem', color: '#999', textAlign: 'center', display: 'block', padding: '10px 0' }}>Nenhuma data adicionada ainda.</span>
+                )}
+              </div>
+            )}
+
+            {/* Adicionar Slots - Fixo (Agenda Semanal Fixa) */}
+            {servScheduleType === 'fixed' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', backgroundColor: '#ffffff', padding: '12px', borderRadius: '12px', border: '1px solid #eee' }}>
+                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: '#444' }}>Adicionar Horário Recorrente</span>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <select
+                    value={newSlotDay}
+                    onChange={(e) => setNewSlotDay(e.target.value)}
+                    style={{ flex: 1.2, padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', backgroundColor: 'white', outline: 'none' }}
+                  >
+                    <option value="1">Segunda-feira</option>
+                    <option value="2">Terça-feira</option>
+                    <option value="3">Quarta-feira</option>
+                    <option value="4">Quinta-feira</option>
+                    <option value="5">Sexta-feira</option>
+                    <option value="6">Sábado</option>
+                    <option value="0">Domingo</option>
+                  </select>
+                  <input 
+                    type="time" 
+                    value={newSlotTime}
+                    onChange={(e) => setNewSlotTime(e.target.value)}
+                    style={{ flex: 0.8, padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', outline: 'none' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newSlotTime) {
+                        alert('Selecione um horário!');
+                        return;
+                      }
+                      const slotId = 'slot_' + Math.random().toString(36).substr(2, 9);
+                      setServFixedSlots(prev => [...prev, { id: slotId, dayOfWeek: parseInt(newSlotDay), time: newSlotTime }]);
+                      setNewSlotTime('');
+                    }}
+                    style={{
+                      padding: '8px 12px',
+                      borderRadius: '8px',
+                      border: 'none',
+                      backgroundColor: '#2ec4b6',
+                      color: 'white',
+                      fontSize: '0.72rem',
+                      fontWeight: 600,
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Adicionar
+                  </button>
+                </div>
+
+                {/* Lista de Slots Adicionados */}
+                {servFixedSlots.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px', maxHeight: '150px', overflowY: 'auto', paddingRight: '4px' }} className="custom-scroll">
+                    {servFixedSlots.map(slot => {
+                      const days = {
+                        1: 'Segunda-feira',
+                        2: 'Terça-feira',
+                        3: 'Quarta-feira',
+                        4: 'Quinta-feira',
+                        5: 'Sexta-feira',
+                        6: 'Sábado',
+                        0: 'Domingo'
+                      };
+                      return (
+                        <div key={slot.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fcfcfc', padding: '6px 10px', borderRadius: '8px', border: '1px solid #f0f0f0', fontSize: '0.72rem' }}>
+                          <span style={{ color: '#333', fontWeight: 500 }}>{days[slot.dayOfWeek]} às {slot.time}</span>
+                          <button
+                            type="button"
+                            onClick={() => setServFixedSlots(prev => prev.filter(s => s.id !== slot.id))}
+                            style={{ background: 'none', border: 'none', color: '#ff5e5b', cursor: 'pointer', fontWeight: 600 }}
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <span style={{ fontSize: '0.68rem', color: '#999', textAlign: 'center', display: 'block', padding: '10px 0' }}>Nenhum horário fixo adicionado ainda.</span>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
         <button type="button" onClick={() => setActiveTab('services')} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
         <button type="submit" className="btn btn-primary" style={{ flex: 1, backgroundColor: '#f28d1a' }}>Salvar Serviço</button>
       </div>
@@ -2176,7 +2428,8 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
           {!isMobile && (
             <nav className="desktop-nav" style={{ display: 'flex', gap: '8px' }}>
               {[
-                { id: 'dashboard', label: 'Painel', icon: <Home size={18} /> },
+                { id: 'home', label: 'Home', icon: <Home size={18} /> },
+                { id: 'dashboard', label: 'Painel', icon: <Layers size={18} /> },
                 { id: 'profile', label: 'Perfil', icon: <User size={18} /> },
                 { id: 'services', label: 'Serviços', icon: <Wrench size={18} /> },
                 { id: 'hirings', label: 'Solicitações', icon: <ClipboardList size={18} /> },
@@ -2185,7 +2438,13 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    if (item.id === 'home') {
+                      onGoToHome();
+                    } else {
+                      setActiveTab(item.id);
+                    }
+                  }}
                   className={`desktop-nav-item ${(activeTab === item.id || (item.id === 'services' && activeTab === 'add_service')) ? 'active' : ''}`}
                 >
                   {item.icon}
@@ -2265,7 +2524,7 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
       {/* Menu Fixo Embaixo com Ícones */}
       <div className="bottom-nav">
         {[
-          { id: 'dashboard', label: 'Painel', icon: <Home size={20} /> },
+          { id: 'dashboard', label: 'Painel', icon: <Layers size={20} /> },
           { id: 'profile', label: 'Perfil', icon: <User size={20} /> },
           { id: 'services', label: 'Serviços', icon: <Wrench size={20} /> },
           { id: 'hirings', label: 'Solicitações', icon: <ClipboardList size={20} /> },

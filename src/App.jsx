@@ -10,8 +10,9 @@ import EventsArea from './pages/Events/EventsArea';
 import DeliveryArea from './pages/Delivery/DeliveryArea';
 import AdminArea from './pages/Admin/AdminArea';
 import CommissionerArea from './pages/Commissioner/CommissionerArea';
+import { IS_BETA_EVENTS_ONLY } from './config';
 
-import { Home, Search, Play, Heart, Layers, Bell, LogOut, User, ShoppingCart, MapPin, Coins, Ticket, Bus } from 'lucide-react';
+import { Home, Search, Play, Heart, Layers, Bell, LogOut, User, ShoppingCart, MapPin, Coins, Ticket, Bus, Briefcase, X, MessageSquare } from 'lucide-react';
 
 function AppContent() {
   const { currentUser, logout, notifications, markNotificationsRead, categories, cart, isAuthLoading, isDataLoading } = useFirebaseMock();
@@ -21,6 +22,7 @@ function AppContent() {
   const [showChatRoom, setShowChatRoom] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAuthScreen, setShowAuthScreen] = useState(false);
+  const [showPartnerSwitchModal, setShowPartnerSwitchModal] = useState(false);
   
   // Controle de visualização da Home x Painel para parceiros
   const [viewMode, setViewMode] = useState('panel'); // 'panel' ou 'home'
@@ -231,17 +233,55 @@ function AppContent() {
           />
         );
       case 'seller':
-        return <SellerArea onOpenChat={() => setShowChatRoom(true)} />;
+        return (
+          <SellerArea 
+            onOpenChat={() => setShowChatRoom(true)} 
+            onGoToHome={() => setViewMode('home')}
+            onToggleNotifications={() => { setShowNotifications(!showNotifications); if (!showNotifications && currentUser) markNotificationsRead(currentUser.id); }}
+            unreadNotificationsCount={unreadNotifications.length}
+            onLogout={logout}
+          />
+        );
       case 'provider':
-        return <ProviderArea onOpenChat={() => setShowChatRoom(true)} />;
+        return (
+          <ProviderArea 
+            onOpenChat={() => setShowChatRoom(true)} 
+            onGoToHome={() => setViewMode('home')}
+            onToggleNotifications={() => { setShowNotifications(!showNotifications); if (!showNotifications && currentUser) markNotificationsRead(currentUser.id); }}
+            unreadNotificationsCount={unreadNotifications.length}
+            onLogout={logout}
+          />
+        );
       case 'organizer':
-        return <EventsArea onOpenChat={() => setShowChatRoom(true)} />;
+        return (
+          <EventsArea 
+            onOpenChat={() => setShowChatRoom(true)} 
+            onGoToHome={() => setViewMode('home')}
+            onToggleNotifications={() => { setShowNotifications(!showNotifications); if (!showNotifications && currentUser) markNotificationsRead(currentUser.id); }}
+            unreadNotificationsCount={unreadNotifications.length}
+            onLogout={logout}
+          />
+        );
       case 'motoboy':
-        return <DeliveryArea onOpenChat={() => setShowChatRoom(true)} />;
+        return (
+          <DeliveryArea 
+            onOpenChat={() => setShowChatRoom(true)} 
+            onGoToHome={() => setViewMode('home')}
+            onToggleNotifications={() => { setShowNotifications(!showNotifications); if (!showNotifications && currentUser) markNotificationsRead(currentUser.id); }}
+            unreadNotificationsCount={unreadNotifications.length}
+            onLogout={logout}
+          />
+        );
       case 'admin':
         return <AdminArea />;
       case 'commissioner':
-        return <CommissionerArea onOpenChat={() => setShowChatRoom(true)} />;
+        return (
+          <CommissionerArea 
+            onOpenChat={() => setShowChatRoom(true)} 
+            onGoToHome={() => setViewMode('home')}
+            onLogout={logout}
+          />
+        );
       default:
         return <div>Papel desconhecido.</div>;
     }
@@ -309,6 +349,15 @@ function AppContent() {
               title="Horários de Ônibus"
             >
               <Bus size={18} style={{ color: '#f28d1a' }} />
+            </button>
+
+            {/* Vagas de Emprego */}
+            <button
+              onClick={() => handleClientTabClick('client_jobs')}
+              className={`desktop-icon-btn ${clientView === 'client_jobs' ? 'active' : ''}`}
+              title="Vagas de Emprego"
+            >
+              <Briefcase size={18} style={{ color: '#f28d1a' }} />
             </button>
 
             {/* Cupons */}
@@ -401,18 +450,27 @@ function AppContent() {
           <button
             onClick={() => setViewMode('home')}
             style={{
-              padding: '6px 14px',
-              borderRadius: '99px',
-              backgroundColor: '#f28d1a15',
-              color: '#f28d1a',
-              border: '1px solid #f28d1a',
-              fontSize: '0.72rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              marginRight: '6px'
+              width: '32px', height: '32px', borderRadius: '50%',
+              backgroundColor: '#f28d1a15', border: '1px solid #f28d1a30',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer'
             }}
+            title="Ir para a Home"
           >
-            Acessar a Home
+            <Home size={14} style={{ color: '#f28d1a' }} />
+          </button>
+
+          <button
+            onClick={() => setShowChatRoom(true)}
+            style={{
+              width: '32px', height: '32px', borderRadius: '50%',
+              backgroundColor: '#fff7e6', border: '1px solid #f28d1a30',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer'
+            }}
+            title="Chat Suporte"
+          >
+            <MessageSquare size={14} style={{ color: '#f28d1a' }} />
           </button>
 
           {currentUser.role !== 'admin' && (
@@ -480,8 +538,10 @@ function AppContent() {
         {/* Desktop Top Nav (only on desktop for client) */}
         {isDesktop && renderDesktopTopNav()}
 
-        {/* Partner Header */}
-        {renderPartnerHeader()}
+        {/* Partner Header (only visible when in partner panel and on mobile) */}
+        {!isDesktop && renderPartnerHeader()}
+
+
 
         {/* Core Screen */}
         <div className="main-content custom-scroll" style={{
@@ -548,6 +608,8 @@ function AppContent() {
               onClick={() => {
                 if (!currentUser) {
                   setShowAuthScreen(true);
+                } else if (currentUser.role !== 'client') {
+                  setShowPartnerSwitchModal(true);
                 } else {
                   handleClientTabClick('client_profile');
                 }
@@ -570,6 +632,123 @@ function AppContent() {
             flexDirection: 'column'
           }}>
             <Chat onCloseChat={() => setShowChatRoom(false)} />
+          </div>
+        )}
+
+        {showPartnerSwitchModal && currentUser && (
+          <div style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            backdropFilter: 'blur(4px)'
+          }}>
+            <div style={{
+              width: '100%',
+              maxWidth: '450px',
+              backgroundColor: '#ffffff',
+              borderTopLeftRadius: '24px',
+              borderTopRightRadius: '24px',
+              padding: '24px',
+              boxShadow: '0 -8px 32px rgba(0,0,0,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              animation: 'slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards',
+              fontFamily: 'Outfit, sans-serif'
+            }}>
+              <style>{`
+                @keyframes slideUp {
+                  from { transform: translateY(100%); }
+                  to { transform: translateY(0); }
+                }
+              `}</style>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '1.1rem', fontWeight: 600, color: '#2d2d2d' }}>Opções de Conta</span>
+                <button 
+                  onClick={() => setShowPartnerSwitchModal(false)}
+                  style={{
+                    background: '#f5f5f5',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '32px',
+                    height: '32px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <X size={16} style={{ color: '#666' }} />
+                </button>
+              </div>
+
+              <div style={{ fontSize: '0.85rem', color: '#666', lineHeight: 1.4 }}>
+                Olá, <strong>{currentUser.name}</strong>. Como você possui uma conta de parceiro, o que gostaria de acessar agora?
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '4px' }}>
+                <button
+                  onClick={() => {
+                    setViewMode('panel');
+                    setShowPartnerSwitchModal(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    borderRadius: '16px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)',
+                    color: 'white',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    boxShadow: '0 4px 12px rgba(242, 141, 26, 0.2)'
+                  }}
+                >
+                  <Layers size={18} />
+                  Ir para o Painel do {
+                    currentUser.role === 'seller' ? 'Lojista' :
+                    currentUser.role === 'provider' ? 'Prestador' :
+                    currentUser.role === 'organizer' ? 'Organizador' :
+                    currentUser.role === 'motoboy' ? 'Entregador' :
+                    currentUser.role === 'admin' ? 'Administrador' : 'Parceiro'
+                  }
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleClientTabClick('client_profile');
+                    setShowPartnerSwitchModal(false);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    borderRadius: '16px',
+                    border: '1px solid #eee',
+                    backgroundColor: '#ffffff',
+                    color: '#2d2d2d',
+                    fontSize: '0.88rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px'
+                  }}
+                >
+                  <User size={18} />
+                  Ver Meu Perfil de Cliente
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useFirebaseMock, EditableText } from '../../context/FirebaseMockContext';
+import { IS_BETA_EVENTS_ONLY } from '../../config';
 import { 
   MapPin, ShoppingCart, Heart, Search, Clock, 
   Store as StoreIcon, Calendar, Award, ArrowLeft, 
   Trash, Ticket, Check, X, Flame, Sparkles, Play, 
   Coins, Star, Palette, Gift, Wrench, Phone, MessageSquare, Layers, User,
-  Plus, Camera, Edit, Bell, LogOut, ChevronRight, Share2, Bus,
+  Plus, Camera, Edit, Bell, LogOut, ChevronRight, Share2, Bus, Briefcase, Mail,
   Tag, Truck, CreditCard, Receipt, AlertTriangle,
   Music, Coffee, Book, Gem, Scissors, Brush, Utensils, Wine, Mountain, Sun, Umbrella, Zap, Leaf
 } from 'lucide-react';
@@ -234,7 +235,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     updateAvatarOffset, reorderSections,
     productReviews, addProductReview, getCoinsUsedInPeriod, categories,
     banners, homeSections, serviceReviews, addServiceReview,
-    videoComments, addVideoComment, isDataLoading
+    videoComments, addVideoComment, isDataLoading, jobs, addJobVacancy
   } = useFirebaseMock();
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
@@ -386,6 +387,22 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const [selectedBusDay, setSelectedBusDay] = useState('weekday'); // 'weekday', 'saturday', 'sunday'
   const [selectedLineForModal, setSelectedLineForModal] = useState(null);
   const [selectedModalBusDay, setSelectedModalBusDay] = useState(0);
+
+  // Job states
+  const [jobsSearchQuery, setJobsSearchQuery] = useState('');
+  const [isAddingJob, setIsAddingJob] = useState(false);
+  const [newJobForm, setNewJobForm] = useState({
+    title: '',
+    companyName: '',
+    cnpj: '',
+    description: '',
+    location: 'Ouro Preto - MG',
+    contactType: 'whatsapp',
+    whatsapp: '',
+    email: '',
+    photo: ''
+  });
+  const [newJobFormErrors, setNewJobFormErrors] = useState({});
 
   // Detail View Thumbnail states
   const [activeProductImageIdx, setActiveProductImageIdx] = useState(0);
@@ -622,6 +639,21 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       alert('Por favor, escolha a data e o horário para o agendamento!');
       return;
     }
+
+    const serv = services.find(s => s.id === selectedServiceIdForHire);
+    if (serv && serv.schedule?.enabled) {
+      const isAlreadyBooked = (servicesHired || []).some(sh => 
+        sh.serviceId === serv.id && 
+        sh.date === serviceDate && 
+        sh.time === serviceTime && 
+        sh.status !== 'rejected'
+      );
+      if (isAlreadyBooked) {
+        alert('Desculpe, este horário já foi reservado por outro cliente! Por favor, escolha outro horário.');
+        return;
+      }
+    }
+
     if (currentUser?.phone && currentUser?.cpf && currentUser?.name) {
       setPaymentModalType('service');
       setActivePaymentTab('pix');
@@ -2360,6 +2392,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
     return (
       <div style={{ padding: '16px', paddingBottom: '90px', width: '100%', maxWidth: '100%', minWidth: 0, boxSizing: 'border-box' }} className="animate-fade-in">
+
+
         {/* Localization & Header Actions */}
         <div className="mobile-home-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
@@ -2370,75 +2404,101 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             />
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button 
-              onClick={() => onSwitchView('client_bus')}
-              style={{
-                position: 'relative',
-                background: '#ffffff',
-                border: '1px solid #eaeaea',
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}
-              title="Horários de Ônibus"
-            >
-              <Bus size={16} style={{ color: '#f28d1a' }} />
-            </button>
-            <button 
-              onClick={() => isVisitor ? onTriggerLogin() : onSwitchView('client_coupons')}
-              style={{
-                position: 'relative',
-                background: '#ffffff',
-                border: '1px solid #eaeaea',
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}
-            >
-              <Ticket size={16} style={{ color: '#f28d1a' }} />
-            </button>
-            <button 
-              onClick={() => isVisitor ? onTriggerLogin() : onSwitchView('client_cart')}
-              style={{
-                position: 'relative',
-                background: '#ffffff',
-                border: '1px solid #eaeaea',
-                width: '38px',
-                height: '38px',
-                borderRadius: '50%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer'
-              }}
-            >
-              <ShoppingCart size={16} style={{ color: '#f28d1a' }} />
-              {cartCount > 0 && (
-                <span style={{
-                  position: 'absolute',
-                  top: '-4px',
-                  right: '-4px',
-                  backgroundColor: '#ff5e5b',
-                  color: 'white',
+            {!IS_BETA_EVENTS_ONLY && (
+              <button 
+                onClick={() => onSwitchView('client_bus')}
+                style={{
+                  position: 'relative',
+                  background: '#ffffff',
+                  border: '1px solid #eaeaea',
+                  width: '38px',
+                  height: '38px',
                   borderRadius: '50%',
-                  width: '18px',
-                  height: '18px',
-                  fontSize: '0.65rem',
-                  fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
-                }}>{cartCount}</span>
-              )}
-            </button>
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+                title="Horários de Ônibus"
+              >
+                <Bus size={16} style={{ color: '#f28d1a' }} />
+              </button>
+            )}
+            {!IS_BETA_EVENTS_ONLY && (
+              <button 
+                onClick={() => onSwitchView('client_jobs')}
+                style={{
+                  position: 'relative',
+                  background: '#ffffff',
+                  border: '1px solid #eaeaea',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+                title="Vagas de Emprego"
+              >
+                <Briefcase size={16} style={{ color: '#f28d1a' }} />
+              </button>
+            )}
+            {!IS_BETA_EVENTS_ONLY && (
+              <button 
+                onClick={() => isVisitor ? onTriggerLogin() : onSwitchView('client_coupons')}
+                style={{
+                  position: 'relative',
+                  background: '#ffffff',
+                  border: '1px solid #eaeaea',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <Ticket size={16} style={{ color: '#f28d1a' }} />
+              </button>
+            )}
+            {!IS_BETA_EVENTS_ONLY && (
+              <button 
+                onClick={() => isVisitor ? onTriggerLogin() : onSwitchView('client_cart')}
+                style={{
+                  position: 'relative',
+                  background: '#ffffff',
+                  border: '1px solid #eaeaea',
+                  width: '38px',
+                  height: '38px',
+                  borderRadius: '50%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer'
+                }}
+              >
+                <ShoppingCart size={16} style={{ color: '#f28d1a' }} />
+                {cartCount > 0 && (
+                  <span style={{
+                    position: 'absolute',
+                    top: '-4px',
+                    right: '-4px',
+                    backgroundColor: '#ff5e5b',
+                    color: 'white',
+                    borderRadius: '50%',
+                    width: '18px',
+                    height: '18px',
+                    fontSize: '0.65rem',
+                    fontWeight: 700,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>{cartCount}</span>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -2500,8 +2560,14 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           </button>
         </div>
 
-        {/* Renderização Reordenável das Seções */}
         {(visualLayoutSettings?.sectionOrder || ['banner', 'categories', 'flashDeals', 'nearbyStores', 'products', 'buyers', 'events', 'services'])
+          .filter(secId => {
+            if (IS_BETA_EVENTS_ONLY) {
+              const baseId = secId.includes('__') ? secId.split('__')[0] : secId;
+              return ['banner', 'events'].includes(baseId);
+            }
+            return true;
+          })
           .map(secId => {
             const baseId = secId.includes('__') ? secId.split('__')[0] : secId;
             // Seção fixa
@@ -5131,28 +5197,176 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.68rem', color: '#666', fontWeight: 500 }}>Data</label>
-                  <input 
-                    type="date" 
-                    value={serviceDate}
-                    onChange={(e) => setServiceDate(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.78rem', marginTop: '4px', outline: 'none' }}
-                    required
-                  />
+              {serv.schedule?.enabled ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {serv.schedule.type === 'variable' ? (
+                    <div>
+                      <label style={{ fontSize: '0.68rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '6px' }}>Datas e Horários Disponíveis</label>
+                      {serv.schedule.variableSlots && serv.schedule.variableSlots.length > 0 ? (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px', maxHeight: '160px', overflowY: 'auto' }} className="custom-scroll">
+                          {serv.schedule.variableSlots.map(slot => {
+                            const isBooked = (servicesHired || []).some(sh => 
+                              sh.serviceId === serv.id && 
+                              sh.date === slot.date && 
+                              sh.time === slot.time && 
+                              sh.status !== 'rejected'
+                            );
+                            const isSelected = serviceDate === slot.date && serviceTime === slot.time;
+                            
+                            return (
+                              <button
+                                key={slot.id}
+                                type="button"
+                                disabled={isBooked}
+                                onClick={() => {
+                                  setServiceDate(slot.date);
+                                  setServiceTime(slot.time);
+                                }}
+                                style={{
+                                  padding: '10px 8px',
+                                  borderRadius: '12px',
+                                  border: isSelected ? '2px solid #f28d1a' : '1px solid #ddd',
+                                  backgroundColor: isSelected ? '#f28d1a10' : isBooked ? '#f5f5f5' : '#ffffff',
+                                  color: isBooked ? '#999' : '#333',
+                                  fontSize: '0.72rem',
+                                  fontWeight: isSelected ? '600' : 'normal',
+                                  textAlign: 'center',
+                                  cursor: isBooked ? 'not-allowed' : 'pointer',
+                                  textDecoration: isBooked ? 'line-through' : 'none',
+                                  transition: 'all 0.2s ease',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  alignItems: 'center',
+                                  gap: '2px'
+                                }}
+                              >
+                                <span>{slot.date.split('-').reverse().join('/')}</span>
+                                <span style={{ fontWeight: 600, color: isBooked ? '#aaa' : '#f28d1a' }}>
+                                  {slot.time} {isBooked && '(Reservado)'}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ padding: '12px', textAlign: 'center', backgroundColor: '#fcfcfc', borderRadius: '12px', border: '1px dashed #ddd', fontSize: '0.72rem', color: '#777' }}>
+                          Nenhuma data disponível para este serviço no momento.
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                      {/* Fixed Schedule Date Selection */}
+                      <div>
+                        <label style={{ fontSize: '0.68rem', color: '#666', fontWeight: 600 }}>1. Escolha a Data</label>
+                        <input 
+                          type="date" 
+                          value={serviceDate}
+                          onChange={(e) => {
+                            setServiceDate(e.target.value);
+                            setServiceTime(''); // reset time
+                          }}
+                          style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.78rem', marginTop: '4px', outline: 'none' }}
+                          required
+                        />
+                      </div>
+
+                      {/* Fixed Schedule Time Selection */}
+                      <div>
+                        <label style={{ fontSize: '0.68rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '6px' }}>2. Horários Disponíveis para este dia</label>
+                        {serviceDate ? (() => {
+                          const selectedDateObj = new Date(serviceDate + 'T00:00:00');
+                          const dayOfWeek = selectedDateObj.getDay();
+                          const availableFixedSlots = serv.schedule?.fixedSlots ? serv.schedule.fixedSlots.filter(fs => fs.dayOfWeek === dayOfWeek) : [];
+                          
+                          const days = {
+                            1: 'Segunda-feira',
+                            2: 'Terça-feira',
+                            3: 'Quarta-feira',
+                            4: 'Quinta-feira',
+                            5: 'Sexta-feira',
+                            6: 'Sábado',
+                            0: 'Domingo'
+                          };
+
+                          if (availableFixedSlots.length === 0) {
+                            return (
+                              <div style={{ padding: '10px', fontSize: '0.7rem', color: '#999', backgroundColor: '#fcfcfc', borderRadius: '10px', border: '1px dashed #ddd', textAlign: 'center' }}>
+                                O prestador não atende às {days[dayOfWeek]}s. Por favor, escolha outro dia!
+                              </div>
+                            );
+                          }
+
+                          return (
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                              {availableFixedSlots.map(slot => {
+                                const isBooked = (servicesHired || []).some(sh => 
+                                  sh.serviceId === serv.id && 
+                                  sh.date === serviceDate && 
+                                  sh.time === slot.time && 
+                                  sh.status !== 'rejected'
+                                );
+                                const isSelected = serviceTime === slot.time;
+
+                                return (
+                                  <button
+                                    key={slot.id}
+                                    type="button"
+                                    disabled={isBooked}
+                                    onClick={() => setServiceTime(slot.time)}
+                                    style={{
+                                      padding: '8px 4px',
+                                      borderRadius: '10px',
+                                      border: isSelected ? '2px solid #f28d1a' : '1px solid #ddd',
+                                      backgroundColor: isSelected ? '#f28d1a10' : isBooked ? '#f5f5f5' : '#ffffff',
+                                      color: isBooked ? '#bbb' : '#333',
+                                      fontSize: '0.72rem',
+                                      fontWeight: isSelected ? '600' : 'normal',
+                                      cursor: isBooked ? 'not-allowed' : 'pointer',
+                                      textDecoration: isBooked ? 'line-through' : 'none',
+                                      transition: 'all 0.2s ease',
+                                      textAlign: 'center'
+                                    }}
+                                  >
+                                    {slot.time} {isBooked && '(Reservado)'}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          );
+                        })() : (
+                          <div style={{ padding: '10px', fontSize: '0.7rem', color: '#999', backgroundColor: '#fcfcfc', borderRadius: '10px', border: '1px dashed #ddd', textAlign: 'center' }}>
+                            Escolha uma data acima para visualizar os horários disponíveis do prestador.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: '0.68rem', color: '#666', fontWeight: 500 }}>Horário</label>
-                  <input 
-                    type="time" 
-                    value={serviceTime}
-                    onChange={(e) => setServiceTime(e.target.value)}
-                    style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.78rem', marginTop: '4px', outline: 'none' }}
-                    required
-                  />
+              ) : (
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.68rem', color: '#666', fontWeight: 500 }}>Data</label>
+                    <input 
+                      type="date" 
+                      value={serviceDate}
+                      onChange={(e) => setServiceDate(e.target.value)}
+                      style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.78rem', marginTop: '4px', outline: 'none' }}
+                      required
+                    />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <label style={{ fontSize: '0.68rem', color: '#666', fontWeight: 500 }}>Horário</label>
+                    <input 
+                      type="time" 
+                      value={serviceTime}
+                      onChange={(e) => setServiceTime(e.target.value)}
+                      style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.78rem', marginTop: '4px', outline: 'none' }}
+                      required
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label style={{ fontSize: '0.68rem', color: '#666', fontWeight: 500 }}>Observações / Instruções</label>
@@ -8314,6 +8528,613 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     );
   };
 
+  // --- SUBVIEW 13.6: VAGAS DE EMPREGO (JOBS) ---
+  const renderJobs = () => {
+    // Filter jobs based on search query
+    const filteredJobs = (jobs || []).filter(job => {
+      const query = jobsSearchQuery.toLowerCase();
+      return (
+        job.title?.toLowerCase().includes(query) ||
+        job.companyName?.toLowerCase().includes(query) ||
+        job.description?.toLowerCase().includes(query) ||
+        job.location?.toLowerCase().includes(query)
+      );
+    });
+
+    const handleCreateJob = async (e) => {
+      e.preventDefault();
+      const errors = {};
+      if (!newJobForm.title.trim()) errors.title = "Título da vaga é obrigatório";
+      if (!newJobForm.companyName.trim()) errors.companyName = "Nome da empresa é obrigatório";
+      if (!newJobForm.description.trim()) errors.description = "Descrição é obrigatória";
+      if (!newJobForm.location.trim()) errors.location = "Localização é obrigatória";
+
+      if (newJobForm.contactType === 'whatsapp' || newJobForm.contactType === 'both') {
+        if (!newJobForm.whatsapp.trim()) errors.whatsapp = "WhatsApp é obrigatório";
+      }
+      if (newJobForm.contactType === 'email' || newJobForm.contactType === 'both') {
+        if (!newJobForm.email.trim()) errors.email = "E-mail é obrigatório";
+      }
+
+      if (Object.keys(errors).length > 0) {
+        setNewJobFormErrors(errors);
+        return;
+      }
+
+      // Add job via context function
+      const res = await addJobVacancy({
+        ...newJobForm,
+        createdAt: Date.now()
+      });
+
+      if (res?.success) {
+        triggerToast("Vaga cadastrada com sucesso! 🎉");
+        setIsAddingJob(false);
+        setNewJobForm({
+          title: '',
+          companyName: '',
+          cnpj: '',
+          description: '',
+          location: 'Ouro Preto - MG',
+          contactType: 'whatsapp',
+          whatsapp: '',
+          email: '',
+          photo: ''
+        });
+        setNewJobFormErrors({});
+      } else {
+        triggerToast("Erro ao cadastrar vaga: " + (res?.message || "Erro desconhecido"));
+      }
+    };
+
+    return (
+      <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
+        
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button 
+              onClick={() => onSwitchView('client_home')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a' }}
+            >
+              <ArrowLeft size={22} />
+            </button>
+            <h2 style={{ fontSize: '1.1rem', color: '#2d2d2d', margin: 0 }}>
+              Vagas de Emprego
+            </h2>
+          </div>
+
+          <button
+            onClick={() => isVisitor ? onTriggerLogin() : setIsAddingJob(true)}
+            style={{
+              background: 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)',
+              border: 'none',
+              borderRadius: '20px',
+              color: 'white',
+              padding: '8px 16px',
+              fontSize: '0.78rem',
+              fontWeight: 600,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 12px rgba(242, 141, 26, 0.2)'
+            }}
+          >
+            <Plus size={16} /> Cadastrar Vaga
+          </button>
+        </div>
+
+        {/* Search Bar */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          background: 'white',
+          border: '1px solid #eee',
+          borderRadius: '24px',
+          padding: '8px 16px',
+          marginBottom: '20px',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.02)'
+        }}>
+          <Search size={18} style={{ color: '#aaa', marginRight: '8px' }} />
+          <input
+            type="text"
+            placeholder="Buscar por cargo, empresa, descrição..."
+            value={jobsSearchQuery}
+            onChange={(e) => setJobsSearchQuery(e.target.value)}
+            style={{
+              border: 'none',
+              outline: 'none',
+              width: '100%',
+              fontSize: '0.82rem',
+              color: '#333'
+            }}
+          />
+          {jobsSearchQuery && (
+            <button
+              onClick={() => setJobsSearchQuery('')}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#aaa', padding: 0 }}
+            >
+              <X size={16} />
+            </button>
+          )}
+        </div>
+
+        {/* Jobs List */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {filteredJobs.length === 0 ? (
+            <div style={{
+              textAlign: 'center',
+              padding: '40px 20px',
+              backgroundColor: 'white',
+              borderRadius: '24px',
+              border: '1px solid #eee',
+              color: '#888'
+            }}>
+              <Briefcase size={40} style={{ color: '#ccc', marginBottom: '12px' }} />
+              <p style={{ fontSize: '0.88rem', margin: 0 }}>Nenhuma vaga encontrada para esta busca.</p>
+            </div>
+          ) : (
+            filteredJobs.map((job) => {
+              const formattedDate = new Date(job.createdAt).toLocaleDateString('pt-BR');
+              return (
+                <div 
+                  key={job.id}
+                  style={{
+                    backgroundColor: 'white',
+                    borderRadius: '24px',
+                    border: '1px solid #eee',
+                    padding: '16px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.02)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                    position: 'relative'
+                  }}
+                >
+                  {/* Job Header */}
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                    {job.photo ? (
+                      <img 
+                        src={job.photo} 
+                        alt={job.companyName}
+                        style={{
+                          width: '50px',
+                          height: '50px',
+                          borderRadius: '12px',
+                          objectFit: 'cover',
+                          border: '1px solid #eee'
+                        }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: '50px',
+                        height: '50px',
+                        borderRadius: '12px',
+                        background: 'linear-gradient(135deg, #ffe0b2 0%, #ffb74d 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#f28d1a',
+                        fontWeight: 'bold',
+                        fontSize: '1.2rem'
+                      }}>
+                        {job.companyName?.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
+                      <h3 style={{ fontSize: '0.94rem', fontWeight: 700, color: '#2d2d2d', margin: '0 0 2px 0', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                        {job.title}
+                      </h3>
+                      <span style={{ fontSize: '0.78rem', color: '#666', fontWeight: 500 }}>
+                        {job.companyName}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Metadata */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '0.74rem', color: '#888' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <MapPin size={12} /> {job.location}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Clock size={12} /> Publicado em {formattedDate}
+                    </span>
+                  </div>
+
+                  {/* Description */}
+                  <p style={{
+                    fontSize: '0.8rem',
+                    color: '#555',
+                    lineHeight: 1.4,
+                    margin: 0,
+                    whiteSpace: 'pre-line'
+                  }}>
+                    {job.description}
+                  </p>
+
+                  {/* CNPJ Badge */}
+                  {job.cnpj && (
+                    <div style={{ fontSize: '0.7rem', color: '#999', alignSelf: 'flex-start' }}>
+                      CNPJ: {job.cnpj}
+                    </div>
+                  )}
+
+                  {/* Action Buttons */}
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                    {(job.contactType === 'whatsapp' || job.contactType === 'both') && job.whatsapp && (
+                      <a
+                        href={`https://wa.me/55${job.whatsapp.replace(/\D/g, '')}?text=Olá!%20Vi%20a%20sua%20vaga%20de%20${encodeURIComponent(job.title)}%20no%20Connecta%2B%20e%20tenho%20interesse.`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          backgroundColor: '#25D366',
+                          color: 'white',
+                          borderRadius: '16px',
+                          padding: '10px',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          boxShadow: '0 4px 10px rgba(37, 211, 102, 0.15)'
+                        }}
+                      >
+                        <Phone size={14} /> WhatsApp
+                      </a>
+                    )}
+
+                    {(job.contactType === 'email' || job.contactType === 'both') && job.email && (
+                      <a
+                        href={`mailto:${job.email}?subject=Vaga%20de%20${encodeURIComponent(job.title)}%20-%20Connecta%2B`}
+                        style={{
+                          flex: 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '6px',
+                          backgroundColor: '#f28d1a',
+                          color: 'white',
+                          borderRadius: '16px',
+                          padding: '10px',
+                          fontSize: '0.78rem',
+                          fontWeight: 600,
+                          textDecoration: 'none',
+                          boxShadow: '0 4px 10px rgba(242, 141, 26, 0.15)'
+                        }}
+                      >
+                        <Mail size={14} /> E-mail
+                      </a>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* Modal for adding a job */}
+        {isAddingJob && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            zIndex: 99999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px'
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '24px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '480px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 40px rgba(0,0,0,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px'
+            }} className="animate-fade-in">
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h3 style={{ margin: 0, fontSize: '1.05rem', color: '#2d2d2d', fontWeight: 700 }}>Cadastrar Nova Vaga</h3>
+                <button
+                  onClick={() => setIsAddingJob(false)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888' }}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateJob} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Cargo / Título da Vaga *</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Auxiliar de Cozinha"
+                    value={newJobForm.title}
+                    onChange={(e) => setNewJobForm({...newJobForm, title: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: `1px solid ${newJobFormErrors.title ? '#ff4d4f' : '#eee'}`,
+                      outline: 'none',
+                      fontSize: '0.8rem'
+                    }}
+                  />
+                  {newJobFormErrors.title && <span style={{ fontSize: '0.68rem', color: '#ff4d4f' }}>{newJobFormErrors.title}</span>}
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Nome da Empresa *</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Restaurante Ouro de Minas"
+                    value={newJobForm.companyName}
+                    onChange={(e) => setNewJobForm({...newJobForm, companyName: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: `1px solid ${newJobFormErrors.companyName ? '#ff4d4f' : '#eee'}`,
+                      outline: 'none',
+                      fontSize: '0.8rem'
+                    }}
+                  />
+                  {newJobFormErrors.companyName && <span style={{ fontSize: '0.68rem', color: '#ff4d4f' }}>{newJobFormErrors.companyName}</span>}
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '4px' }}>CNPJ da Empresa (Opcional)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 12.345.678/0001-90"
+                    value={newJobForm.cnpj}
+                    onChange={(e) => setNewJobForm({...newJobForm, cnpj: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1px solid #eee',
+                      outline: 'none',
+                      fontSize: '0.8rem'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Localização *</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Centro Histórico, Ouro Preto - MG"
+                    value={newJobForm.location}
+                    onChange={(e) => setNewJobForm({...newJobForm, location: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: `1px solid ${newJobFormErrors.location ? '#ff4d4f' : '#eee'}`,
+                      outline: 'none',
+                      fontSize: '0.8rem'
+                    }}
+                  />
+                  {newJobFormErrors.location && <span style={{ fontSize: '0.68rem', color: '#ff4d4f' }}>{newJobFormErrors.location}</span>}
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Logo da Empresa (Opcional)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {newJobForm.photo ? (
+                      <div style={{ position: 'relative', width: '60px', height: '60px' }}>
+                        <img 
+                          src={newJobForm.photo} 
+                          alt="Logo Preview" 
+                          style={{ width: '60px', height: '60px', borderRadius: '12px', objectFit: 'cover', border: '1px solid #eee' }} 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setNewJobForm({...newJobForm, photo: ''})}
+                          style={{
+                            position: 'absolute',
+                            top: '-6px',
+                            right: '-6px',
+                            background: '#ff4d4f',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '50%',
+                            width: '20px',
+                            height: '20px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            padding: 0
+                          }}
+                        >
+                          <X size={12} />
+                        </button>
+                      </div>
+                    ) : (
+                      <label style={{
+                        width: '60px',
+                        height: '60px',
+                        borderRadius: '12px',
+                        border: '2px dashed #ccc',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        color: '#888',
+                        fontSize: '0.7rem',
+                        transition: 'border-color 0.2s',
+                        backgroundColor: '#fafafa'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.borderColor = '#f28d1a'}
+                      onMouseOut={(e) => e.currentTarget.style.borderColor = '#ccc'}
+                      >
+                        <Camera size={20} style={{ marginBottom: '2px', color: '#aaa' }} />
+                        <span>Upload</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              compressImage(file, 200, 200, (compressedBase64) => {
+                                setNewJobForm({...newJobForm, photo: compressedBase64});
+                              });
+                            }
+                          }}
+                          style={{ display: 'none' }}
+                        />
+                      </label>
+                    )}
+                    <span style={{ fontSize: '0.7rem', color: '#888' }}>
+                      Selecione uma imagem de logo para sua empresa (JPEG/PNG).
+                    </span>
+                  </div>
+                </div>
+
+
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Descrição da Vaga e Requisitos *</label>
+                  <textarea
+                    rows={4}
+                    placeholder="Descreva as atividades, horários, remuneração e pré-requisitos para a vaga."
+                    value={newJobForm.description}
+                    onChange={(e) => setNewJobForm({...newJobForm, description: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: `1px solid ${newJobFormErrors.description ? '#ff4d4f' : '#eee'}`,
+                      outline: 'none',
+                      fontSize: '0.8rem',
+                      resize: 'none'
+                    }}
+                  />
+                  {newJobFormErrors.description && <span style={{ fontSize: '0.68rem', color: '#ff4d4f' }}>{newJobFormErrors.description}</span>}
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.74rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '4px' }}>Meio de Contato para Candidatura *</label>
+                  <select
+                    value={newJobForm.contactType}
+                    onChange={(e) => setNewJobForm({...newJobForm, contactType: e.target.value})}
+                    style={{
+                      width: '100%',
+                      padding: '10px 14px',
+                      borderRadius: '12px',
+                      border: '1px solid #eee',
+                      outline: 'none',
+                      fontSize: '0.8rem',
+                      backgroundColor: 'white'
+                    }}
+                  >
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="email">E-mail</option>
+                    <option value="both">Ambos (WhatsApp & E-mail)</option>
+                  </select>
+                </div>
+
+                {(newJobForm.contactType === 'whatsapp' || newJobForm.contactType === 'both') && (
+                  <div>
+                    <label style={{ fontSize: '0.74rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '4px' }}>WhatsApp *</label>
+                    <input
+                      type="text"
+                      placeholder="Ex: 31988888888 (com DDD)"
+                      value={newJobForm.whatsapp}
+                      onChange={(e) => setNewJobForm({...newJobForm, whatsapp: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        border: `1px solid ${newJobFormErrors.whatsapp ? '#ff4d4f' : '#eee'}`,
+                        outline: 'none',
+                        fontSize: '0.8rem'
+                      }}
+                    />
+                    {newJobFormErrors.whatsapp && <span style={{ fontSize: '0.68rem', color: '#ff4d4f' }}>{newJobFormErrors.whatsapp}</span>}
+                  </div>
+                )}
+
+                {(newJobForm.contactType === 'email' || newJobForm.contactType === 'both') && (
+                  <div>
+                    <label style={{ fontSize: '0.74rem', color: '#666', fontWeight: 600, display: 'block', marginBottom: '4px' }}>E-mail *</label>
+                    <input
+                      type="email"
+                      placeholder="Ex: rh@empresa.com"
+                      value={newJobForm.email}
+                      onChange={(e) => setNewJobForm({...newJobForm, email: e.target.value})}
+                      style={{
+                        width: '100%',
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        border: `1px solid ${newJobFormErrors.email ? '#ff4d4f' : '#eee'}`,
+                        outline: 'none',
+                        fontSize: '0.8rem'
+                      }}
+                    />
+                    {newJobFormErrors.email && <span style={{ fontSize: '0.68rem', color: '#ff4d4f' }}>{newJobFormErrors.email}</span>}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '12px', marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingJob(false)}
+                    style={{
+                      flex: 1,
+                      backgroundColor: '#f5f5f5',
+                      border: 'none',
+                      borderRadius: '16px',
+                      padding: '12px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      color: '#666',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      flex: 1,
+                      background: 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)',
+                      border: 'none',
+                      borderRadius: '16px',
+                      padding: '12px',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      color: 'white',
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(242,141,26,0.2)'
+                    }}
+                  >
+                    Publicar Vaga
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   // --- SUBVIEW 14: OUROCOINS LEDGER ---
   const renderOuroCoins = () => {
     return (
@@ -8394,13 +9215,16 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   // --- SUBVIEW 15: SEARCH PAGE ---
   const renderSearch = () => {
     const searchResults = searchQuery.trim() !== '' 
-      ? products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description?.toLowerCase().includes(searchQuery.toLowerCase()))
+      ? (IS_BETA_EVENTS_ONLY 
+          ? (events || []).filter(e => e.name?.toLowerCase().includes(searchQuery.toLowerCase()) || e.description?.toLowerCase().includes(searchQuery.toLowerCase()) || e.location?.toLowerCase().includes(searchQuery.toLowerCase()))
+          : products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description?.toLowerCase().includes(searchQuery.toLowerCase()))
+        )
       : [];
 
     return (
       <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
         <h2 style={{ fontSize: '1.2rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '16px' }}>
-          O que você está buscando hoje?
+          {IS_BETA_EVENTS_ONLY ? "O que você quer curtir hoje?" : "O que você está buscando hoje?"}
         </h2>
 
         <div style={{
@@ -8416,7 +9240,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           <Search size={18} style={{ color: '#888', marginRight: '10px' }} />
           <input
             type="text"
-            placeholder="Buscar produtos, lojas ou serviços..."
+            placeholder={IS_BETA_EVENTS_ONLY ? "Buscar eventos..." : "Buscar produtos, lojas ou serviços..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             style={{
@@ -8456,47 +9280,85 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {searchResults.map(prod => (
-                  <div
-                    key={prod.id}
-                    onClick={() => handleProductClick(prod.id)}
-                    style={{
-                      display: 'flex',
-                      gap: '12px',
-                      backgroundColor: '#ffffff',
-                      padding: '10px',
-                      borderRadius: '16px',
-                      border: '1px solid #eee',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <img 
-                      src={prod.image} 
-                      alt={prod.name} 
-                      style={{ width: '50px', height: '50px', borderRadius: '10px', objectFit: 'cover' }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <h4 style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{prod.name}</h4>
-                      <span style={{ fontSize: '0.68rem', color: '#999' }}>{prod.storeName}</span>
-                      <strong style={{ fontSize: '0.85rem', fontWeight: 500, color: isVisitor ? '#ff5e5b' : '#f28d1a', display: 'block', marginTop: '2px' }}>
-                        {isVisitor ? 'Bloqueado' : `R$ ${prod.price.toFixed(2)}`}
-                      </strong>
-                      <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '2px' }}>
-                        {prod.soldCount || 0} vendidos
+                {searchResults.map(item => {
+                  if (IS_BETA_EVENTS_ONLY) {
+                    return (
+                      <div
+                        key={item.id}
+                        onClick={() => { setSelectedEventId(item.id); onSwitchView('client_event'); }}
+                        style={{
+                          display: 'flex',
+                          gap: '12px',
+                          backgroundColor: '#ffffff',
+                          padding: '10px',
+                          borderRadius: '16px',
+                          border: '1px solid #eee',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <img 
+                          src={item.image} 
+                          alt={item.name} 
+                          style={{ width: '50px', height: '50px', borderRadius: '10px', objectFit: 'cover' }}
+                        />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <h4 style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</h4>
+                          <span style={{ fontSize: '0.68rem', color: '#999' }}>{item.organizerName}</span>
+                          <strong style={{ fontSize: '0.85rem', fontWeight: 500, color: isVisitor ? '#ff5e5b' : '#f28d1a', display: 'block', marginTop: '2px' }}>
+                            {isVisitor ? 'Bloqueado' : `Ver Detalhes`}
+                          </strong>
+                          <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '2px' }}>
+                            {item.date} - {item.location}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  
+                  return (
+                    <div
+                      key={item.id}
+                      onClick={() => handleProductClick(item.id)}
+                      style={{
+                        display: 'flex',
+                        gap: '12px',
+                        backgroundColor: '#ffffff',
+                        padding: '10px',
+                        borderRadius: '16px',
+                        border: '1px solid #eee',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <img 
+                        src={item.image} 
+                        alt={item.name} 
+                        style={{ width: '50px', height: '50px', borderRadius: '10px', objectFit: 'cover' }}
+                      />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <h4 style={{ fontSize: '0.82rem', fontWeight: 500, color: '#2d2d2d', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.name}</h4>
+                        <span style={{ fontSize: '0.68rem', color: '#999' }}>{item.storeName}</span>
+                        <strong style={{ fontSize: '0.85rem', fontWeight: 500, color: isVisitor ? '#ff5e5b' : '#f28d1a', display: 'block', marginTop: '2px' }}>
+                          {isVisitor ? 'Bloqueado' : `R$ ${item.price.toFixed(2)}`}
+                        </strong>
+                        <div style={{ fontSize: '0.68rem', color: '#888', marginTop: '2px' }}>
+                          {item.soldCount || 0} vendidos
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
         ) : (
-          <div>
-            <h3 style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
-              Categorias
-            </h3>
-            {renderGroupedCategoriesList()}
-          </div>
+          !IS_BETA_EVENTS_ONLY && (
+            <div>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+                Categorias
+              </h3>
+              {renderGroupedCategoriesList()}
+            </div>
+          )
         )}
       </div>
     );
@@ -9786,6 +10648,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       case 'client_coupons': return renderCoupons();
       case 'client_bus': return renderBusSchedule();
       case 'client_ourocoins': return renderOuroCoins();
+      case 'client_jobs': return renderJobs();
       case 'client_search': return renderSearch();
       case 'client_profile': return renderClientProfile();
       default: return renderHome();

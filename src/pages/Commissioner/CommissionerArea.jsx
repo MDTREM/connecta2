@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
 import { 
   Home, Ticket, Play, Users, MessageSquare, User, 
-  ExternalLink, Copy, Check, Clock, Calendar, LogOut 
+  ExternalLink, Copy, Check, Clock, Calendar, LogOut, Layers
 } from 'lucide-react';
 
-export default function CommissionerArea({ onOpenChat }) {
+export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
   const { currentUser, logout, events, orders } = useFirebaseMock();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [copiedEventId, setCopiedEventId] = useState(null);
@@ -268,14 +268,21 @@ export default function CommissionerArea({ onOpenChat }) {
 
           <nav className="desktop-nav">
             {[
-              { id: 'dashboard', label: 'Painel', icon: <Home size={18} /> },
+              { id: 'home', label: 'Home', icon: <Home size={18} /> },
+              { id: 'dashboard', label: 'Painel', icon: <Layers size={18} /> },
               { id: 'links', label: 'Meus Links', icon: <Ticket size={18} /> },
               { id: 'sales', label: 'Minhas Vendas', icon: <Users size={18} /> }
             ].map(item => (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
+                onClick={() => {
+                  if (item.id === 'home') {
+                    onGoToHome();
+                  } else {
+                    setActiveTab(item.id);
+                  }
+                }}
                 className={`desktop-nav-item ${activeTab === item.id ? 'active' : ''}`}
               >
                 {item.icon}
@@ -284,25 +291,32 @@ export default function CommissionerArea({ onOpenChat }) {
             ))}
           </nav>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-            <button 
-              onClick={logout} 
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <button
+              type="button"
+              onClick={onOpenChat}
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '8px 14px',
-                borderRadius: '12px',
-                border: '1.5px solid #eee',
-                backgroundColor: 'transparent',
-                color: '#666',
-                fontWeight: 500,
-                fontSize: '0.75rem',
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: '#fff7e6', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer'
               }}
+              title="Chat Suporte"
             >
-              <LogOut size={16} />
-              Sair
+              <MessageSquare size={16} style={{ color: '#f28d1a' }} />
+            </button>
+
+            <button 
+              onClick={onLogout} 
+              style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                backgroundColor: '#ff5e5b15', border: 'none',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+              title="Sair da Conta"
+            >
+              <LogOut size={16} style={{ color: '#ff5e5b' }} />
             </button>
           </div>
         </div>
@@ -320,7 +334,7 @@ export default function CommissionerArea({ onOpenChat }) {
       {/* Mobile Bottom Nav */}
       <div className="bottom-nav">
         {[
-          { id: 'dashboard', label: 'Painel', icon: <Home size={20} /> },
+          { id: 'dashboard', label: 'Painel', icon: <Layers size={20} /> },
           { id: 'links', label: 'Links', icon: <Ticket size={20} /> },
           { id: 'sales', label: 'Vendas', icon: <Users size={20} /> }
         ].map(item => (
