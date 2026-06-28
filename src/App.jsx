@@ -273,7 +273,12 @@ function AppContent() {
           />
         );
       case 'admin':
-        return <AdminArea />;
+        return (
+          <AdminArea 
+            onGoToHome={() => setViewMode('home')}
+            onLogout={logout}
+          />
+        );
       case 'commissioner':
         return (
           <CommissionerArea 
@@ -290,7 +295,7 @@ function AppContent() {
   const isClientRole = !currentUser || currentUser.role === 'client' || viewMode === 'home';
   const showBottomBar = isClientRole && 
                         !showChatRoom && 
-                        ['client_home', 'client_search', 'client_foryou', 'client_favorites', 'client_profile', 'client_coupons'].includes(clientView);
+                        ['client_home', 'client_search', 'client_foryou', 'client_favorites', 'client_profile', 'client_coupons', 'client_tickets'].includes(clientView);
 
   // Desktop Top Nav for client
   const renderDesktopTopNav = () => {
@@ -623,13 +628,13 @@ function AppContent() {
                 if (!currentUser) {
                   setShowAuthScreen(true);
                 } else {
-                  handleClientTabClick('client_favorites');
+                  handleClientTabClick('client_tickets');
                 }
               }}
-              className={`bottom-nav-item ${clientView === 'client_favorites' ? 'active' : ''}`}
+              className={`bottom-nav-item ${clientView === 'client_tickets' ? 'active' : ''}`}
             >
-              <Heart size={20} />
-              <span>favoritos</span>
+              <Ticket size={20} />
+              <span>ingressos</span>
             </button>
 
             <button 

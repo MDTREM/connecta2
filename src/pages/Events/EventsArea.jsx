@@ -5,7 +5,438 @@ import {
   User, MapPin, Phone, Clock, Star, Users, Camera, Save, Edit, Trash2, QrCode,
   Bell, LogOut, Layers
 } from 'lucide-react';
-import { uploadAvatar, uploadCover, uploadEventImage, uploadVideoFile } from '../../firebase/storage';
+// Helper component for Date Roller Picker
+function DateRollerPicker({ label, value, onChange, required }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState('');
+  const [selectedYear, setSelectedYear] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      const today = new Date();
+      let d = String(today.getDate()).padStart(2, '0');
+      let m = String(today.getMonth() + 1).padStart(2, '0');
+      let y = String(today.getFullYear());
+
+      if (value) {
+        const parts = value.split('-');
+        if (parts.length === 3) {
+          y = parts[0];
+          m = parts[1];
+          d = parts[2];
+        }
+      }
+      setSelectedDay(d);
+      setSelectedMonth(m);
+      setSelectedYear(y);
+    }
+  }, [isOpen, value]);
+
+  const days = Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0'));
+  const months = Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, '0'));
+  const years = Array.from({ length: 15 }, (_, i) => String(2025 + i));
+
+  const handleConfirm = () => {
+    const formattedDate = `${selectedYear}-${selectedMonth}-${selectedDay}`;
+    onChange(formattedDate);
+    setIsOpen(false);
+  };
+
+  const displayValue = value ? (() => {
+    const parts = value.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    return value;
+  })() : '';
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div 
+        onClick={() => setIsOpen(true)}
+        className="input-field"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          backgroundColor: '#ffffff',
+          height: '42px',
+          padding: '0 12px',
+          borderRadius: '12px',
+          border: '1.5px solid #eee',
+          boxSizing: 'border-box'
+        }}
+      >
+        <span style={{ fontSize: '0.85rem', color: value ? '#2d2d2d' : '#aaa' }}>
+          {displayValue || 'dd/mm/aaaa'}
+        </span>
+        <Calendar size={16} style={{ color: '#f28d1a' }} />
+      </div>
+
+      {isOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          zIndex: 100000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '360px',
+            padding: '20px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#2d2d2d' }}>{label}</span>
+              <button 
+                type="button"
+                onClick={() => setIsOpen(false)} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', backgroundColor: '#f9f9f9', borderRadius: '16px', padding: '12px', marginBottom: '20px' }}>
+              {/* Day */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#888', marginBottom: '6px' }}>DIA</span>
+                <div style={{ height: '140px', overflowY: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                  {days.map(d => {
+                    const isSelected = selectedDay === d;
+                    return (
+                      <button
+                        key={d}
+                        ref={(el) => { if (el && isSelected) el.scrollIntoView({ block: 'nearest' }); }}
+                        type="button"
+                        onClick={() => setSelectedDay(d)}
+                        style={{
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '6px 0',
+                          width: '100%',
+                          backgroundColor: isSelected ? '#f28d1a' : 'transparent',
+                          color: isSelected ? '#ffffff' : '#2d2d2d',
+                          fontWeight: isSelected ? '600' : '400',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {d}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Month */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#888', marginBottom: '6px' }}>MÊS</span>
+                <div style={{ height: '140px', overflowY: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                  {months.map(m => {
+                    const isSelected = selectedMonth === m;
+                    return (
+                      <button
+                        key={m}
+                        ref={(el) => { if (el && isSelected) el.scrollIntoView({ block: 'nearest' }); }}
+                        type="button"
+                        onClick={() => setSelectedMonth(m)}
+                        style={{
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '6px 0',
+                          width: '100%',
+                          backgroundColor: isSelected ? '#f28d1a' : 'transparent',
+                          color: isSelected ? '#ffffff' : '#2d2d2d',
+                          fontWeight: isSelected ? '600' : '400',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Year */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#888', marginBottom: '6px' }}>ANO</span>
+                <div style={{ height: '140px', overflowY: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                  {years.map(y => {
+                    const isSelected = selectedYear === y;
+                    return (
+                      <button
+                        key={y}
+                        ref={(el) => { if (el && isSelected) el.scrollIntoView({ block: 'nearest' }); }}
+                        type="button"
+                        onClick={() => setSelectedYear(y)}
+                        style={{
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '6px 0',
+                          width: '100%',
+                          backgroundColor: isSelected ? '#f28d1a' : 'transparent',
+                          color: isSelected ? '#ffffff' : '#2d2d2d',
+                          fontWeight: isSelected ? '600' : '400',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {y}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                type="button"
+                onClick={() => setIsOpen(false)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '12px',
+                  border: '1px solid #ddd',
+                  backgroundColor: '#ffffff',
+                  color: '#555',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={handleConfirm}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  backgroundColor: '#f28d1a',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Helper component for Time Roller Picker
+function TimeRollerPicker({ label, value, onChange, required }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [selectedHour, setSelectedHour] = useState('');
+  const [selectedMinute, setSelectedMinute] = useState('');
+
+  useEffect(() => {
+    if (isOpen) {
+      let h = '12';
+      let min = '00';
+
+      if (value) {
+        const parts = value.split(':');
+        if (parts.length === 2) {
+          h = parts[0];
+          min = parts[1];
+        }
+      }
+      setSelectedHour(h);
+      setSelectedMinute(min);
+    }
+  }, [isOpen, value]);
+
+  const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+  const minutes = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, '0'));
+
+  const handleConfirm = () => {
+    const formattedTime = `${selectedHour}:${selectedMinute}`;
+    onChange(formattedTime);
+    setIsOpen(false);
+  };
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <div 
+        onClick={() => setIsOpen(true)}
+        className="input-field"
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          cursor: 'pointer',
+          backgroundColor: '#ffffff',
+          height: '42px',
+          padding: '0 12px',
+          borderRadius: '12px',
+          border: '1.5px solid #eee',
+          boxSizing: 'border-box'
+        }}
+      >
+        <span style={{ fontSize: '0.85rem', color: value ? '#2d2d2d' : '#aaa' }}>
+          {value || '--:--'}
+        </span>
+        <Clock size={16} style={{ color: '#f28d1a' }} />
+      </div>
+
+      {isOpen && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          zIndex: 100000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '16px'
+        }}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '320px',
+            padding: '20px',
+            boxShadow: '0 10px 25px rgba(0,0,0,0.15)',
+            boxSizing: 'border-box'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <span style={{ fontWeight: 600, fontSize: '0.9rem', color: '#2d2d2d' }}>{label}</span>
+              <button 
+                type="button"
+                onClick={() => setIsOpen(false)} 
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', backgroundColor: '#f9f9f9', borderRadius: '16px', padding: '12px', marginBottom: '20px' }}>
+              {/* Hour */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#888', marginBottom: '6px' }}>HORA</span>
+                <div style={{ height: '140px', overflowY: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                  {hours.map(h => {
+                    const isSelected = selectedHour === h;
+                    return (
+                      <button
+                        key={h}
+                        ref={(el) => { if (el && isSelected) el.scrollIntoView({ block: 'nearest' }); }}
+                        type="button"
+                        onClick={() => setSelectedHour(h)}
+                        style={{
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '6px 0',
+                          width: '100%',
+                          backgroundColor: isSelected ? '#f28d1a' : 'transparent',
+                          color: isSelected ? '#ffffff' : '#2d2d2d',
+                          fontWeight: isSelected ? '600' : '400',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {h}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Minute */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.65rem', fontWeight: 600, color: '#888', marginBottom: '6px' }}>MINUTO</span>
+                <div style={{ height: '140px', overflowY: 'auto', width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                  {minutes.map(m => {
+                    const isSelected = selectedMinute === m;
+                    return (
+                      <button
+                        key={m}
+                        ref={(el) => { if (el && isSelected) el.scrollIntoView({ block: 'nearest' }); }}
+                        type="button"
+                        onClick={() => setSelectedMinute(m)}
+                        style={{
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '6px 0',
+                          width: '100%',
+                          backgroundColor: isSelected ? '#f28d1a' : 'transparent',
+                          color: isSelected ? '#ffffff' : '#2d2d2d',
+                          fontWeight: isSelected ? '600' : '400',
+                          fontSize: '0.85rem',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {m}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                type="button"
+                onClick={() => setIsOpen(false)}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '12px',
+                  border: '1px solid #ddd',
+                  backgroundColor: '#ffffff',
+                  color: '#555',
+                  fontSize: '0.85rem',
+                  fontWeight: 500,
+                  cursor: 'pointer'
+                }}
+              >
+                Cancelar
+              </button>
+              <button 
+                type="button"
+                onClick={handleConfirm}
+                style={{
+                  flex: 1,
+                  padding: '10px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  backgroundColor: '#f28d1a',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout, onGoToHome }) {
   const { 
@@ -2048,33 +2479,33 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Data de início</label>
-            <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="input-field" required />
+            <DateRollerPicker label="Data de início" value={startDate} onChange={setStartDate} required />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Hora de início</label>
-            <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} className="input-field" required />
+            <TimeRollerPicker label="Hora de início" value={startTime} onChange={setStartTime} required />
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Data de término</label>
-            <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="input-field" required />
+            <DateRollerPicker label="Data de término" value={endDate} onChange={setEndDate} required />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Hora de término</label>
-            <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} className="input-field" required />
+            <TimeRollerPicker label="Hora de término" value={endTime} onChange={setEndTime} required />
           </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Data de início das vendas</label>
-            <input type="date" value={salesStartDate} onChange={(e) => setSalesStartDate(e.target.value)} className="input-field" />
+            <DateRollerPicker label="Início das vendas" value={salesStartDate} onChange={setSalesStartDate} />
           </div>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Hora de início das vendas</label>
-            <input type="time" value={salesStartTime} onChange={(e) => setSalesStartTime(e.target.value)} className="input-field" />
+            <TimeRollerPicker label="Hora das vendas" value={salesStartTime} onChange={setSalesStartTime} />
           </div>
         </div>
       </div>
@@ -2193,7 +2624,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                 onClick={() => handleAddBatch('pago')}
                 style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#fff7e6', color: '#f28d1a', border: 'none', fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer' }}
               >
-                + Adicionar Ingresso Pago
+                + Adicionar
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -2223,9 +2654,9 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
               <button
                 type="button"
                 onClick={() => handleAddBatch('gratuito')}
-                style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#f0f9f8', color: '#2ec4b6', border: 'none', fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer' }}
+                style={{ padding: '4px 10px', borderRadius: '8px', backgroundColor: '#fff7e6', color: '#f28d1a', border: 'none', fontSize: '0.65rem', fontWeight: 600, cursor: 'pointer' }}
               >
-                + Adicionar Ingresso Gratuito
+                + Adicionar
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -2264,7 +2695,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
               cursor: 'pointer'
             }}
           >
-            + Adicionar Cupom
+            + Adicionar
           </button>
         </div>
 

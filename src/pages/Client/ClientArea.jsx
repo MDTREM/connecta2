@@ -10415,8 +10415,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               <div style={{ fontSize: '0.65rem', color: '#888' }}><EditableText textId="stat_following" defaultText="Seguindo" /></div>
             </div>
             <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f28d1a' }}>{userOrders.length}</div>
-              <div style={{ fontSize: '0.65rem', color: '#888' }}><EditableText textId="stat_orders" defaultText="Pedidos" /></div>
+              <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f28d1a' }}>{userTickets.length}</div>
+              <div style={{ fontSize: '0.65rem', color: '#888' }}><EditableText textId="stat_events" defaultText="Eventos" /></div>
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#f28d1a' }}>{user.ouroCoins || 0}</div>
@@ -10439,24 +10439,18 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 action: () => onSwitchView('go_to_partner_panel') 
               }
             ] : []),
-            { icon: <ShoppingCart size={16} />, label: 'Pedidos Feitos', key: 'menu_pedidos_feitos', count: userProductsOrders.length, action: () => setProfileSubSection('orders') },
             { icon: <Ticket size={16} />, label: 'Ingressos Comprados', key: 'menu_ingressos_comprados', count: userTickets.length, action: () => onSwitchView('client_tickets') },
             { icon: <Ticket size={16} />, label: 'Meus Cupons', key: 'menu_meus_cupons', count: coupons.length, action: () => onSwitchView('client_coupons') },
-            { icon: <Heart size={16} />, label: 'Favoritos', key: 'menu_favoritos', count: isOwnProfile ? favorites.length : 0, action: () => isOwnProfile ? onSwitchView('client_favorites') : triggerToast("Apenas o próprio usuário pode ver seus favoritos.") },
-            { icon: <Star size={16} />, label: 'Avaliações Feitas', key: 'menu_avaliacoes_feitas', count: isOwnProfile ? userReviews.length : 2, action: () => setProfileSubSection('reviews') },
             { icon: <StoreIcon size={16} />, label: 'Perfis Seguidos', key: 'menu_perfis_seguidos', count: isOwnProfile ? followingIds.length : 3, action: () => isOwnProfile ? onSwitchView('client_following') : triggerToast("Apenas o próprio usuário pode ver seus perfis seguidos.") },
-            { icon: <Wrench size={16} />, label: 'Serviços Realizados', key: 'menu_servicos_realizados', count: userHiredServices.length, action: () => setProfileSubSection('services') },
             ...(isOwnProfile && isDesktop ? [
               { icon: <Bell size={16} />, label: 'Notificações', key: 'menu_notificacoes', count: currentUser ? notifications.filter(n => n.userId === currentUser.id && !n.read).length : 0, action: () => { setProfileSubSection('notifications'); if (currentUser) markNotificationsRead(currentUser.id); } },
               { icon: <LogOut size={16} style={{ color: '#ff5e5b' }} />, label: 'Sair da Conta', key: 'menu_sair', count: null, action: logout }
             ] : [])
           ].map((item, idx) => {
-            // Se for perfil público de outro usuário, ocultar Pedidos, Ingressos, Favoritos e Serviços Realizados
+            // Se for perfil público de outro usuário, ocultar Ingressos e Meus Cupons
             if (!isOwnProfile && (
-              item.label === 'Pedidos Feitos' || 
-              item.label === 'Ingressos Comprados' || 
-              item.label === 'Favoritos' || 
-              item.label === 'Serviços Realizados'
+              item.label === 'Ingressos Comprados' ||
+              item.label === 'Meus Cupons'
             )) {
               return null;
             }

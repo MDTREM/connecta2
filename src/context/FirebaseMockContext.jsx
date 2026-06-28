@@ -1788,6 +1788,12 @@ export const FirebaseMockProvider = ({ children }) => {
         await deleteDoc(doc(db, 'events', e.id)).catch(err => console.error("Error deleting user event:", err));
       }
 
+      // Delete all videos owned by this user
+      const userVideos = videos.filter(v => v.creatorId === userId);
+      for (const v of userVideos) {
+        await deleteDoc(doc(db, 'videos', v.id)).catch(err => console.error("Error deleting user video:", err));
+      }
+
       alert("Usuário excluído com sucesso do Firestore, sô! Todas as suas informações associadas foram limpas.");
     } catch (err) {
       console.error("Error deleting user:", err);
