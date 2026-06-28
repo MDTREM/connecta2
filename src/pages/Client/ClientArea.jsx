@@ -1866,7 +1866,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         );
       }
 
-      // MOBILE: Horizontal scrollable carousel
+      // MOBILE: Vertical list (one under the other)
       return (
         <SectionWrapper key={blockId} sectionId={blockId}>
           <div id="events-section" style={{ marginBottom: '24px' }}>
@@ -1877,19 +1877,10 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             <div
               style={{
                 display: 'flex',
-                gap: '12px',
-                overflowX: 'auto',
-                paddingBottom: '8px',
-                scrollbarWidth: 'none',
-                msOverflowStyle: 'none',
-                WebkitOverflowScrolling: 'touch'
+                flexDirection: 'column',
+                gap: '16px',
+                paddingBottom: '8px'
               }}
-              className="hide-scrollbar"
-              onMouseDown={handleMouseDown}
-              onMouseLeave={handleMouseLeave}
-              onMouseUp={handleMouseUp}
-              onMouseMove={handleMouseMove}
-              onScroll={handleEventScroll}
             >
               {(events || []).map(ev => {
                 const evActiveBatch = ev.batches && ev.batches.length > 0
@@ -1905,22 +1896,15 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 return (
                   <div
                     key={ev.id}
-                    onClick={(e) => {
-                      const container = e.currentTarget.parentElement;
-                      if (container && container.dataset.hasDragged === 'true') {
-                        container.dataset.hasDragged = 'false';
-                        return;
-                      }
+                    onClick={() => {
                       setSelectedEventId(ev.id); onSwitchView('client_event');
                     }}
                     style={{
                       border: '1px solid #eee',
                       borderRadius: '16px',
-                      padding: '10px',
+                      padding: '12px',
                       backgroundColor: '#ffffff',
                       cursor: 'pointer',
-                      flex: '0 0 80%',
-                      minWidth: '240px',
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'space-between'
@@ -1928,7 +1912,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   >
                     <div>
                       <div style={{ width: '100%', aspectRatio: '16/10', overflow: 'hidden', borderRadius: '12px', marginBottom: '8px' }}>
-                        <img src={ev.homepageBanner || ev.image} alt={ev.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable="false" />
+                        <img src={ev.homepageBanner || ev.image} alt={ev.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                       <div style={{ padding: '4px' }}>
                         <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -1964,23 +1948,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 );
               })}
             </div>
-
-            {(events || []).length > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', marginTop: '8px' }}>
-                {(events || []).map((_, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      width: activeEventPage === idx ? '18px' : '6px',
-                      height: '6px',
-                      borderRadius: '3px',
-                      backgroundColor: activeEventPage === idx ? '#f28d1a' : '#ddd',
-                      transition: 'all 0.2s ease'
-                    }}
-                  />
-                ))}
-              </div>
-            )}
           </div>
         </SectionWrapper>
       );
