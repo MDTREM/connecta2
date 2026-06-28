@@ -290,7 +290,7 @@ function AppContent() {
   const isClientRole = !currentUser || currentUser.role === 'client' || viewMode === 'home';
   const showBottomBar = isClientRole && 
                         !showChatRoom && 
-                        ['client_home', 'client_search', 'client_foryou', 'client_favorites', 'client_profile'].includes(clientView);
+                        ['client_home', 'client_search', 'client_foryou', 'client_favorites', 'client_profile', 'client_coupons'].includes(clientView);
 
   // Desktop Top Nav for client
   const renderDesktopTopNav = () => {
@@ -299,9 +299,11 @@ function AppContent() {
     const navItems = [
       { id: 'client_home', label: 'Início', icon: <Home size={18} /> },
       { id: 'client_search', label: 'Buscar', icon: <Search size={18} /> },
-      { id: 'client_foryou', label: 'ForYou', icon: <Play size={18} /> },
+      ...(!IS_BETA_EVENTS_ONLY ? [
+        { id: 'client_foryou', label: 'ForYou', icon: <Play size={18} /> },
+        { id: 'client_ourocoins', label: 'OuroCoins', icon: <Coins size={18} />, requireAuth: true }
+      ] : []),
       { id: 'client_favorites', label: 'Favoritos', icon: <Heart size={18} />, requireAuth: true },
-      { id: 'client_ourocoins', label: 'OuroCoins', icon: <Coins size={18} />, requireAuth: true },
       { id: 'client_profile', label: 'Perfil', icon: <User size={18} />, requireAuth: true },
     ];
 
@@ -588,13 +590,33 @@ function AppContent() {
               <span>buscar</span>
             </button>
 
-            {/* Glowing ForYou center button */}
-            <button 
-              onClick={() => handleClientTabClick('client_foryou')}
-              className="bottom-nav-center"
-            >
-              <Play size={22} />
-            </button>
+            {/* Glowing ForYou / Coupons center button */}
+            {IS_BETA_EVENTS_ONLY ? (
+              <button 
+                onClick={() => {
+                  if (!currentUser) {
+                    setShowAuthScreen(true);
+                  } else {
+                    handleClientTabClick('client_coupons');
+                  }
+                }}
+                className={`bottom-nav-center ${clientView === 'client_coupons' ? 'active' : ''}`}
+                style={{
+                  background: clientView === 'client_coupons' 
+                    ? 'linear-gradient(135deg, #f28d1a 0%, #f9bb1a 100%)' 
+                    : 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)'
+                }}
+              >
+                <Ticket size={22} />
+              </button>
+            ) : (
+              <button 
+                onClick={() => handleClientTabClick('client_foryou')}
+                className="bottom-nav-center"
+              >
+                <Play size={22} />
+              </button>
+            )}
 
             <button 
               onClick={() => {

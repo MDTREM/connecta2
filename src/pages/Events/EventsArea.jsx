@@ -120,6 +120,21 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   const [evLocation, setEvLocation] = useState('');
   const [evImages, setEvImages] = useState(Array(10).fill(''));
   const [evDescription, setEvDescription] = useState('');
+  const [homepageBanner, setHomepageBanner] = useState('');
+
+  const handleHomepageBannerUpload = async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      try {
+        const eventId = selectedEventId || 'temp_' + Date.now();
+        const url = await uploadEventImage(file, currentUser.id, eventId);
+        setHomepageBanner(url);
+      } catch (error) {
+        console.error(error);
+        alert('Erro ao fazer upload do banner de destaque.');
+      }
+    }
+  };
 
   // Structured date/time states
   const [startDate, setStartDate] = useState('');
@@ -368,7 +383,8 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       totalSeats: hasNumberedSeats ? parseInt(totalSeats || 0) : null,
       feeOption,
       coupons: coupons.filter(c => c.code.trim() !== ''),
-      policy: policy || defaultPolicyTemplate
+      policy: policy || defaultPolicyTemplate,
+      homepageBanner
     };
 
     if (editingEventId) {
@@ -413,6 +429,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
     setFeeOption('absorver');
     setCoupons([]);
     setPolicy('');
+    setHomepageBanner('');
 
     // Reset novos states estruturados
     setStartDate('');
@@ -1730,8 +1747,9 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                       setAddressCity(ev.addressCity || '');
                       setAddressState(ev.addressState || '');
                       setOnlineLink(ev.onlineLink || '');
-
+                      setHomepageBanner(ev.homepageBanner || '');
                       setActiveTab('add_event');
+
                     }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a', padding: '4px' }}
                     title="Editar Evento"
@@ -1927,6 +1945,70 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
               />
             </div>
           ))}
+        </div>
+        <div style={{ marginTop: '12px', borderTop: '1px solid #f0f0f0', paddingTop: '12px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              Banner de Destaque na Página Inicial (Opcional - Proporção Recomendada: 16:9 ou Banner Largo)
+            </label>
+            <div 
+              onClick={() => document.getElementById('ev-banner-file').click()}
+              style={{
+                width: '100%',
+                height: '120px',
+                borderRadius: '12px',
+                border: '1.5px dashed #ccc',
+                position: 'relative',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: '#fafafa',
+                cursor: 'pointer'
+              }}
+            >
+              {homepageBanner ? (
+                <>
+                  <img src={homepageBanner} alt="Banner Destaque" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setHomepageBanner(''); }}
+                    style={{
+                      position: 'absolute',
+                      top: '6px',
+                      right: '6px',
+                      backgroundColor: 'rgba(255, 94, 91, 0.85)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: '20px',
+                      height: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                  >
+                    <X size={12} />
+                  </button>
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', color: '#999', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                  <Upload size={20} />
+                  <span style={{ fontSize: '0.7rem' }}>Clique para enviar o Banner de Destaque</span>
+                </div>
+              )}
+              <input 
+                type="file" 
+                id="ev-banner-file" 
+                accept="image/*" 
+                onChange={handleHomepageBannerUpload}
+                style={{ display: 'none' }}
+              />
+            </div>
+          </div>
         </div>
       </div>
 

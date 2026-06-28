@@ -147,15 +147,33 @@ export const FirebaseMockProvider = ({ children }) => {
       console.warn("DeletedUsers subscription warning:", error);
     });
 
-    const unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
-      const list = [];
-      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-      setProducts(list);
+    let unsubProducts = () => {};
+    let unsubServices = () => {};
+    let unsubVideos = () => {};
+    let unsubReviews = () => {};
+    let unsubServiceReviews = () => {};
+    let unsubVideoComments = () => {};
+    let unsubCategories = () => {};
+    let unsubJobs = () => {};
+
+    if (IS_BETA_EVENTS_ONLY) {
       setProductsLoaded(true);
-    }, (error) => {
-      console.warn("Products subscription error:", error);
-      setProductsLoaded(true);
-    });
+      setServicesLoaded(true);
+      setCategoriesLoaded(true);
+      setJobsLoaded(true);
+    }
+
+    if (!IS_BETA_EVENTS_ONLY) {
+      unsubProducts = onSnapshot(collection(db, 'products'), (snapshot) => {
+        const list = [];
+        snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+        setProducts(list);
+        setProductsLoaded(true);
+      }, (error) => {
+        console.warn("Products subscription error:", error);
+        setProductsLoaded(true);
+      });
+    }
 
     const unsubEvents = onSnapshot(collection(db, 'events'), (snapshot) => {
       const list = [];
@@ -167,26 +185,28 @@ export const FirebaseMockProvider = ({ children }) => {
       setEventsLoaded(true);
     });
 
-    const unsubServices = onSnapshot(collection(db, 'services'), (snapshot) => {
-      const list = [];
-      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-      setServices(list);
-      setServicesLoaded(true);
-    }, (error) => {
-      console.warn("Services subscription error:", error);
-      setServicesLoaded(true);
-    });
-
-    const unsubVideos = onSnapshot(collection(db, 'videos'), (snapshot) => {
-      const list = [];
-      snapshot.forEach(doc => {
-        const data = doc.data();
-        if (doc.id && !doc.id.startsWith('vid_default_')) {
-          list.push({ ...data, id: doc.id });
-        }
+    if (!IS_BETA_EVENTS_ONLY) {
+      unsubServices = onSnapshot(collection(db, 'services'), (snapshot) => {
+        const list = [];
+        snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+        setServices(list);
+        setServicesLoaded(true);
+      }, (error) => {
+        console.warn("Services subscription error:", error);
+        setServicesLoaded(true);
       });
-      setVideos(list);
-    });
+
+      unsubVideos = onSnapshot(collection(db, 'videos'), (snapshot) => {
+        const list = [];
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if (doc.id && !doc.id.startsWith('vid_default_')) {
+            list.push({ ...data, id: doc.id });
+          }
+        });
+        setVideos(list);
+      });
+    }
 
     const unsubCoupons = onSnapshot(collection(db, 'coupons'), (snapshot) => {
       const list = [];
@@ -194,63 +214,65 @@ export const FirebaseMockProvider = ({ children }) => {
       setCoupons(list);
     });
 
-    const unsubReviews = onSnapshot(collection(db, 'productReviews'), (snapshot) => {
-      const list = [];
-      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-      setProductReviews(list);
-    });
-
-    const unsubServiceReviews = onSnapshot(collection(db, 'serviceReviews'), (snapshot) => {
-      const list = [];
-      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-      setServiceReviews(list);
-    }, (error) => console.warn("ServiceReviews subscription warning:", error));
-
-    const unsubVideoComments = onSnapshot(collection(db, 'videoComments'), (snapshot) => {
-      const list = [];
-      snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-      setVideoComments(list);
-    }, (error) => console.warn("videoComments subscription warning:", error));
-
-    const unsubCategories = onSnapshot(collection(db, 'categories'), (snapshot) => {
-      if (snapshot.empty) {
-        const defaultCats = [
-          { label: 'Artesanato', key: 'Artesanato', type: 'lojas', icon: 'Palette', order: 0 },
-          { label: 'Lembranças', key: 'Lembranças', type: 'lojas', icon: 'Gift', order: 1 },
-          { label: 'Gastronomia', key: 'Gastronomia', type: 'lojas', icon: 'Utensils', order: 2 },
-          { label: 'Alimentos', key: 'Alimentos', type: 'lojas', icon: 'ShoppingBag', order: 3 },
-          { label: 'Bebidas', key: 'Bebidas', type: 'lojas', icon: 'Coffee', order: 4 },
-          { label: 'Outros', key: 'Outros', type: 'lojas', icon: 'Sparkles', order: 5 },
-          { label: 'Guia Turístico / Roteiros', key: 'Guia Turístico', type: 'servicos', icon: 'Compass', order: 0 },
-          { label: 'Fotógrafo', key: 'Fotógrafo', type: 'servicos', icon: 'Camera', order: 1 },
-          { label: 'Diarista / Faxina', key: 'Diarista', type: 'servicos', icon: 'Activity', order: 2 },
-          { label: 'Manutenção Geral', key: 'Marido de Aluguel', type: 'servicos', icon: 'Wrench', order: 3 },
-          { label: 'Entregas Grandes / Mudanças', key: 'Fretes', type: 'servicos', icon: 'Truck', order: 4 },
-          { label: 'Entrega de Moto', key: 'Moto', type: 'entregadores', icon: 'Bike', order: 5 },
-          { label: 'Entrega de Carro / Fretes', key: 'Carro', type: 'entregadores', icon: 'Truck', order: 6 }
-        ];
-        defaultCats.forEach((cat, index) => {
-          const catId = `cat_default_${index}`;
-          setDoc(doc(db, 'categories', catId), {
-            id: catId,
-            ...cat,
-            desc: '',
-            active: true,
-            createdAt: Date.now()
-          }).catch(err => console.error("Error seeding category:", err));
-        });
-        setCategoriesLoaded(true);
-      } else {
+    if (!IS_BETA_EVENTS_ONLY) {
+      unsubReviews = onSnapshot(collection(db, 'productReviews'), (snapshot) => {
         const list = [];
         snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-        list.sort((a, b) => (a.order || 0) - (b.order || 0));
-        setCategories(list);
+        setProductReviews(list);
+      });
+
+      unsubServiceReviews = onSnapshot(collection(db, 'serviceReviews'), (snapshot) => {
+        const list = [];
+        snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+        setServiceReviews(list);
+      }, (error) => console.warn("ServiceReviews subscription warning:", error));
+
+      unsubVideoComments = onSnapshot(collection(db, 'videoComments'), (snapshot) => {
+        const list = [];
+        snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+        setVideoComments(list);
+      }, (error) => console.warn("videoComments subscription warning:", error));
+
+      unsubCategories = onSnapshot(collection(db, 'categories'), (snapshot) => {
+        if (snapshot.empty) {
+          const defaultCats = [
+            { label: 'Artesanato', key: 'Artesanato', type: 'lojas', icon: 'Palette', order: 0 },
+            { label: 'Lembranças', key: 'Lembranças', type: 'lojas', icon: 'Gift', order: 1 },
+            { label: 'Gastronomia', key: 'Gastronomia', type: 'lojas', icon: 'Utensils', order: 2 },
+            { label: 'Alimentos', key: 'Alimentos', type: 'lojas', icon: 'ShoppingBag', order: 3 },
+            { label: 'Bebidas', key: 'Bebidas', type: 'lojas', icon: 'Coffee', order: 4 },
+            { label: 'Outros', key: 'Outros', type: 'lojas', icon: 'Sparkles', order: 5 },
+            { label: 'Guia Turístico / Roteiros', key: 'Guia Turístico', type: 'servicos', icon: 'Compass', order: 0 },
+            { label: 'Fotógrafo', key: 'Fotógrafo', type: 'servicos', icon: 'Camera', order: 1 },
+            { label: 'Diarista / Faxina', key: 'Diarista', type: 'servicos', icon: 'Activity', order: 2 },
+            { label: 'Manutenção Geral', key: 'Marido de Aluguel', type: 'servicos', icon: 'Wrench', order: 3 },
+            { label: 'Entregas Grandes / Mudanças', key: 'Fretes', type: 'servicos', icon: 'Truck', order: 4 },
+            { label: 'Entrega de Moto', key: 'Moto', type: 'entregadores', icon: 'Bike', order: 5 },
+            { label: 'Entrega de Carro / Fretes', key: 'Carro', type: 'entregadores', icon: 'Truck', order: 6 }
+          ];
+          defaultCats.forEach((cat, index) => {
+            const catId = `cat_default_${index}`;
+            setDoc(doc(db, 'categories', catId), {
+              id: catId,
+              ...cat,
+              desc: '',
+              active: true,
+              createdAt: Date.now()
+            }).catch(err => console.error("Error seeding category:", err));
+          });
+          setCategoriesLoaded(true);
+        } else {
+          const list = [];
+          snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+          list.sort((a, b) => (a.order || 0) - (b.order || 0));
+          setCategories(list);
+          setCategoriesLoaded(true);
+        }
+      }, (error) => {
+        console.warn("Categories subscription error:", error);
         setCategoriesLoaded(true);
-      }
-    }, (error) => {
-      console.warn("Categories subscription error:", error);
-      setCategoriesLoaded(true);
-    });
+      });
+    }
 
     const unsubBanners = onSnapshot(collection(db, 'banners'), (snapshot) => {
       const list = [];
@@ -273,65 +295,67 @@ export const FirebaseMockProvider = ({ children }) => {
       setHomeSectionsLoaded(true);
     });
 
-    const unsubJobs = onSnapshot(collection(db, 'jobs'), (snapshot) => {
-      if (snapshot.empty) {
-        const defaultJobs = [
-          {
-            id: 'job_default_1',
-            companyName: 'Café das Flores',
-            cnpj: '12.345.678/0001-90',
-            title: 'Auxiliar Administrativo',
-            description: 'Atendimento ao público, controle de caixa e organização de planilhas. Necessário conhecimento básico de Excel e boa comunicação.',
-            location: 'Centro Histórico, Ouro Preto - MG',
-            contactType: 'both',
-            whatsapp: '31988888888',
-            email: 'vagas@cafedasflores.com.br',
-            photo: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=500',
-            createdAt: Date.now()
-          },
-          {
-            id: 'job_default_2',
-            companyName: 'Pedra Sabão Arte',
-            cnpj: '98.765.432/0001-10',
-            title: 'Atendente de Vendas',
-            description: 'Venda de artesanatos locais, recepção e atendimento caloroso a turistas e moradores. Organização de vitrines e controle de estoque básico.',
-            location: 'Feirinha de Pedra Sabão, Ouro Preto - MG',
-            contactType: 'whatsapp',
-            whatsapp: '31977777777',
-            email: '',
-            photo: 'https://images.unsplash.com/photo-1605721911519-3dfeb3be25e7?w=500',
-            createdAt: Date.now() - 3600000
-          },
-          {
-            id: 'job_default_3',
-            companyName: 'Restaurante Contos de Réis',
-            cnpj: '45.678.901/0001-23',
-            title: 'Garçom / Garçonete',
-            description: 'Apresentar cardápio, servir mesas, tirar pedidos e zelar pela higiene e boa experiência do cliente. Desejável inglês ou espanhol básico.',
-            location: 'Centro, Ouro Preto - MG',
-            contactType: 'email',
-            whatsapp: '',
-            email: 'rh@contosdereis.com.br',
-            photo: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=500',
-            createdAt: Date.now() - 7200000
-          }
-        ];
-        defaultJobs.forEach(job => {
-          setDoc(doc(db, 'jobs', job.id), job).catch(err => console.error("Error seeding job:", err));
-        });
-        setJobs(defaultJobs);
+    if (!IS_BETA_EVENTS_ONLY) {
+      unsubJobs = onSnapshot(collection(db, 'jobs'), (snapshot) => {
+        if (snapshot.empty) {
+          const defaultJobs = [
+            {
+              id: 'job_default_1',
+              companyName: 'Café das Flores',
+              cnpj: '12.345.678/0001-90',
+              title: 'Auxiliar Administrativo',
+              description: 'Atendimento ao público, controle de caixa e organização de planilhas. Necessário conhecimento básico de Excel e boa comunicação.',
+              location: 'Centro Histórico, Ouro Preto - MG',
+              contactType: 'both',
+              whatsapp: '31988888888',
+              email: 'vagas@cafedasflores.com.br',
+              photo: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=500',
+              createdAt: Date.now()
+            },
+            {
+              id: 'job_default_2',
+              companyName: 'Pedra Sabão Arte',
+              cnpj: '98.765.432/0001-10',
+              title: 'Atendente de Vendas',
+              description: 'Venda de artesanatos locais, recepção e atendimento caloroso a turistas e moradores. Organização de vitrines e controle de estoque básico.',
+              location: 'Feirinha de Pedra Sabão, Ouro Preto - MG',
+              contactType: 'whatsapp',
+              whatsapp: '31977777777',
+              email: '',
+              photo: 'https://images.unsplash.com/photo-1605721911519-3dfeb3be25e7?w=500',
+              createdAt: Date.now() - 3600000
+            },
+            {
+              id: 'job_default_3',
+              companyName: 'Restaurante Contos de Réis',
+              cnpj: '45.678.901/0001-23',
+              title: 'Garçom / Garçonete',
+              description: 'Apresentar cardápio, servir mesas, tirar pedidos e zelar pela higiene e boa experiência do cliente. Desejável inglês ou espanhol básico.',
+              location: 'Centro, Ouro Preto - MG',
+              contactType: 'email',
+              whatsapp: '',
+              email: 'rh@contosdereis.com.br',
+              photo: 'https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=500',
+              createdAt: Date.now() - 7200000
+            }
+          ];
+          defaultJobs.forEach(job => {
+            setDoc(doc(db, 'jobs', job.id), job).catch(err => console.error("Error seeding job:", err));
+          });
+          setJobs(defaultJobs);
+          setJobsLoaded(true);
+        } else {
+          const list = [];
+          snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
+          list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          setJobs(list);
+          setJobsLoaded(true);
+        }
+      }, (error) => {
+        console.warn("Jobs subscription warning:", error);
         setJobsLoaded(true);
-      } else {
-        const list = [];
-        snapshot.forEach(doc => list.push({ ...doc.data(), id: doc.id }));
-        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-        setJobs(list);
-        setJobsLoaded(true);
-      }
-    }, (error) => {
-      console.warn("Jobs subscription warning:", error);
-      setJobsLoaded(true);
-    });
+      });
+    }
 
     const unsubSettings = onSnapshot(doc(db, 'settings', 'visualLayout'), (docSnap) => {
       if (docSnap.exists()) {

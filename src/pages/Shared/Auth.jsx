@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useFirebaseMock, EditableText } from '../../context/FirebaseMockContext';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../firebase/config';
-import { ShieldCheck, AlertCircle, Upload, Clock } from 'lucide-react';
+import { ShieldCheck, AlertCircle, Upload, Clock, User, Calendar, Store, Wrench, Bike, ChevronDown, Check, X } from 'lucide-react';
 import { IS_BETA_EVENTS_ONLY } from '../../config';
 
 export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'login' }) {
@@ -11,6 +11,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
   
   // Registration Role selector
   const [selectedRole, setSelectedRole] = useState('client'); // client, seller, provider, organizer, motoboy
+  const [showRoleModal, setShowRoleModal] = useState(false);
 
   // Common Fields
   const [email, setEmail] = useState('');
@@ -323,6 +324,16 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
         .auth-btn:active {
           transform: scale(1.0);
         }
+        @keyframes scaleUp {
+          from {
+            transform: scale(0.95);
+            opacity: 0;
+          }
+          to {
+            transform: scale(1.0);
+            opacity: 1;
+          }
+        }
       `}</style>
       
       {toastMsg && <div className="toast">{toastMsg}</div>}
@@ -576,19 +587,58 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
           <form onSubmit={handleRegisterSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             
             {/* Role selector inside Registration */}
-            <div className="form-group">
+            <div className="form-group" style={{ position: 'relative' }}>
               <label className="auth-card-label">Eu sou:</label>
-              <select
-                value={selectedRole}
-                onChange={(e) => { setSelectedRole(e.target.value); setErrorMsg(''); }}
-                className="auth-card-select"
+              <button
+                type="button"
+                onClick={() => setShowRoleModal(true)}
+                className="auth-card-select-trigger"
+                style={{
+                  width: '100%',
+                  padding: '14px 20px',
+                  borderRadius: '20px',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.15)',
+                  color: '#ffffff',
+                  fontSize: '0.95rem',
+                  fontWeight: 500,
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  textAlign: 'left'
+                }}
               >
-                <option value="client">Cliente</option>
-                {!IS_BETA_EVENTS_ONLY && <option value="seller">Loja (Vendedor)</option>}
-                {!IS_BETA_EVENTS_ONLY && <option value="provider">Prestador de Serviços</option>}
-                <option value="organizer">Organizador de Eventos</option>
-                {!IS_BETA_EVENTS_ONLY && <option value="motoboy">Entregador</option>}
-              </select>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1 }}>
+                  {(() => {
+                    const activeOpt = [
+                      { value: 'client', label: 'Cliente' },
+                      { value: 'organizer', label: 'Organizador de Eventos' },
+                      { value: 'seller', label: 'Loja (Vendedor)' },
+                      { value: 'provider', label: 'Prestador de Serviços' },
+                      { value: 'motoboy', label: 'Entregador' }
+                    ].find(o => o.value === selectedRole);
+                    if (activeOpt) {
+                      if (activeOpt.value === 'client') return <User size={18} style={{ color: '#ffffff' }} />;
+                      if (activeOpt.value === 'organizer') return <Calendar size={18} style={{ color: '#ffffff' }} />;
+                      if (activeOpt.value === 'seller') return <Store size={18} style={{ color: '#ffffff' }} />;
+                      if (activeOpt.value === 'provider') return <Wrench size={18} style={{ color: '#ffffff' }} />;
+                      if (activeOpt.value === 'motoboy') return <Bike size={18} style={{ color: '#ffffff' }} />;
+                    }
+                    return <User size={18} style={{ color: '#ffffff' }} />;
+                  })()}
+                  {[
+                    { value: 'client', label: 'Cliente' },
+                    { value: 'organizer', label: 'Organizador de Eventos' },
+                    { value: 'seller', label: 'Loja (Vendedor)' },
+                    { value: 'provider', label: 'Prestador de Serviços' },
+                    { value: 'motoboy', label: 'Entregador' }
+                  ].find(o => o.value === selectedRole)?.label || 'Selecione...'}
+                </span>
+                <ChevronDown size={18} style={{ color: 'rgba(255, 255, 255, 0.7)', marginLeft: 'auto' }} />
+              </button>
             </div>
 
             {/* Common Registration fields */}
@@ -1204,6 +1254,149 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             >
               Fechar
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* BEAUTIFUL ROLE SELECTION MODAL WITH CONNECTA+ VISUAL ID */}
+      {showRoleModal && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.6)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px'
+        }} onClick={() => setShowRoleModal(false)}>
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '24px',
+            width: '100%',
+            maxWidth: '440px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            overflow: 'hidden',
+            animation: 'scaleUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)'
+          }} onClick={(e) => e.stopPropagation()}>
+            {/* Header */}
+            <div style={{
+              background: 'linear-gradient(135deg, #f28d1a 0%, #f9bb1a 100%)',
+              padding: '20px 24px',
+              position: 'relative',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}>
+              <h3 style={{ margin: 0, color: '#ffffff', fontSize: '1.15rem', fontWeight: 600 }}>Eu sou...</h3>
+              <button
+                type="button"
+                onClick={() => setShowRoleModal(false)}
+                style={{
+                  background: 'rgba(255, 255, 255, 0.2)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  color: '#ffffff',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)'}
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Content List */}
+            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto' }} className="custom-scroll">
+              {[
+                { value: 'client', label: 'Cliente', desc: 'Quero comprar ingressos e curtir eventos locais.', icon: 'User' },
+                { value: 'organizer', label: 'Organizador de Eventos', desc: 'Quero criar, divulgar e gerenciar ingressos para meus eventos.', icon: 'Calendar' },
+                ...(!IS_BETA_EVENTS_ONLY ? [
+                  { value: 'seller', label: 'Loja (Vendedor)', desc: 'Quero vender meus produtos online.', icon: 'Store' },
+                  { value: 'provider', label: 'Prestador de Serviços', desc: 'Quero divulgar meus serviços locais.', icon: 'Wrench' },
+                  { value: 'motoboy', label: 'Entregador', desc: 'Quero fazer entregas na plataforma.', icon: 'Bike' }
+                ] : [])
+              ].map((opt) => {
+                const isSelected = selectedRole === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => {
+                      setSelectedRole(opt.value);
+                      setErrorMsg('');
+                      setShowRoleModal(false);
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '14px',
+                      padding: '16px',
+                      borderRadius: '16px',
+                      border: isSelected ? '2px solid #f28d1a' : '2px solid #f1f5f9',
+                      backgroundColor: isSelected ? '#fff9ee' : '#ffffff',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s ease-in-out',
+                      outline: 'none'
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.borderColor = '#f28d1a';
+                        e.currentTarget.style.backgroundColor = '#fffcf7';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) {
+                        e.currentTarget.style.borderColor = '#f1f5f9';
+                        e.currentTarget.style.backgroundColor = '#ffffff';
+                      }
+                    }}
+                  >
+                    {/* Icon wrapper */}
+                    <div style={{
+                      backgroundColor: isSelected ? '#f28d1a' : '#f1f5f9',
+                      color: isSelected ? '#ffffff' : '#f28d1a',
+                      borderRadius: '12px',
+                      width: '40px',
+                      height: '40px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      transition: 'all 0.2s'
+                    }}>
+                      {opt.value === 'client' && <User size={20} />}
+                      {opt.value === 'organizer' && <Calendar size={20} />}
+                      {opt.value === 'seller' && <Store size={20} />}
+                      {opt.value === 'provider' && <Wrench size={20} />}
+                      {opt.value === 'motoboy' && <Bike size={20} />}
+                    </div>
+
+                    {/* Text wrapper */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: '0.92rem', fontWeight: 600, color: '#1e293b' }}>
+                          {opt.label}
+                        </span>
+                        {isSelected && <Check size={16} style={{ color: '#f28d1a' }} />}
+                      </div>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.78rem', color: '#64748b', lineHeight: '1.3' }}>
+                        {opt.desc}
+                      </p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

@@ -1821,7 +1821,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       <div>
                         <div style={{ width: '100%', aspectRatio: '16/10', overflow: 'hidden', borderRadius: '12px', marginBottom: '8px' }}>
                           <img 
-                            src={ev.image} 
+                            src={ev.homepageBanner || ev.image} 
                             alt={ev.name} 
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
@@ -1928,7 +1928,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   >
                     <div>
                       <div style={{ width: '100%', aspectRatio: '16/10', overflow: 'hidden', borderRadius: '12px', marginBottom: '8px' }}>
-                        <img src={ev.image} alt={ev.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable="false" />
+                        <img src={ev.homepageBanner || ev.image} alt={ev.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable="false" />
                       </div>
                       <div style={{ padding: '4px' }}>
                         <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
@@ -2327,7 +2327,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   }}
                 >
                   <img 
-                    src={ev.image} 
+                    src={ev.homepageBanner || ev.image} 
                     alt={ev.name} 
                     style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '12px', marginBottom: '8px' }}
                   />
@@ -10441,6 +10441,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             ] : []),
             { icon: <ShoppingCart size={16} />, label: 'Pedidos Feitos', key: 'menu_pedidos_feitos', count: userProductsOrders.length, action: () => setProfileSubSection('orders') },
             { icon: <Ticket size={16} />, label: 'Ingressos Comprados', key: 'menu_ingressos_comprados', count: userTickets.length, action: () => onSwitchView('client_tickets') },
+            { icon: <Ticket size={16} />, label: 'Meus Cupons', key: 'menu_meus_cupons', count: coupons.length, action: () => onSwitchView('client_coupons') },
             { icon: <Heart size={16} />, label: 'Favoritos', key: 'menu_favoritos', count: isOwnProfile ? favorites.length : 0, action: () => isOwnProfile ? onSwitchView('client_favorites') : triggerToast("Apenas o próprio usuário pode ver seus favoritos.") },
             { icon: <Star size={16} />, label: 'Avaliações Feitas', key: 'menu_avaliacoes_feitas', count: isOwnProfile ? userReviews.length : 2, action: () => setProfileSubSection('reviews') },
             { icon: <StoreIcon size={16} />, label: 'Perfis Seguidos', key: 'menu_perfis_seguidos', count: isOwnProfile ? followingIds.length : 3, action: () => isOwnProfile ? onSwitchView('client_following') : triggerToast("Apenas o próprio usuário pode ver seus perfis seguidos.") },
