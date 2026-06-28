@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { db, auth } from '../firebase/config';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
+import { IS_BETA_EVENTS_ONLY } from '../config';
 import { 
   collection, doc, setDoc, updateDoc, deleteDoc, 
   onSnapshot
@@ -58,6 +59,24 @@ export const FirebaseMockProvider = ({ children }) => {
   const [categoriesLoaded, setCategoriesLoaded] = useState(false);
   const [homeSectionsLoaded, setHomeSectionsLoaded] = useState(false);
   const [authFirebaseUser, setAuthFirebaseUser] = useState(null);
+
+  // Failsafe load timeout for slow networks/devices (resolves loading in 3.5s max)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      console.warn("Failsafe loaded trigger fired due to slow connection.");
+      setUsersLoaded(true);
+      setProductsLoaded(true);
+      setEventsLoaded(true);
+      setServicesLoaded(true);
+      setBannersLoaded(true);
+      setCategoriesLoaded(true);
+      setHomeSectionsLoaded(true);
+      setJobsLoaded(true);
+      setIsAuthLoading(false);
+      setAuthInitialized(true);
+    }, 3500);
+    return () => clearTimeout(timer);
+  }, []);
   const [banners, setBanners] = useState([]);
   const [homeSections, setHomeSections] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -1846,7 +1865,9 @@ export const FirebaseMockProvider = ({ children }) => {
       jobs,
       addJobVacancy,
       isAuthLoading,
-      isDataLoading: !usersLoaded || !productsLoaded || !eventsLoaded || !servicesLoaded || !bannersLoaded || !categoriesLoaded || !homeSectionsLoaded || !jobsLoaded
+      isDataLoading: IS_BETA_EVENTS_ONLY
+        ? (!usersLoaded || !eventsLoaded || !bannersLoaded || !homeSectionsLoaded)
+        : (!usersLoaded || !productsLoaded || !eventsLoaded || !servicesLoaded || !bannersLoaded || !categoriesLoaded || !homeSectionsLoaded || !jobsLoaded)
     }}>
       {children}
     </FirebaseMockContext.Provider>

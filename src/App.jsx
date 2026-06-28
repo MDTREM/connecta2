@@ -343,22 +343,26 @@ function AppContent() {
           {/* Right actions */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexShrink: 0 }}>
             {/* Ônibus */}
-            <button
-              onClick={() => handleClientTabClick('client_bus')}
-              className={`desktop-icon-btn ${clientView === 'client_bus' ? 'active' : ''}`}
-              title="Horários de Ônibus"
-            >
-              <Bus size={18} style={{ color: '#f28d1a' }} />
-            </button>
+            {!IS_BETA_EVENTS_ONLY && (
+              <button
+                onClick={() => handleClientTabClick('client_bus')}
+                className={`desktop-icon-btn ${clientView === 'client_bus' ? 'active' : ''}`}
+                title="Horários de Ônibus"
+              >
+                <Bus size={18} style={{ color: '#f28d1a' }} />
+              </button>
+            )}
 
             {/* Vagas de Emprego */}
-            <button
-              onClick={() => handleClientTabClick('client_jobs')}
-              className={`desktop-icon-btn ${clientView === 'client_jobs' ? 'active' : ''}`}
-              title="Vagas de Emprego"
-            >
-              <Briefcase size={18} style={{ color: '#f28d1a' }} />
-            </button>
+            {!IS_BETA_EVENTS_ONLY && (
+              <button
+                onClick={() => handleClientTabClick('client_jobs')}
+                className={`desktop-icon-btn ${clientView === 'client_jobs' ? 'active' : ''}`}
+                title="Vagas de Emprego"
+              >
+                <Briefcase size={18} style={{ color: '#f28d1a' }} />
+              </button>
+            )}
 
             {/* Cupons */}
             <button
@@ -373,23 +377,25 @@ function AppContent() {
             </button>
 
             {/* Carrinho */}
-            <button
-              onClick={() => handleClientTabClick('client_cart')}
-              className={`desktop-icon-btn ${clientView === 'client_cart' ? 'active' : ''}`}
-              style={{ position: 'relative' }}
-              title="Carrinho"
-            >
-              <ShoppingCart size={18} style={{ color: '#f28d1a' }} />
-              {cartCount > 0 && (
-                <span style={{
-                  position: 'absolute', top: '-4px', right: '-4px',
-                  backgroundColor: '#ff5e5b', width: '16px', height: '16px',
-                  borderRadius: '50%', fontSize: '0.6rem', color: 'white',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontWeight: 700
-                }}>{cartCount}</span>
-              )}
-            </button>
+            {!IS_BETA_EVENTS_ONLY && (
+              <button
+                onClick={() => handleClientTabClick('client_cart')}
+                className={`desktop-icon-btn ${clientView === 'client_cart' ? 'active' : ''}`}
+                style={{ position: 'relative' }}
+                title="Carrinho"
+              >
+                <ShoppingCart size={18} style={{ color: '#f28d1a' }} />
+                {cartCount > 0 && (
+                  <span style={{
+                    position: 'absolute', top: '-4px', right: '-4px',
+                    backgroundColor: '#ff5e5b', width: '16px', height: '16px',
+                    borderRadius: '50%', fontSize: '0.6rem', color: 'white',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontWeight: 700
+                  }}>{cartCount}</span>
+                )}
+              </button>
+            )}
 
             {currentUser && currentUser.role !== 'client' && (
               <button

@@ -2444,25 +2444,23 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 <Briefcase size={16} style={{ color: '#f28d1a' }} />
               </button>
             )}
-            {!IS_BETA_EVENTS_ONLY && (
-              <button 
-                onClick={() => isVisitor ? onTriggerLogin() : onSwitchView('client_coupons')}
-                style={{
-                  position: 'relative',
-                  background: '#ffffff',
-                  border: '1px solid #eaeaea',
-                  width: '38px',
-                  height: '38px',
-                  borderRadius: '50%',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer'
-                }}
-              >
-                <Ticket size={16} style={{ color: '#f28d1a' }} />
-              </button>
-            )}
+            <button 
+              onClick={() => isVisitor ? onTriggerLogin() : onSwitchView('client_coupons')}
+              style={{
+                position: 'relative',
+                background: '#ffffff',
+                border: '1px solid #eaeaea',
+                width: '38px',
+                height: '38px',
+                borderRadius: '50%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              <Ticket size={16} style={{ color: '#f28d1a' }} />
+            </button>
             {!IS_BETA_EVENTS_ONLY && (
               <button 
                 onClick={() => isVisitor ? onTriggerLogin() : onSwitchView('client_cart')}
