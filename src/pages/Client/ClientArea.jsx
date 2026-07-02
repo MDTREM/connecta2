@@ -464,6 +464,21 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   }, [currentView, sortedEvents]);
 
   useEffect(() => {
+    const bannerEvents = sortedEvents.filter(ev => ev.homepageBanner);
+    if (bannerEvents.length > 0 && bannerScrollRef.current) {
+      const container = bannerScrollRef.current;
+      const cardWidth = container.scrollWidth / bannerEvents.length;
+      const targetLeft = activeBannerIndex * cardWidth;
+      if (Math.abs(container.scrollLeft - targetLeft) > 10) {
+        container.scrollTo({
+          left: targetLeft,
+          behavior: 'smooth'
+        });
+      }
+    }
+  }, [activeBannerIndex, sortedEvents]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const eventParam = params.get('event');
     const promoParam = params.get('promo');
