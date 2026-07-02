@@ -1936,6 +1936,14 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                     color: 'white',
                     position: 'relative'
                   }}>
+                    <style>{`
+                      #reader video {
+                        width: 100% !important;
+                        height: 100% !important;
+                        object-fit: cover !important;
+                        border-radius: 16px;
+                      }
+                    `}</style>
                     <div id="reader" style={{ width: '100%', height: '100%', display: cameraActive ? 'block' : 'none' }}></div>
                     {!cameraActive && (
                       <div style={{ textAlign: 'center', padding: '20px', position: 'absolute' }}>
