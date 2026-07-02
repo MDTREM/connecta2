@@ -513,14 +513,23 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
         const scannerInstance = new window.Html5Qrcode("reader");
         scannerRef.current = scannerInstance;
 
+        const formatsToSupport = window.Html5QrcodeSupportedFormats 
+          ? [window.Html5QrcodeSupportedFormats.QR_CODE] 
+          : undefined;
+
         scannerInstance.start(
           { facingMode: "environment" },
           {
-            fps: 10,
+            fps: 25, // Aumentado de 10 para 25 para leitura fluida
             qrbox: (width, height) => {
               const min = Math.min(width, height);
-              return { width: Math.round(min * 0.8), height: Math.round(min * 0.8) };
-            }
+              return { width: Math.round(min * 0.7), height: Math.round(min * 0.7) };
+            },
+            aspectRatio: 1.0,
+            experimentalFeatures: {
+              useBarCodeDetectorIfSupported: true // Usa decodificação nativa por hardware se disponível
+            },
+            formatsToSupport: formatsToSupport
           },
           (decodedText) => {
             // Executa com um pequeno delay para evitar conflito de thread no html5-qrcode
