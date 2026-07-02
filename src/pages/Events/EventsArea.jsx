@@ -523,9 +523,8 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
             fps: 25, // Aumentado de 10 para 25 para leitura fluida
             qrbox: (width, height) => {
               const min = Math.min(width, height);
-              return { width: Math.round(min * 0.7), height: Math.round(min * 0.7) };
+              return { width: Math.round(min * 0.8), height: Math.round(min * 0.8) };
             },
-            aspectRatio: 1.0,
             experimentalFeatures: {
               useBarCodeDetectorIfSupported: true // Usa decodificação nativa por hardware se disponível
             },

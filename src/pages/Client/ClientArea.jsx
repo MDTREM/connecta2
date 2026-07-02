@@ -8124,14 +8124,14 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 {/* QR Code Container */}
                 <div style={{ margin: '12px 0' }}>
                   <img 
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${selectedTicketForModal.id}`} 
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${selectedTicketForModal.id}`} 
                     alt="Ingresso QR Code" 
                     style={{ 
-                      width: '160px', 
-                      height: '160px', 
+                      width: '180px', 
+                      height: '180px', 
                       margin: '0 auto', 
                       display: 'block', 
-                      padding: '8px', 
+                      padding: '10px', 
                       backgroundColor: 'white', 
                       borderRadius: '16px' 
                     }} 
