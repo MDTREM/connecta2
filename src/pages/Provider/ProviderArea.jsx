@@ -950,24 +950,28 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
       {/* Metrics widgets */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
         {[
-          { label: 'Saldo Disponível', val: `R$ ${withdrawableBalance.toFixed(2)}`, desc: 'Disponível para saque', color: '#fffdf4', btn: 'Sacar' },
-          { label: 'Serviços Ativos', val: `${activeHirings.length} agendados`, desc: 'Pendentes / Aceitos', color: '#fffdf0' },
-          { label: 'Ganhos do Mês', val: `R$ ${totalEarnings.toFixed(2)}`, desc: 'Acumulado no caixa', color: '#f3faf8' },
-          { label: 'Avaliação Média', val: `${avgRating} ★`, desc: `Baseado em ${totalReviewsCount} avaliações`, color: '#fef3f3' }
+          { label: 'Saldo Disponível', val: `R$ ${withdrawableBalance.toFixed(2)}`, desc: 'Disponível para saque', btn: 'Sacar' },
+          { label: 'Serviços Ativos', val: `${activeHirings.length} agendados`, desc: 'Pendentes / Aceitos' },
+          { label: 'Ganhos do Mês', val: `R$ ${totalEarnings.toFixed(2)}`, desc: 'Acumulado no caixa' },
+          { label: 'Avaliação Média', val: `${avgRating} ★`, desc: `Baseado em ${totalReviewsCount} avaliações` }
         ].map(st => (
           <div
             key={st.label}
             style={{
-              backgroundColor: st.color,
-              padding: '14px',
-              borderRadius: '20px',
-              border: '1.5px solid #eaeaea40',
-              boxShadow: 'var(--shadow-sm)',
-              position: 'relative'
+              backgroundColor: '#ffffff',
+              padding: '14px 14px 14px 18px',
+              borderRadius: '16px',
+              border: '1px solid #eef2f6',
+              borderLeft: '4px solid #f28d1a',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)',
+              position: 'relative',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center'
             }}
           >
-            <div style={{ fontSize: '0.7rem', color: '#888', fontWeight: 600 }}>{st.label}</div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0' }}>{st.val}</div>
+            <div style={{ fontSize: '0.72rem', color: '#666', fontWeight: 500 }}>{st.label}</div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 500, color: '#1a1a1a', margin: '4px 0', letterSpacing: '-0.3px' }}>{st.val}</div>
             <div style={{ fontSize: '0.62rem', color: '#999' }}>{st.desc}</div>
             {st.btn && (
               <button 
@@ -987,9 +991,12 @@ export default function ProviderArea({ onOpenChat, onToggleNotifications, unread
                   border: 'none',
                   backgroundColor: '#f28d1a',
                   color: 'white',
-                  fontWeight: 500,
-                  fontSize: '0.62rem',
-                  cursor: 'pointer'
+                  fontWeight: 600,
+                  fontSize: '0.65rem',
+                  cursor: 'pointer',
+                  alignSelf: 'flex-start',
+                  boxShadow: '0 2px 6px rgba(242,141,26,0.2)',
+                  transition: 'all 0.2s'
                 }}
               >
                 {st.btn}

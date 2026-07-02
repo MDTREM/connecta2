@@ -190,11 +190,11 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
       }
       extraData = { cpf, address, serviceCategory };
     } else if (selectedRole === 'organizer') {
-      if (!cnpj || !companyName || !address) {
-        setErrorMsg('Preencha CPF ou CNPJ, Nome da Produtora e Endereço!');
+      if (!cnpj || !companyName) {
+        setErrorMsg('Preencha CPF ou CNPJ e o Nome da Produtora!');
         return;
       }
-      extraData = { cnpj, companyName, address };
+      extraData = { cnpj, companyName, address: '' };
     } else if (selectedRole === 'motoboy') {
       if (!cpf || !address || !licenseFileName) {
         setErrorMsg('Preencha CPF ou CNPJ, Endereço e anexe sua carteira de habilitação!');
@@ -485,7 +485,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               <label className="auth-card-label">E-mail</label>
               <input
                 type="email"
-                placeholder="nome@exemplo.com"
+                placeholder=""
                 value={recoveryEmail}
                 onChange={(e) => setRecoveryEmail(e.target.value)}
                 className="auth-card-input"
@@ -523,7 +523,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               <label className="auth-card-label">E-mail</label>
               <input
                 type="email"
-                placeholder="nome@exemplo.com"
+                placeholder=""
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="auth-card-input"
@@ -535,7 +535,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               <label className="auth-card-label">Senha</label>
               <input
                 type="password"
-                placeholder="••••••"
+                placeholder=""
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="auth-card-input"
@@ -646,7 +646,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               <label className="auth-card-label">Nome completo</label>
               <input
                 type="text"
-                placeholder="Como quer ser chamado?"
+                placeholder=""
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className="auth-card-input"
@@ -658,7 +658,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               <label className="auth-card-label">E-mail</label>
               <input
                 type="email"
-                placeholder="nome@exemplo.com"
+                placeholder=""
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="auth-card-input"
@@ -671,7 +671,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                 <label className="auth-card-label">Telefone</label>
                 <input
                   type="tel"
-                  placeholder="(31) 99999-9999"
+                  placeholder=""
                   value={phone}
                   onChange={(e) => setPhone(formatPhone(e.target.value))}
                   className="auth-card-input"
@@ -689,7 +689,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">CPF ou CNPJ</label>
                   <input
                     type="text"
-                    placeholder="Digite aqui..."
+                    placeholder=""
                     value={cnpj}
                     onChange={(e) => setCnpj(formatCPFOrCNPJ(e.target.value))}
                     className="auth-card-input"
@@ -700,7 +700,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">Nome Comercial da Loja</label>
                   <input
                     type="text"
-                    placeholder="Ex: Artesanatos Tiradentes"
+                    placeholder=""
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
                     className="auth-card-input"
@@ -736,7 +736,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">CEP</label>
                   <input
                     type="text"
-                    placeholder="35400-000"
+                    placeholder=""
                     value={cep}
                     onChange={(e) => setCep(formatCEP(e.target.value))}
                     className="auth-card-input"
@@ -747,7 +747,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">Endereço</label>
                   <input
                     type="text"
-                    placeholder="Rua, número, Centro..."
+                    placeholder=""
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     className="auth-card-input"
@@ -764,7 +764,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">CPF ou CNPJ</label>
                   <input
                     type="text"
-                    placeholder="Digite aqui..."
+                    placeholder=""
                     value={cpf}
                     onChange={(e) => setCpf(formatCPFOrCNPJ(e.target.value))}
                     className="auth-card-input"
@@ -799,7 +799,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">CEP</label>
                   <input
                     type="text"
-                    placeholder="35400-000"
+                    placeholder=""
                     value={cep}
                     onChange={(e) => setCep(formatCEP(e.target.value))}
                     className="auth-card-input"
@@ -810,7 +810,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">Endereço</label>
                   <input
                     type="text"
-                    placeholder="Ex: Centro, Barra, Bauxita..."
+                    placeholder=""
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     className="auth-card-input"
@@ -820,14 +820,14 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               </>
             )}
 
-            {/* ORGANIZER: CNPJ, Company, CEP, Address */}
+            {/* ORGANIZER: CNPJ, Company */}
             {selectedRole === 'organizer' && (
               <>
                 <div className="form-group">
                   <label className="auth-card-label">CPF ou CNPJ</label>
                   <input
                     type="text"
-                    placeholder="Digite aqui..."
+                    placeholder=""
                     value={cnpj}
                     onChange={(e) => setCnpj(formatCPFOrCNPJ(e.target.value))}
                     className="auth-card-input"
@@ -838,31 +838,9 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">Nome da Produtora</label>
                   <input
                     type="text"
-                    placeholder="Ex: República Pasárgada"
+                    placeholder=""
                     value={companyName}
                     onChange={(e) => setCompanyName(e.target.value)}
-                    className="auth-card-input"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="auth-card-label">CEP</label>
-                  <input
-                    type="text"
-                    placeholder="35400-000"
-                    value={cep}
-                    onChange={(e) => setCep(formatCEP(e.target.value))}
-                    className="auth-card-input"
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label className="auth-card-label">Endereço</label>
-                  <input
-                    type="text"
-                    placeholder="Rua, número, bairro..."
-                    value={address}
-                    onChange={(e) => setAddress(e.target.value)}
                     className="auth-card-input"
                     required
                   />
@@ -877,7 +855,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">CPF ou CNPJ</label>
                   <input
                     type="text"
-                    placeholder="Digite aqui..."
+                    placeholder=""
                     value={cpf}
                     onChange={(e) => setCpf(formatCPFOrCNPJ(e.target.value))}
                     className="auth-card-input"
@@ -889,7 +867,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">CEP</label>
                   <input
                     type="text"
-                    placeholder="35400-000"
+                    placeholder=""
                     value={cep}
                     onChange={(e) => setCep(formatCEP(e.target.value))}
                     className="auth-card-input"
@@ -900,7 +878,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">Endereço</label>
                   <input
                     type="text"
-                    placeholder="Rua, número, Ouro Preto..."
+                    placeholder=""
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     className="auth-card-input"
@@ -945,7 +923,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">CPF ou CNPJ</label>
                   <input
                     type="text"
-                    placeholder="Digite aqui..."
+                    placeholder=""
                     value={cpf}
                     onChange={(e) => setCpf(formatCPFOrCNPJ(e.target.value))}
                     className="auth-card-input"
@@ -957,7 +935,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">Telefone celular</label>
                   <input
                     type="text"
-                    placeholder="(31) 99999-9999"
+                    placeholder=""
                     value={phone}
                     onChange={(e) => setPhone(formatPhone(e.target.value))}
                     className="auth-card-input"
@@ -969,7 +947,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                   <label className="auth-card-label">Código de Comissário (Ex: VITIN10)</label>
                   <input
                     type="text"
-                    placeholder="Ex: VITIN10"
+                    placeholder=""
                     value={commissionerCode}
                     onChange={(e) => setCommissionerCode(e.target.value)}
                     className="auth-card-input"
@@ -986,7 +964,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
               <label className="auth-card-label">Senha</label>
               <input
                 type="password"
-                placeholder="Mínimo 6 caracteres"
+                placeholder=""
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="auth-card-input"
@@ -1316,12 +1294,12 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
             {/* Content List */}
             <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '420px', overflowY: 'auto' }} className="custom-scroll">
               {[
-                { value: 'client', label: 'Cliente', desc: 'Quero comprar ingressos e curtir eventos locais.', icon: 'User' },
-                { value: 'organizer', label: 'Organizador de Eventos', desc: 'Quero criar, divulgar e gerenciar ingressos para meus eventos.', icon: 'Calendar' },
+                { value: 'client', label: 'Cliente', icon: 'User' },
+                { value: 'organizer', label: 'Organizador de Eventos', icon: 'Calendar' },
                 ...(!IS_BETA_EVENTS_ONLY ? [
-                  { value: 'seller', label: 'Loja (Vendedor)', desc: 'Quero vender meus produtos online.', icon: 'Store' },
-                  { value: 'provider', label: 'Prestador de Serviços', desc: 'Quero divulgar meus serviços locais.', icon: 'Wrench' },
-                  { value: 'motoboy', label: 'Entregador', desc: 'Quero fazer entregas na plataforma.', icon: 'Bike' }
+                  { value: 'seller', label: 'Loja (Vendedor)', icon: 'Store' },
+                  { value: 'provider', label: 'Prestador de Serviços', icon: 'Wrench' },
+                  { value: 'motoboy', label: 'Entregador', icon: 'Bike' }
                 ] : [])
               ].map((opt) => {
                 const isSelected = selectedRole === opt.value;
@@ -1389,9 +1367,7 @@ export default function Auth({ onAuthSuccess, onCancelVisitor, initialTab = 'log
                         </span>
                         {isSelected && <Check size={16} style={{ color: '#f28d1a' }} />}
                       </div>
-                      <p style={{ margin: '4px 0 0 0', fontSize: '0.78rem', color: '#64748b', lineHeight: '1.3' }}>
-                        {opt.desc}
-                      </p>
+
                     </div>
                   </button>
                 );

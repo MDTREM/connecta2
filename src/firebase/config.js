@@ -1,6 +1,6 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getStorage } from "firebase/storage";
 
 // Your web app's Firebase configuration
@@ -17,4 +17,10 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
+
+// Definir persistência local explicitamente para celulares/Safari
+setPersistence(auth, browserLocalPersistence).catch(err => {
+  console.error("Erro ao definir persistência local no Firebase Auth:", err);
+});
+
 export const storage = getStorage(app);

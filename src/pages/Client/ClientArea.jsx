@@ -8,7 +8,13 @@ import {
   Coins, Star, Palette, Gift, Wrench, Phone, MessageSquare, Layers, User,
   Plus, Camera, Edit, Bell, LogOut, ChevronRight, Share2, Bus, Briefcase, Mail,
   Tag, Truck, CreditCard, Receipt, AlertTriangle,
-  Music, Coffee, Book, Gem, Scissors, Brush, Utensils, Wine, Mountain, Sun, Umbrella, Zap, Leaf
+  Music, Coffee, Book, Gem, Scissors, Brush, Utensils, Wine, Mountain, Sun, Umbrella, Zap, Leaf,
+  Clapperboard, Mic, PartyPopper, Beer, Gamepad2, Smile, 
+  HeartHandshake, Dumbbell, Bike, Car, Volume2, Disc, 
+  Theater, Tv, ShoppingBag, Milestone, Laptop,
+  GraduationCap, Drama, Church, Compass, Laugh, Trophy,
+  Presentation, Users, Hammer, Rainbow, Film, Network,
+  Trees, Store, Image, BookOpen, Landmark
 } from 'lucide-react';
 
 const compressImage = (file, maxWidth, maxHeight, callback) => {
@@ -225,7 +231,62 @@ const BannerCarousel = ({ bannersList, isMobile, onSwitchView, setSelectedCatego
   );
 };
 
-export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVisitor, onTriggerLogin, isEditingProfile, setIsEditingProfile }) {
+const formatEventDate = (startDate, fallbackDate) => {
+  if (!startDate) return fallbackDate || '';
+  const parts = startDate.split('-');
+  if (parts.length !== 3) return fallbackDate || '';
+  const year = parts[0];
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const day = parts[2];
+  const monthNamesLong = [
+    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+  ];
+  const monthName = monthNamesLong[monthIdx] || '';
+  const dateObj = new Date(year, monthIdx, day);
+  const weekdays = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+  const weekday = weekdays[dateObj.getDay()] || '';
+  return `${weekday}, ${parseInt(day, 10)} de ${monthName} de ${year}`;
+};
+
+const getMonthShort = (startDate) => {
+  if (!startDate) return '';
+  const parts = startDate.split('-');
+  if (parts.length !== 3) return '';
+  const monthIdx = parseInt(parts[1], 10) - 1;
+  const monthNamesShort = ['JAN', 'FEV', 'MAR', 'ABR', 'MAI', 'JUN', 'JUL', 'AGO', 'SET', 'OUT', 'NOV', 'DEZ'];
+  return monthNamesShort[monthIdx] || '';
+};
+
+const getDayNum = (startDate) => {
+  if (!startDate) return '';
+  const parts = startDate.split('-');
+  if (parts.length !== 3) return '';
+  return parseInt(parts[2], 10).toString();
+};
+
+const formatEventEndDate = (endDate) => {
+  if (!endDate) return '';
+  const parts = endDate.split('-');
+  if (parts.length !== 3) return '';
+  const month = parts[1];
+  const day = parts[2];
+  return `${day}/${month}`;
+};
+
+export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVisitor, onTriggerLogin, onEditingProfileChange, onTicketModalChange }) {
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+
+  useEffect(() => {
+    if (onEditingProfileChange) {
+      onEditingProfileChange(isEditingProfile);
+    }
+    return () => {
+      if (onEditingProfileChange) {
+        onEditingProfileChange(false);
+      }
+    };
+  }, [isEditingProfile, onEditingProfileChange]);
   const { 
     currentUser, products, events, services, videos, orders, coupons,
     cart, addToCart, updateCartQty, removeFromCart, placeOrder, buyTicket,
@@ -237,6 +298,28 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     banners, homeSections, serviceReviews, addServiceReview,
     videoComments, addVideoComment, isDataLoading, jobs, addJobVacancy
   } = useFirebaseMock();
+
+  const sortedEvents = [...(events || [])].sort((a, b) => {
+    const parseDate = (ev) => {
+      if (ev.startDate) {
+        return new Date(`${ev.startDate}T${ev.startTime || '00:00'}`);
+      }
+      if (ev.date) {
+        const clean = ev.date.split(' até ')[0].split(' às ')[0].split(' AS ')[0];
+        const time = ev.date.includes(' às ') ? ev.date.split(' às ')[1] : '00:00';
+        if (clean.includes('-')) {
+          const parts = clean.split('-');
+          if (parts[0].length === 4) return new Date(`${clean}T${time}`);
+          return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${time}`);
+        } else if (clean.includes('/')) {
+          const parts = clean.split('/');
+          return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${time}`);
+        }
+      }
+      return new Date(2099, 11, 31);
+    };
+    return parseDate(a) - parseDate(b);
+  });
 
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 768);
   useEffect(() => {
@@ -281,7 +364,13 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     MapPin, ShoppingCart, Heart, Search, Clock, Calendar, Award, 
     Ticket, Flame, Sparkles, Play, Coins, Star, Palette, Gift, 
     Wrench, Phone, MessageSquare, Layers, User, Camera, Truck,
-    Music, Coffee, Book, Gem, Scissors, Brush, Utensils, Wine, Mountain, Sun, Umbrella, Zap, Leaf
+    Music, Coffee, Book, Gem, Scissors, Brush, Utensils, Wine, Mountain, Sun, Umbrella, Zap, Leaf,
+    Clapperboard, Mic, PartyPopper, Beer, Gamepad2, Smile, 
+    HeartHandshake, Dumbbell, Bike, Car, Volume2, Disc, 
+    Theater, Tv, ShoppingBag, Milestone, Laptop,
+    GraduationCap, Drama, Church, Compass, Laugh, Trophy,
+    Presentation, Users, Hammer, Rainbow, Film, Network,
+    Trees, Store, Image, BookOpen, Landmark
   };
 
   const renderCategoryIcon = (iconName) => {
@@ -357,8 +446,72 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const [commissionerCode, setCommissionerCode] = useState('');
   const [selectedTicketForModal, setSelectedTicketForModal] = useState(null);
   const [selectedBatchIndex, setSelectedBatchIndex] = useState(0);
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
   const [selectedSeat, setSelectedSeat] = useState(null);
+  const [showFreeTicketConfirmModal, setShowFreeTicketConfirmModal] = useState(false);
+  const [showFreeTicketSuccessModal, setShowFreeTicketSuccessModal] = useState(false);
+  const bannerScrollRef = useRef(null);
+  const [categoriesPageIndex, setCategoriesPageIndex] = useState(0);
+
+  useEffect(() => {
+    const bannerEvents = sortedEvents.filter(ev => ev.homepageBanner);
+    if (currentView === 'client_home' && bannerEvents.length > 1) {
+      const interval = setInterval(() => {
+        setActiveBannerIndex(prev => (prev + 1) % bannerEvents.length);
+      }, 5000);
+      return () => clearInterval(interval);
+    }
+  }, [currentView, sortedEvents]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const eventParam = params.get('event');
+    const promoParam = params.get('promo');
+    
+    if (promoParam) {
+      setCommissionerCode(promoParam.toUpperCase());
+      sessionStorage.setItem('connecta_promo_code', promoParam.toUpperCase());
+    } else {
+      const savedPromo = sessionStorage.getItem('connecta_promo_code');
+      if (savedPromo) {
+        setCommissionerCode(savedPromo);
+      }
+    }
+    
+    const activePromo = promoParam || sessionStorage.getItem('connecta_promo_code');
+    if (eventParam && events && events.length > 0) {
+      const eventExists = events.find(e => e.id === eventParam);
+      if (eventExists) {
+        setSelectedEventId(eventParam);
+        onSwitchView('client_event');
+        if (activePromo && eventExists.commissioners?.some(c => c.code.toUpperCase() === activePromo.toUpperCase())) {
+          setCommCodeApplied(true);
+        }
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, [events]);
+
+  useEffect(() => {
+    if (selectedEventId && currentView === 'client_event') {
+      const ev = events.find(e => e.id === selectedEventId);
+      if (ev && ev.batches && ev.batches.length > 0) {
+        const firstAvailableIdx = ev.batches.findIndex((b, idx) => {
+          const isSoldOut = parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) >= parseInt(b.limit || 0, 10);
+          const isSeqLocked = ev.batchSalesMode === 'sequential' && ev.batches.slice(0, idx).some(prevB => parseInt(prevB.sold || 0, 10) < parseInt(prevB.limit || 0, 10));
+          const isDeactivated = b.active === false;
+          return !isSoldOut && !isSeqLocked && !isDeactivated;
+        });
+        if (firstAvailableIdx !== -1) {
+          setSelectedBatchIndex(firstAvailableIdx);
+        } else {
+          setSelectedBatchIndex(0);
+        }
+      }
+    }
+  }, [selectedEventId, currentView, events]);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showRefundPolicyModal, setShowRefundPolicyModal] = useState(false);
   const [reportReason, setReportReason] = useState('Outros');
   const [reportDescription, setReportDescription] = useState('');
 
@@ -424,6 +577,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const [checkoutCpf, setCheckoutCpf] = useState('');
   const [shippingType, setShippingType] = useState('motoboy');
   const [couponApplied, setCouponApplied] = useState(false);
+  const [commCodeApplied, setCommCodeApplied] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [activePaymentTab, setActivePaymentTab] = useState('pix');
   const [cardNumber, setCardNumber] = useState('');
@@ -492,10 +646,45 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const getEventTotal = () => {
     const ev = events.find(e => e.id === selectedEventId);
     if (!ev) return 0;
-    const availableBatch = ev.batches.findIndex(b => b.sold < b.limit);
-    const activeBatch = availableBatch !== -1 ? ev.batches[availableBatch] : null;
+    
+    // Use the selected batch index or fall back to first active/available
+    const activeBatch = ev.batches[selectedBatchIndex] || ev.batches[0];
     if (!activeBatch) return 0;
-    return activeBatch.price * ticketQty;
+    
+    const subtotal = activeBatch.price * ticketQty;
+    
+    // 1. Cupom de desconto
+    let couponDiscount = 0;
+    if (couponApplied && couponCode) {
+      const foundCoupon = ev.coupons?.find(c => c.code.toUpperCase() === couponCode.toUpperCase());
+      if (foundCoupon) {
+        if (foundCoupon.discountType === 'percent') {
+          couponDiscount = subtotal * (parseFloat(foundCoupon.value || 0) / 100);
+        } else {
+          couponDiscount = parseFloat(foundCoupon.value || 0);
+        }
+      }
+    }
+    
+    // 2. Comissário desconto
+    let commDiscount = 0;
+    if (commCodeApplied && commissionerCode) {
+      const foundComm = ev.commissioners?.find(c => c.code.toUpperCase() === commissionerCode.toUpperCase());
+      if (foundComm) {
+        // Commissioner discount applies to the subtotal after coupon discount (to match backend)
+        const subtotalAfterCoupon = Math.max(0, subtotal - couponDiscount);
+        const discountPercent = foundComm.discount !== undefined ? parseFloat(foundComm.discount) : 0;
+        commDiscount = subtotalAfterCoupon * (discountPercent / 100);
+      }
+    }
+    
+    let finalBase = Math.max(0, subtotal - couponDiscount - commDiscount);
+    
+    // 3. Taxa de Serviço (se repassar)
+    const hasServiceFee = ev.feeOption === 'repassar';
+    const serviceFee = hasServiceFee ? finalBase * 0.10 : 0;
+    
+    return finalBase + serviceFee;
   };
 
   const getServiceTotal = () => {
@@ -588,16 +777,16 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     }
   };
 
-  const handleBuyTicketSubmit = () => {
+  const handleBuyTicketSubmit = async () => {
     const ev = events.find(e => e.id === selectedEventId);
     if (!ev) return;
 
     if (ev.hasNumberedSeats && !selectedSeat) {
-      alert('Por favor, selecione um assento antes de prosseguir com a compra!');
+      setCustomAlert({ title: 'Selecione o Assento', message: 'Por favor, selecione um assento antes de prosseguir com a compra!' });
       return;
     }
 
-    const res = buyTicket(ev.id, selectedBatchIndex, ticketQty, commissionerCode, useCoins, couponApplied ? couponCode : '', selectedSeat);
+    const res = await buyTicket(ev.id, selectedBatchIndex, ticketQty, commCodeApplied ? commissionerCode : '', useCoins, couponApplied ? couponCode : '', selectedSeat);
     if (res.success) {
       setPlacedOrderId(res.order.id);
       setShowPaymentModal(false);
@@ -607,11 +796,12 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       setCouponCode('');
       setCouponApplied(false);
       setCommissionerCode('');
+      setCommCodeApplied(false);
       setTicketQty(1);
 
       onSwitchView('client_payment_success');
     } else {
-      alert(res.message);
+      setCustomAlert({ title: 'Ops!', message: res.message });
     }
   };
 
@@ -802,6 +992,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   const [serviceReviewComment, setServiceReviewComment] = useState('');
   const [serviceReviewImages, setServiceReviewImages] = useState([]);
   const [showPreCheckoutModal, setShowPreCheckoutModal] = useState(false);
+  const [customAlert, setCustomAlert] = useState(null);
   const [preCheckoutType, setPreCheckoutType] = useState('');
   const [preCheckoutName, setPreCheckoutName] = useState('');
   const [preCheckoutPhone, setPreCheckoutPhone] = useState('');
@@ -1059,27 +1250,39 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     const section_categories = (blockId = 'categories') => (
       <SectionWrapper key={blockId} sectionId={blockId}>
         {/* Categories Quick Filter with Dot Indicators */}
-        {(() => {
-          const homeCategories = [
-            { label: 'Tudo', key: null, icon: 'Sparkles' },
-            ...(categories || []).filter(c => c.active !== false && c.type !== 'entregadores').map(c => ({ label: c.label, key: c.key || c.label, icon: c.icon }))
-          ];
-          const itemsPerPage = 5;
-          const totalPages = Math.ceil(homeCategories.length / itemsPerPage);
-          return (
-            <div style={{ marginBottom: '10px' }}>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '14px',
-                  overflowX: 'auto',
-                  paddingBottom: '8px',
-                  WebkitOverflowScrolling: 'touch',
-                  scrollbarWidth: 'none',
-                  msOverflowStyle: 'none'
-                }}
-                className="hide-scrollbar"
-              >
+        <div style={{
+          backgroundColor: 'transparent',
+          margin: '0 0 10px 0',
+          padding: '0 0 8px 0'
+        }}>
+          {(() => {
+            const homeCategories = [
+              ...(categories || []).filter(c => c.active !== false && (IS_BETA_EVENTS_ONLY ? c.type === 'eventos' : c.type !== 'entregadores')).map(c => ({ label: c.label, key: c.key || c.label, icon: c.icon }))
+            ];
+            const itemsPerPage = 5;
+            const totalPages = Math.ceil(homeCategories.length / itemsPerPage);
+            return (
+              <div style={{ marginBottom: '0px' }}>
+                <div
+                  onScroll={(e) => {
+                    const container = e.currentTarget;
+                    const scrollLeft = container.scrollLeft;
+                    const page = Math.round(scrollLeft / (94 * 5));
+                    if (page >= 0 && page < totalPages && page !== categoriesPageIndex) {
+                      setCategoriesPageIndex(page);
+                    }
+                  }}
+                  style={{
+                    display: 'flex',
+                    gap: '14px',
+                    overflowX: 'auto',
+                    paddingBottom: '8px',
+                    WebkitOverflowScrolling: 'touch',
+                    scrollbarWidth: 'none',
+                    msOverflowStyle: 'none'
+                  }}
+                  className="hide-scrollbar"
+                >
                 {homeCategories.map(cat => (
                   <button
                     key={cat.label}
@@ -1154,7 +1357,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       width: '6px',
                       height: '6px',
                       borderRadius: '50%',
-                      backgroundColor: i === 0 ? '#f28d1a' : '#e0e0e0',
+                      backgroundColor: i === categoriesPageIndex ? '#f28d1a' : '#e0e0e0',
                       transition: 'background-color 0.3s'
                     }}
                   />
@@ -1163,6 +1366,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             </div>
           );
         })()}
+        </div>
       </SectionWrapper>
     );
 
@@ -1778,6 +1982,138 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       </SectionWrapper>
     );
 
+    const section_banners_events = (blockId = 'banners_events') => {
+      const bannerEvents = sortedEvents.filter(ev => ev.homepageBanner);
+      if (bannerEvents.length === 0) return null;
+
+      const scrollToBanner = (idx) => {
+        setActiveBannerIndex(idx);
+        if (bannerScrollRef.current) {
+          const container = bannerScrollRef.current;
+          const cardWidth = container.scrollWidth / bannerEvents.length;
+          container.scrollTo({
+            left: idx * cardWidth,
+            behavior: 'smooth'
+          });
+        }
+      };
+
+      return (
+        <SectionWrapper key={blockId} sectionId={blockId}>
+          <div style={{ marginBottom: '16px', position: 'relative', width: '100%' }}>
+            {/* Banner Slide Image Track with Native Scroll and Center Snapping */}
+            <div 
+              ref={bannerScrollRef}
+              onScroll={(e) => {
+                const container = e.currentTarget;
+                const scrollLeft = container.scrollLeft;
+                const cardWidth = container.scrollWidth / bannerEvents.length;
+                const index = Math.round(scrollLeft / cardWidth);
+                if (index >= 0 && index < bannerEvents.length && index !== activeBannerIndex) {
+                  setActiveBannerIndex(index);
+                }
+              }}
+              style={{
+                display: 'flex',
+                gap: '12px',
+                overflowX: 'auto',
+                scrollSnapType: 'x mandatory',
+                padding: '10px 16px',
+                WebkitOverflowScrolling: 'touch',
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none'
+              }}
+              className="hide-scrollbar"
+            >
+              {bannerEvents.map((ev, idx) => (
+                <div
+                  key={ev.id}
+                  onClick={() => {
+                    if (idx === activeBannerIndex) {
+                      setSelectedEventId(ev.id); 
+                      onSwitchView('client_event');
+                    } else {
+                      scrollToBanner(idx);
+                    }
+                  }}
+                  style={{
+                    minWidth: '82%',
+                    maxWidth: '82%',
+                    height: '170px',
+                    scrollSnapAlign: 'center',
+                    borderRadius: '24px',
+                    overflow: 'hidden',
+                    boxShadow: activeBannerIndex === idx ? '0 8px 24px rgba(0,0,0,0.08)' : '0 4px 12px rgba(0,0,0,0.04)',
+                    backgroundColor: '#fff',
+                    border: '1px solid #eee',
+                    flexShrink: 0,
+                    transition: 'all 0.3s ease',
+                    opacity: activeBannerIndex === idx ? 1 : 0.6,
+                    transform: activeBannerIndex === idx ? 'scale(1)' : 'scale(0.95)'
+                  }}
+                >
+                  <img
+                    src={ev.homepageBanner}
+                    alt={ev.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Page dots indicator */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '6px', margin: '4px 0 14px' }}>
+              {bannerEvents.map((_, idx) => (
+                <span
+                  key={idx}
+                  onClick={() => scrollToBanner(idx)}
+                  style={{
+                    width: activeBannerIndex === idx ? '20px' : '6px',
+                    height: '6px',
+                    borderRadius: '3px',
+                    backgroundColor: activeBannerIndex === idx ? '#f28d1a' : '#ddd',
+                    transition: 'all 0.3s ease',
+                    cursor: 'pointer'
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Centered active event text details */}
+            {(() => {
+              const activeEv = bannerEvents[activeBannerIndex];
+              if (!activeEv) return null;
+              return (
+                <div style={{ textAlign: 'center', padding: '0 24px', marginBottom: '8px' }} className="animate-fade-in">
+                  <h4 style={{ fontSize: '1.02rem', fontWeight: 600, color: '#2d2d2d', margin: '0 0 6px' }}>
+                    {activeEv.name}
+                  </h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                    {(activeEv.venueName || activeEv.location) && (
+                      <div style={{ fontSize: '0.74rem', color: '#777', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <MapPin size={11} style={{ color: '#f28d1a' }} />
+                        <span>{activeEv.venueName || activeEv.location?.split(' - ')[0]}</span>
+                      </div>
+                    )}
+                    {(activeEv.startDate || activeEv.date) && (
+                      <div style={{ fontSize: '0.74rem', color: '#777', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Calendar size={11} style={{ color: '#f28d1a' }} />
+                        <span>
+                          {activeEv.startDate ? activeEv.startDate.split('-').reverse().join('/') : activeEv.date?.split(' até ')[0]}
+                          {activeEv.startTime ? ` às ${activeEv.startTime}` : ''}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        </SectionWrapper>
+      );
+    };
+
+
     const section_events = (blockId = 'events') => {
       if (!events || events.length === 0) return null;
       
@@ -1790,7 +2126,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 {visualLayoutSettings?.customTexts?.[`section_title_${blockId}`] || 'Eventos e Festas na Cidade'}
               </h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '16px' }}>
-                {(events || []).map(ev => {
+                {sortedEvents.map(ev => {
                   const activeBatch = ev.batches && ev.batches.length > 0
                     ? ev.batches.find(b => parseInt(b.limit || 0) > 0 && parseInt(b.sold || 0) < parseInt(b.limit || 0)) || ev.batches[0]
                     : null;
@@ -1821,19 +2157,82 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       <div>
                         <div style={{ width: '100%', aspectRatio: '16/10', overflow: 'hidden', borderRadius: '12px', marginBottom: '8px' }}>
                           <img 
-                            src={ev.homepageBanner || ev.image} 
+                            src={ev.image || ev.cover || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500'} 
                             alt={ev.name} 
                             style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                           />
                         </div>
                         <div style={{ padding: '4px' }}>
-                          <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            <Calendar size={12} />
-                            <span>{ev.date}</span>
-                          </div>
+                          {!ev.startDate ? (
+                            <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
+                              <Calendar size={12} />
+                              <span>{ev.date}</span>
+                            </div>
+                          ) : (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              backgroundColor: '#fff9ee',
+                              border: '1px solid #fcefdc',
+                              padding: '6px 8px',
+                              borderRadius: '12px',
+                              marginBottom: '8px',
+                              marginTop: '2px'
+                            }}>
+                              <div style={{
+                                backgroundColor: '#f28d1a',
+                                color: 'white',
+                                borderRadius: '8px',
+                                padding: '4px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                minWidth: '34px',
+                                height: '34px',
+                                boxShadow: '0 1px 4px rgba(242,141,26,0.15)',
+                                flexShrink: 0
+                              }}>
+                                <span style={{ fontSize: '0.48rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.9 }}>
+                                  {getMonthShort(ev.startDate)}
+                                </span>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 800, lineHeight: 1 }}>
+                                  {getDayNum(ev.startDate)}
+                                </span>
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {formatEventDate(ev.startDate, ev.date)}
+                                </div>
+                                <div style={{ fontSize: '0.62rem', color: '#666', display: 'flex', alignItems: 'center', gap: '2px', marginTop: '1px' }}>
+                                  <Clock size={10} style={{ color: '#f28d1a' }} />
+                                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {ev.startTime ? `${ev.startTime}` : 'Hora a definir'}
+                                    {ev.endDate && ` até ${formatEventEndDate(ev.endDate)}${ev.endTime ? ` às ${ev.endTime}` : ''}`}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                           <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</h4>
-                          <div style={{ fontSize: '0.72rem', color: '#777' }}>Local: {ev.location}</div>
-                          <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '2px' }}>Organizador: {ev.organizerName}</div>
+                          {(ev.venueName || ev.location) && <div style={{ fontSize: '0.72rem', color: '#777', display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={11} />{ev.venueName || ev.location.split(' - ')[0]}</div>}
+                          {ev.organizerName && <div style={{ fontSize: '0.72rem', color: '#777', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}><User size={11} style={{ color: '#aaa' }} />{ev.organizerName}</div>}
+                          {ev.description && (
+                            <p style={{
+                              fontSize: '0.7rem',
+                              color: '#666',
+                              margin: '6px 0 0 0',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              lineHeight: 1.3
+                            }}>
+                              {ev.description}
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -1882,7 +2281,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 paddingBottom: '8px'
               }}
             >
-              {(events || []).map(ev => {
+              {sortedEvents.map(ev => {
                 const evActiveBatch = ev.batches && ev.batches.length > 0
                   ? ev.batches.find(b => parseInt(b.limit || 0) > 0 && parseInt(b.sold || 0) < parseInt(b.limit || 0)) || ev.batches[0]
                   : null;
@@ -1912,16 +2311,79 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   >
                     <div>
                       <div style={{ width: '100%', aspectRatio: '16/10', overflow: 'hidden', borderRadius: '12px', marginBottom: '8px' }}>
-                        <img src={ev.homepageBanner || ev.image} alt={ev.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        <img src={ev.image || ev.cover || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500'} alt={ev.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                       </div>
                       <div style={{ padding: '4px' }}>
-                        <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          <Calendar size={12} />
-                          <span>{ev.date}</span>
-                        </div>
+                          {!ev.startDate ? (
+                            <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
+                              <Calendar size={12} />
+                              <span>{ev.date}</span>
+                            </div>
+                          ) : (
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              backgroundColor: '#fff9ee',
+                              border: '1px solid #fcefdc',
+                              padding: '6px 8px',
+                              borderRadius: '12px',
+                              marginBottom: '8px',
+                              marginTop: '2px'
+                            }}>
+                              <div style={{
+                                backgroundColor: '#f28d1a',
+                                color: 'white',
+                                borderRadius: '8px',
+                                padding: '4px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                minWidth: '34px',
+                                height: '34px',
+                                boxShadow: '0 1px 4px rgba(242,141,26,0.15)',
+                                flexShrink: 0
+                              }}>
+                                <span style={{ fontSize: '0.48rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.9 }}>
+                                  {getMonthShort(ev.startDate)}
+                                </span>
+                                <span style={{ fontSize: '0.85rem', fontWeight: 800, lineHeight: 1 }}>
+                                  {getDayNum(ev.startDate)}
+                                </span>
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {formatEventDate(ev.startDate, ev.date)}
+                                </div>
+                                <div style={{ fontSize: '0.62rem', color: '#666', display: 'flex', alignItems: 'center', gap: '2px', marginTop: '1px' }}>
+                                  <Clock size={10} style={{ color: '#f28d1a' }} />
+                                  <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {ev.startTime ? `${ev.startTime}` : 'Hora a definir'}
+                                    {ev.endDate && ` até ${formatEventEndDate(ev.endDate)}${ev.endTime ? ` às ${ev.endTime}` : ''}`}
+                                  </span>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</h4>
-                        <div style={{ fontSize: '0.72rem', color: '#777' }}>Local: {ev.location}</div>
-                        <div style={{ fontSize: '0.72rem', color: '#777', marginTop: '2px' }}>Organizador: {ev.organizerName}</div>
+                        {(ev.venueName || ev.location) && <div style={{ fontSize: '0.72rem', color: '#777', display: 'flex', alignItems: 'center', gap: '4px' }}><MapPin size={11} />{ev.venueName || ev.location.split(' - ')[0]}</div>}
+                        {ev.organizerName && <div style={{ fontSize: '0.72rem', color: '#777', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}><User size={11} style={{ color: '#aaa' }} />{ev.organizerName}</div>}
+                        {ev.description && (
+                          <p style={{
+                            fontSize: '0.7rem',
+                            color: '#666',
+                            margin: '6px 0 0 0',
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            lineHeight: 1.3
+                          }}>
+                            {ev.description}
+                          </p>
+                        )}
                       </div>
                     </div>
 
@@ -2271,7 +2733,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       }
 
       if (sec.type === 'events') {
-        const secEvents = (events || []).filter(ev => ev.published && sec.itemIds.includes(ev.id));
+        const secEvents = sortedEvents.filter(ev => ev.published && sec.itemIds.includes(ev.id));
         if (secEvents.length === 0) return null;
         return (
           <div key={blockId} style={{ marginBottom: '24px' }} className="animate-fade-in">
@@ -2294,17 +2756,81 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   }}
                 >
                   <img 
-                    src={ev.homepageBanner || ev.image} 
+                    src={ev.image || ev.cover || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=500'} 
                     alt={ev.name} 
                     style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '12px', marginBottom: '8px' }}
                   />
                   <div style={{ padding: '4px' }}>
-                    <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <Calendar size={12} />
-                      <span>{ev.date}</span>
-                    </div>
+                    {!ev.startDate ? (
+                      <div style={{ fontSize: '0.7rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px' }}>
+                        <Calendar size={12} />
+                        <span>{ev.date}</span>
+                      </div>
+                    ) : (
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        backgroundColor: '#fff9ee',
+                        border: '1px solid #fcefdc',
+                        padding: '6px 8px',
+                        borderRadius: '12px',
+                        marginBottom: '8px',
+                        marginTop: '2px'
+                      }}>
+                        <div style={{
+                          backgroundColor: '#f28d1a',
+                          color: 'white',
+                          borderRadius: '8px',
+                          padding: '4px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          minWidth: '34px',
+                          height: '34px',
+                          boxShadow: '0 1px 4px rgba(242,141,26,0.15)',
+                          flexShrink: 0
+                        }}>
+                          <span style={{ fontSize: '0.48rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.9 }}>
+                            {getMonthShort(ev.startDate)}
+                          </span>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 800, lineHeight: 1 }}>
+                            {getDayNum(ev.startDate)}
+                          </span>
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: '0.68rem', fontWeight: 600, color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {formatEventDate(ev.startDate, ev.date)}
+                          </div>
+                          <div style={{ fontSize: '0.62rem', color: '#666', display: 'flex', alignItems: 'center', gap: '2px', marginTop: '1px' }}>
+                            <Clock size={10} style={{ color: '#f28d1a' }} />
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {ev.startTime ? `${ev.startTime}` : 'Hora a definir'}
+                              {ev.endDate && ` até ${formatEventEndDate(ev.endDate)}${ev.endTime ? ` às ${ev.endTime}` : ''}`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                     <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</h4>
                     <div style={{ fontSize: '0.72rem', color: '#777' }}>Local: {ev.location}</div>
+                    {ev.organizerName && <div style={{ fontSize: '0.72rem', color: '#777', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '2px' }}><User size={11} style={{ color: '#aaa' }} />{ev.organizerName}</div>}
+                    {ev.description && (
+                      <p style={{
+                        fontSize: '0.7rem',
+                        color: '#666',
+                        margin: '6px 0 0 0',
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        lineHeight: 1.3
+                      }}>
+                        {ev.description}
+                      </p>
+                    )}
                   </div>
                 </div>
               );
@@ -2353,6 +2879,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       nearbyStores: section_nearbyStores,
       products: section_products,
       buyers: section_buyers,
+      banners_events: section_banners_events,
       events: section_events,
       services: section_services
     };
@@ -2529,7 +3056,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           .filter(secId => {
             if (IS_BETA_EVENTS_ONLY) {
               const baseId = secId.includes('__') ? secId.split('__')[0] : secId;
-              return ['banner', 'events'].includes(baseId);
+              return ['banner', 'banners_events', 'categories', 'events'].includes(baseId) || baseId.startsWith('dynamic_');
             }
             return true;
           })
@@ -3078,7 +3605,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             <>
               {/* Chat icon button */}
               <button
-                onClick={() => onOpenChat()}
+                onClick={() => onOpenChat(prod?.storeId)}
                 style={{
                   width: '48px',
                   height: '48px',
@@ -3316,7 +3843,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
             <button 
-              onClick={() => setSelectedCategory(null)}
+              onClick={() => { setSelectedCategory(null); onSwitchView('client_home'); }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a' }}
             >
               <ArrowLeft size={22} />
@@ -3491,7 +4018,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
             <button 
-              onClick={() => setSelectedCategory(null)}
+              onClick={() => { setSelectedCategory(null); onSwitchView('client_home'); }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a' }}
             >
               <ArrowLeft size={22} />
@@ -3546,7 +4073,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
             <button 
-              onClick={() => setSelectedCategory(null)}
+              onClick={() => { setSelectedCategory(null); onSwitchView('client_home'); }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a' }}
             >
               <ArrowLeft size={22} />
@@ -3610,7 +4137,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
           <button 
-            onClick={() => setSelectedCategory(null)}
+            onClick={() => { setSelectedCategory(null); onSwitchView('client_home'); }}
             style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f28d1a' }}
           >
             <ArrowLeft size={22} />
@@ -3794,7 +4321,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               {isFollowingStore ? 'Seguindo' : 'Seguir'}
             </button>
             <button
-              onClick={() => onOpenChat()} // open chat room with shop
+              onClick={() => onOpenChat(mockStore.id)} // open chat room with shop
               style={{
                 padding: '6px 14px',
                 borderRadius: '99px',
@@ -4112,28 +4639,41 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           <div style={{ flex: 1, minWidth: 0, padding: isDesktop ? '0 10px' : '0px' }}>
             {/* Event Main Info */}
             <div style={{ padding: '16px', borderBottom: '1px solid #eee' }}>
-              <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <Calendar size={12} />
-                <span>{ev.date}</span>
-              </div>
-              <h3 style={{ fontSize: '1.2rem', fontWeight: 500, color: '#2d2d2d', margin: '8px 0 4px 0' }}>{ev.name}</h3>
-              <div style={{ fontSize: '0.75rem', color: '#666', display: 'flex', alignItems: 'center', gap: '4px', marginTop: '6px' }}>
-                <MapPin size={12} style={{ color: '#aaa' }} />
-                <span>Local: {ev.location}</span>
+              {/* Event Name */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '10px' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 650, color: '#2d2d2d', margin: 0 }}>{ev.name}</h3>
+                {ev.minAge > 0 && (
+                  <span style={{
+                    fontSize: '0.62rem',
+                    fontWeight: 700,
+                    color: '#ff5e5b',
+                    border: '1px solid #ff5e5b30',
+                    padding: '1px 6px',
+                    borderRadius: '4px',
+                    backgroundColor: '#ff5e5b10',
+                    display: 'inline-block',
+                    lineHeight: '1.2',
+                    boxSizing: 'border-box'
+                  }}>
+                    {ev.minAge}+
+                  </span>
+                )}
               </div>
 
-              <div style={{ position: 'relative' }}>
+              {/* Event Description */}
+              <h4 style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d2d2d', marginTop: '12px', marginBottom: '6px' }}>Descrição do Evento</h4>
+              <div style={{ position: 'relative', marginBottom: '16px' }}>
                 <p style={{
                   fontSize: '0.75rem',
                   color: '#666',
-                  marginTop: '10px',
                   lineHeight: 1.4,
                   display: isEventDescExpanded ? 'block' : '-webkit-box',
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: 'vertical',
                   overflow: isEventDescExpanded ? 'visible' : 'hidden',
                   textOverflow: 'ellipsis',
-                  whiteSpace: 'pre-wrap'
+                  whiteSpace: 'pre-wrap',
+                  margin: 0
                 }}>
                   {ev.description || 'Um super evento preparado com todo carinho para agitar a cidade! Venha curtir com a gente.'}
                 </p>
@@ -4157,6 +4697,97 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   </button>
                 )}
               </div>
+
+              {/* Date Card Block */}
+              {!ev.startDate ? (
+                <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '12px' }}>
+                  <Calendar size={12} />
+                  <span>{ev.date}</span>
+                </div>
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  backgroundColor: '#fff9ee',
+                  border: '1px solid #fcefdc',
+                  padding: '12px 14px',
+                  borderRadius: '16px',
+                  marginBottom: '12px',
+                  marginTop: '12px'
+                }}>
+                  <div style={{
+                    backgroundColor: '#f28d1a',
+                    color: 'white',
+                    borderRadius: '10px',
+                    padding: '6px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: '45px',
+                    height: '45px',
+                    boxShadow: '0 2px 6px rgba(242,141,26,0.2)'
+                  }}>
+                    <span style={{ fontSize: '0.58rem', fontWeight: 700, textTransform: 'uppercase', opacity: 0.9 }}>
+                      {getMonthShort(ev.startDate)}
+                    </span>
+                    <span style={{ fontSize: '1.1rem', fontWeight: 800, lineHeight: 1 }}>
+                      {getDayNum(ev.startDate)}
+                    </span>
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {formatEventDate(ev.startDate, ev.date)}
+                    </div>
+                    <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Clock size={11} style={{ color: '#f28d1a' }} />
+                      <span style={{ fontWeight: 500 }}>
+                        {ev.startTime ? `${ev.startTime}` : 'Hora a definir'}
+                        {ev.endDate && ` até ${formatEventEndDate(ev.endDate)}${ev.endTime ? ` às ${ev.endTime}` : ''}`}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Location Card Block */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                backgroundColor: '#f9f9f9',
+                border: '1px solid #eee',
+                padding: '12px 14px',
+                borderRadius: '16px',
+                marginTop: '12px',
+                marginBottom: '12px'
+              }}>
+                <div style={{
+                  backgroundColor: '#888888',
+                  color: 'white',
+                  borderRadius: '10px',
+                  padding: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  minWidth: '38px',
+                  height: '38px',
+                  boxShadow: '0 2px 6px rgba(0,0,0,0.06)'
+                }}>
+                  <MapPin size={18} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#2d2d2d' }}>
+                    Local do Evento
+                  </div>
+                  <div style={{ fontSize: '0.72rem', color: '#666', marginTop: '2px', lineHeight: 1.4 }}>
+                    {ev.location}
+                  </div>
+                </div>
+              </div>
+
+
 
               {/* Organizer Card Link */}
               <div 
@@ -4183,13 +4814,23 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 </div>
               </div>
 
-              {/* Event Policies */}
-              {ev.policies && ev.policies.trim() !== '' && (
+              {/* Event Policies and CPF Limit */}
+              {((ev.policies && ev.policies.trim() !== '') || ev.maxTicketsPerCPF) && (
                 <div style={{ marginTop: '14px', borderTop: '1px solid #eee', paddingTop: '12px' }}>
-                  <h4 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#2d2d2d', margin: '0 0 6px 0' }}>Políticas do Evento</h4>
-                  <p style={{ fontSize: '0.68rem', color: '#666', lineHeight: 1.4, whiteSpace: 'pre-wrap', margin: 0 }}>
-                    {ev.policies}
-                  </p>
+                  {ev.policies && ev.policies.trim() !== '' && (
+                    <>
+                      <h4 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#2d2d2d', margin: '0 0 6px 0' }}>Políticas do Evento</h4>
+                      <p style={{ fontSize: '0.68rem', color: '#666', lineHeight: 1.4, whiteSpace: 'pre-wrap', margin: '0 0 8px 0' }}>
+                        {ev.policies}
+                      </p>
+                    </>
+                  )}
+                  {ev.maxTicketsPerCPF && (
+                    <div style={{ fontSize: '0.68rem', color: '#666', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '4px', marginTop: (ev.policies && ev.policies.trim() !== '') ? '8px' : '0' }}>
+                      <span style={{ color: '#f28d1a', fontWeight: 650 }}>•</span>
+                      <span>Limite de compra: {ev.maxTicketsPerCPF} {ev.maxTicketsPerCPF === 1 ? 'ingresso' : 'ingressos'} por CPF.</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -4220,6 +4861,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
             {/* Tickets Purchase Area */}
             <div style={{ padding: '16px' }}>
+
+
               <h4 style={{ fontSize: '0.85rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>Ingressos Disponíveis</h4>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
@@ -4227,13 +4870,16 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   const bSold = parseInt(b.sold || 0, 10);
                   const bLimit = parseInt(b.limit || 0, 10);
                   const isSoldOut = bLimit > 0 && bSold >= bLimit;
+                  const isSeqLocked = ev.batchSalesMode === 'sequential' && ev.batches.slice(0, idx).some(prevB => parseInt(prevB.sold || 0, 10) < parseInt(prevB.limit || 0, 10));
+                  const isDeactivated = b.active === false;
+                  const isLocked = isSeqLocked || isDeactivated;
                   const isActive = selectedBatchIndex === idx;
                   const percent = bLimit > 0 ? Math.round((bSold / bLimit) * 100) : 0;
                   return (
                     <div
                       key={b.name}
                       onClick={() => {
-                        if (!isSoldOut) {
+                        if (!isSoldOut && !isLocked) {
                           setSelectedBatchIndex(idx);
                           setSelectedSeat(null);
                         }
@@ -4246,15 +4892,15 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                         borderRadius: '12px',
                         backgroundColor: isActive ? '#f9bb1a15' : '#ffffff',
                         border: isActive ? '1px solid #f28d1a' : '1px solid #eee',
-                        opacity: isSoldOut ? 0.6 : 1,
-                        cursor: isSoldOut ? 'not-allowed' : 'pointer',
+                        opacity: isSoldOut || isLocked ? 0.6 : 1,
+                        cursor: isSoldOut || isLocked ? 'not-allowed' : 'pointer',
                         transition: 'all 0.15s'
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                         <span style={{ fontSize: '0.72rem', fontWeight: isActive ? 600 : 500, color: '#2d2d2d' }}>{b.name}</span>
-                        <span style={{ fontSize: '0.78rem', color: isSoldOut ? '#999' : (isVisitor ? '#ff5e5b' : '#f28d1a'), fontWeight: 600 }}>
-                          {isSoldOut ? 'Esgotado' : (isVisitor ? 'Bloqueado' : `R$ ${b.price.toFixed(2)}`)}
+                        <span style={{ fontSize: '0.78rem', color: isSoldOut || isLocked ? '#999' : (isVisitor ? '#ff5e5b' : '#f28d1a'), fontWeight: 600 }}>
+                          {isSoldOut ? 'Esgotado' : (isLocked ? 'Indisponível' : (isVisitor ? 'Bloqueado' : `R$ ${b.price.toFixed(2)}`))}
                         </span>
                       </div>
                       
@@ -4322,7 +4968,18 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                     setCouponApplied(true);
                   } else {
                     setCouponApplied(false);
-                    alert('Cupom inválido para este evento!');
+                    setCustomAlert({ title: 'Ops!', message: 'Cupom inválido para este evento!' });
+                  }
+                };
+
+                const handleApplyCommCode = () => {
+                  if (!commissionerCode) return;
+                  const found = ev.commissioners?.find(c => c.code.toUpperCase() === commissionerCode.toUpperCase());
+                  if (found) {
+                    setCommCodeApplied(true);
+                  } else {
+                    setCommCodeApplied(false);
+                    setCustomAlert({ title: 'Ops!', message: 'Código de comissário inválido para este evento!' });
                   }
                 };
 
@@ -4343,9 +5000,26 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   }
                 }
 
+                let commDiscountPercent = 0;
+                let commSuccess = '';
+                let commError = '';
+                if (commCodeApplied && commissionerCode) {
+                  const foundComm = ev.commissioners?.find(c => c.code.toUpperCase() === commissionerCode.toUpperCase());
+                  if (foundComm) {
+                    commDiscountPercent = foundComm.discount !== undefined ? parseFloat(foundComm.discount) : 0;
+                    commSuccess = `Comissário "${foundComm.code.toUpperCase()}" aplicado com sucesso!`;
+                  } else {
+                    commError = 'Código de comissário inválido para este evento!';
+                  }
+                }
+
                 const subtotal = activeBatch.price * ticketQty;
                 const totalDiscount = discountAmount * ticketQty;
-                const finalPriceAfterDiscount = Math.max(0, subtotal - totalDiscount);
+                
+                const subtotalAfterCoupon = Math.max(0, subtotal - totalDiscount);
+                const totalCommDiscount = commCodeApplied ? (subtotalAfterCoupon * (commDiscountPercent / 100)) : 0;
+
+                const finalPriceAfterDiscount = Math.max(0, subtotal - totalDiscount - totalCommDiscount);
                 const hasServiceFee = ev.feeOption === 'repassar';
                 const serviceFee = hasServiceFee ? finalPriceAfterDiscount * 0.10 : 0;
                 const finalTotal = finalPriceAfterDiscount + serviceFee;
@@ -4408,13 +5082,35 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
                       <div>
                         <label style={{ fontSize: '0.7rem', color: '#666', fontWeight: 500 }}>Código do Comissário</label>
-                        <input 
-                          type="text" 
-                          placeholder="Digite o código (opcional)" 
-                          value={commissionerCode} 
-                          onChange={e => setCommissionerCode(e.target.value)}
-                          style={{ width: '100%', padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', marginTop: '4px', outline: 'none' }}
-                        />
+                        <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+                          <input 
+                            type="text" 
+                            placeholder="Digite o código (opcional)" 
+                            value={commissionerCode} 
+                            onChange={e => setCommissionerCode(e.target.value)}
+                            disabled={commCodeApplied}
+                            style={{ flex: 1, padding: '8px 10px', borderRadius: '8px', border: '1px solid #ddd', fontSize: '0.75rem', outline: 'none' }}
+                          />
+                          {commCodeApplied ? (
+                            <button
+                              type="button"
+                              onClick={() => { setCommCodeApplied(false); setCommissionerCode(''); }}
+                              style={{ padding: '0 12px', borderRadius: '8px', backgroundColor: '#ff5e5b', color: 'white', border: 'none', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              Remover
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={handleApplyCommCode}
+                              style={{ padding: '0 12px', borderRadius: '8px', backgroundColor: '#f28d1a', color: 'white', border: 'none', fontSize: '0.7rem', fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              Aplicar
+                            </button>
+                          )}
+                        </div>
+                        {commSuccess && <span style={{ fontSize: '0.62rem', color: '#2ec4b6', display: 'block', marginTop: '3px' }}>{commSuccess}</span>}
+                        {commError && <span style={{ fontSize: '0.62rem', color: '#ff5e5b', display: 'block', marginTop: '3px' }}>{commError}</span>}
                       </div>
                     </div>
 
@@ -4429,6 +5125,12 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                           <span>- R$ {totalDiscount.toFixed(2)}</span>
                         </div>
                       )}
+                      {totalCommDiscount > 0 && (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#2ec4b6' }}>
+                          <span>Desconto Comissário:</span>
+                          <span>- R$ {totalCommDiscount.toFixed(2)}</span>
+                        </div>
+                      )}
                       {hasServiceFee && (
                         <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: '#666' }}>
                           <span>Taxa de Serviço (10%):</span>
@@ -4441,19 +5143,20 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       </div>
                     </div>
 
-                    {/* Aviso legal obrigatório de reembolso */}
-                    <div style={{ padding: '8px 10px', backgroundColor: '#f9f9f9', borderLeft: '3px solid #f28d1a', borderRadius: '8px', fontSize: '0.62rem', color: '#777', marginTop: '12px', lineHeight: 1.4 }}>
-                      Atenção! O produtor é o único responsável pela devolução de valores referentes ao(s) ingresso(s). Em caso de arrependimento da compra, o reembolso do valor do ingresso somente será efetuado caso a solicitação seja feita no prazo de até 7 dias a contar da data da compra e desde que realizado o pedido de devolução com no máximo 48h de antecedência do horário de início do evento. Situações fora do descrito estarão condicionadas a decisão dos produtores do evento.
-                    </div>
-
                     <button
                       onClick={() => {
+                        const activeBatch = ev.batches[selectedBatchIndex] || ev.batches[0];
+                        const isFree = activeBatch && activeBatch.price === 0;
                         if (isVisitor) {
                           onTriggerLogin();
                         } else if (currentUser?.phone && currentUser?.cpf && currentUser?.name) {
-                          setPaymentModalType('event');
-                          setActivePaymentTab('pix');
-                          setShowPaymentModal(true);
+                          if (isFree) {
+                            setShowFreeTicketConfirmModal(true);
+                          } else {
+                            setPaymentModalType('event');
+                            setActivePaymentTab('pix');
+                            setShowPaymentModal(true);
+                          }
                         } else {
                           setPreCheckoutType('event');
                           setPreCheckoutName(currentUser?.name || '');
@@ -4465,8 +5168,35 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                       className="btn btn-primary"
                       style={{ width: '100%', height: '48px', marginTop: '16px', fontWeight: 500 }}
                     >
-                      {isVisitor ? 'Cadastre-se ou Entre para comprar' : 'comprar ingresso'}
+                      {isVisitor ? 'Cadastre-se ou Entre para resgatar' : (activeBatch && activeBatch.price === 0 ? 'resgatar ingresso' : 'comprar ingresso')}
                     </button>
+
+                    {/* Botão clicável em cinza e riscado para abrir o modal de reembolso */}
+                    <div style={{ textAlign: 'center', marginTop: '14px' }}>
+                      <span 
+                        onClick={() => setShowRefundPolicyModal(true)}
+                        style={{
+                          fontSize: '0.65rem',
+                          color: '#888',
+                          textDecoration: 'line-through',
+                          cursor: 'pointer',
+                          fontWeight: 500,
+                          display: 'inline-block'
+                        }}
+                      >
+                        Regras de reembolso e devolução
+                      </span>
+                    </div>
+
+                    {/* Política do evento (seção aberta com o texto aparecendo) */}
+                    {(ev.policy || ev.policies) && (ev.policy || ev.policies).trim() !== '' && (
+                      <div style={{ marginTop: '16px', borderTop: '1px solid #eee', paddingTop: '12px' }}>
+                        <h5 style={{ fontSize: '0.75rem', fontWeight: 600, color: '#2d2d2d', margin: '0 0 6px 0' }}>Política do Evento</h5>
+                        <p style={{ fontSize: '0.68rem', color: '#666', lineHeight: 1.4, whiteSpace: 'pre-wrap', margin: 0 }}>
+                          {ev.policy || ev.policies}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -4480,11 +5210,12 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
   // --- SUBVIEW 5b: ORGANIZER DETAIL (VER ORGANIZADOR) ---
   const renderOrganizerView = () => {
     const orgId = selectedOrganizerId || 'e1';
-    // Resolver dados do organizador com base nos eventos
+    const organizerUser = users.find(u => u.id === orgId);
+    // Resolver dados do organizador com base nos eventos apenas como fallback
     const ev = events.find(e => e.organizerId === orgId) || events[0];
-    if (!ev) return <div>Organizador não encontrado uai...</div>;
+    if (!organizerUser && !ev) return <div>Organizador não encontrado uai...</div>;
 
-    const organizerEvents = events.filter(e => e.organizerId === orgId);
+    const organizerEvents = sortedEvents.filter(e => e.organizerId === orgId);
     const isFollowingOrganizer = followingIds.includes(orgId);
     const organizerFollowersCount = users.filter(u => u.following && u.following.includes(orgId)).length;
 
@@ -4493,7 +5224,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         {/* Cover */}
         <div style={{ padding: '16px 16px 0 16px' }}>
           <div style={{ width: '100%', height: '140px', position: 'relative', overflow: 'hidden', borderRadius: '16px' }}>
-            <img src={ev.cover} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <img src={organizerUser?.cover || organizerUser?.banner || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 35"><rect width="100" height="35" fill="%23eaeaea"/></svg>'} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <button 
               onClick={() => onSwitchView('client_home')}
               style={{
@@ -4521,7 +5252,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         {/* Profile info */}
         <div style={{ padding: '16px', position: 'relative', borderBottom: '1px solid #eee' }}>
           <img 
-            src="https://images.unsplash.com/photo-1506157786151-b8491531f063?w=150" 
+            src={organizerUser?.avatar || organizerUser?.logo || 'https://images.unsplash.com/photo-1506157786151-b8491531f063?w=150'} 
             alt="logo" 
             style={{
               width: '64px',
@@ -4552,7 +5283,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               {isFollowingOrganizer ? 'Seguindo' : 'Seguir'}
             </button>
             <button
-              onClick={() => onOpenChat()}
+              onClick={() => onOpenChat(orgId)}
               style={{
                 padding: '6px 14px',
                 borderRadius: '99px',
@@ -4570,7 +5301,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
           <div style={{ marginTop: '36px' }}>
             <h3 style={{ fontSize: '1.05rem', fontWeight: 500, color: '#2d2d2d' }}>
-              <EditableText textId={`event_org_${orgId}_name`} defaultText={ev.organizerName} />
+              <EditableText textId={`event_org_${orgId}_name`} defaultText={organizerUser?.name || organizerUser?.companyName || ev?.organizerName || 'Organizador'} />
             </h3>
             <div style={{ fontSize: '0.72rem', color: '#f28d1a', fontWeight: 500, marginTop: '2px' }}>
               Organizador de Eventos
@@ -4578,7 +5309,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             <p style={{ fontSize: '0.75rem', color: '#666', marginTop: '6px', lineHeight: 1.3 }}>
               <EditableText 
                 textId={`event_org_${orgId}_desc`} 
-                defaultText={ev.description || 'Organizador de festas acadêmicas e festivais culturais em Ouro Preto.'} 
+                defaultText={organizerUser?.description || 'Organizador de festas acadêmicas e festivais culturais em Ouro Preto.'} 
               />
             </p>
 
@@ -4593,10 +5324,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   <span style={{ fontWeight: 500 }}>
                     {organizerFollowersCount} {organizerFollowersCount === 1 ? 'seguidor' : 'seguidores'}
                   </span>
-                  <span>•</span>
-                  <span style={{ fontWeight: 500, color: '#f28d1a' }}>
-                    {totalTicketsSold} {totalTicketsSold === 1 ? 'ingresso vendido' : 'ingressos vendidos'}
-                  </span>
                 </div>
               );
             })()}
@@ -4608,29 +5335,69 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           <h4 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px', paddingLeft: '16px' }}>Eventos do Organizador</h4>
           
           <div className="responsive-profile-grid" style={{ gap: '12px', padding: '0 16px' }}>
-            {organizerEvents.map(orgEv => (
-              <div 
-                key={orgEv.id}
-                onClick={() => { setSelectedEventId(orgEv.id); onSwitchView('client_event'); }}
-                style={{
-                  border: '1px solid #eee',
-                  borderRadius: '16px',
-                  padding: '10px',
-                  backgroundColor: '#ffffff',
-                  cursor: 'pointer'
-                }}
-              >
-                <img src={orgEv.image} alt={orgEv.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '12px', marginBottom: '8px' }} />
-                <div style={{ padding: '4px' }}>
-                  <div style={{ fontSize: '0.68rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Calendar size={11} />
-                    <span>{orgEv.date}</span>
+            {organizerEvents.map(orgEv => {
+              const activeBatch = orgEv.batches && orgEv.batches.length > 0
+                ? orgEv.batches.find(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) < parseInt(b.limit || 0, 10)) || orgEv.batches[0]
+                : null;
+              const isSoldOut = orgEv.batches && orgEv.batches.length > 0 
+                ? orgEv.batches.every(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) >= parseInt(b.limit || 0, 10)) 
+                : false;
+              const activeBatchSold = activeBatch ? parseInt(activeBatch.sold || 0, 10) : 0;
+              const activeBatchLimit = activeBatch ? parseInt(activeBatch.limit || 0, 10) : 0;
+              const percent = activeBatchLimit > 0 ? Math.round((activeBatchSold / activeBatchLimit) * 100) : 0;
+              return (
+                <div 
+                  key={orgEv.id}
+                  onClick={() => { setSelectedEventId(orgEv.id); onSwitchView('client_event'); }}
+                  style={{
+                    border: '1px solid #eee',
+                    borderRadius: '16px',
+                    padding: '10px',
+                    backgroundColor: '#ffffff',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <div>
+                    <img src={orgEv.image} alt={orgEv.name} style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', borderRadius: '12px', marginBottom: '8px' }} />
+                    <div style={{ padding: '4px' }}>
+                      <div style={{ fontSize: '0.68rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <Calendar size={11} />
+                        <span>
+                          {orgEv.startDate ? orgEv.startDate.split('-').reverse().join('/') : orgEv.date?.split(' até ')[0]}
+                          {orgEv.startTime ? ` às ${orgEv.startTime}` : ''}
+                        </span>
+                      </div>
+                      <h5 style={{ fontSize: '0.78rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{orgEv.name}</h5>
+                      <div style={{ fontSize: '0.68rem', color: '#777' }}>Local: {orgEv.venueName || orgEv.location?.split(' - ')[0]}</div>
+                    </div>
                   </div>
-                  <h5 style={{ fontSize: '0.78rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{orgEv.name}</h5>
-                  <div style={{ fontSize: '0.68rem', color: '#777' }}>Local: {orgEv.location}</div>
+
+                  <div style={{ padding: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', borderTop: '1px solid #f9f9f9', paddingTop: '6px' }}>
+                      <span style={{ fontSize: '0.68rem', color: '#888' }}>{activeBatch?.name || 'Lote'}</span>
+                      <strong style={{ fontSize: '0.74rem', color: '#f28d1a', fontWeight: 500 }}>
+                        {isSoldOut ? 'Esgotado' : (activeBatch ? `R$ ${parseFloat(activeBatch.price || 0).toFixed(2)}` : 'R$ 0.00')}
+                      </strong>
+                    </div>
+
+                    {activeBatch && (
+                      <div style={{ marginTop: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: '#777', marginBottom: '2px' }}>
+                          <span>Progresso:</span>
+                          <span>{percent}%</span>
+                        </div>
+                        <div style={{ width: '100%', height: '4px', backgroundColor: '#eee', borderRadius: '2px', overflow: 'hidden' }}>
+                          <div style={{ width: `${percent}%`, height: '100%', backgroundColor: '#f28d1a', borderRadius: '2px' }} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
@@ -4729,7 +5496,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               {isFollowingProvider ? 'Seguindo' : 'Seguir'}
             </button>
             <button
-              onClick={() => onOpenChat()} // open support/provider chat
+              onClick={() => onOpenChat(prov.providerId)} // open support/provider chat
               style={{
                 padding: '6px 14px',
                 borderRadius: '99px',
@@ -6132,39 +6899,43 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
     );
   };
 
-  // --- SUBVIEW 9: PAYMENT SUCCESS ---
-  const renderPaymentSuccess = () => {
+  // --- SUBVIEW 9: SUCCESS / RECEIPT PAGE ---
+  const renderSuccess = () => {
     return (
       <div style={{
-        padding: '30px 20px',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
         textAlign: 'center',
-        height: '100%',
-        backgroundColor: '#ffffff'
+        padding: '24px',
+        boxSizing: 'border-box',
+        minHeight: '100%',
+        backgroundColor: '#ffffff',
+        fontFamily: 'Outfit, sans-serif'
       }} className="animate-fade-in">
         
+        {/* Soft checkmark icon */}
         <div style={{
-          width: '80px',
-          height: '80px',
+          width: '72px',
+          height: '72px',
           borderRadius: '50%',
-          backgroundColor: '#fff9ee',
+          backgroundColor: '#2ec4b615',
+          color: '#2ec4b6',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#f28d1a',
-          marginBottom: '20px'
+          boxShadow: '0 8px 24px rgba(46,196,182,0.15)',
+          marginBottom: '16px'
         }}>
           <Check size={40} />
         </div>
 
-        <h2 style={{ fontSize: '1.35rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '8px' }}>
+        <h2 style={{ fontSize: '1.35rem', fontWeight: 600, color: '#2d2d2d', margin: '0 0 8px 0' }}>
           Pagamento Aprovado!
         </h2>
         
-        <p style={{ fontSize: '0.85rem', color: '#666', lineHeight: 1.4, marginBottom: '24px' }}>
+        <p style={{ fontSize: '0.82rem', color: '#666', lineHeight: 1.5, margin: '0 0 24px 0', maxWidth: '300px' }}>
           {paymentModalType === 'event' 
             ? 'Seu pagamento foi confirmado uai! Seu ingresso já está disponível na sua carteira.'
             : paymentModalType === 'service'
@@ -6176,19 +6947,30 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
         {placedOrderId && (
           <div style={{
-            backgroundColor: '#ffffff',
-            padding: '14px',
-            borderRadius: '16px',
-            border: '1px solid #eaeaea',
+            backgroundColor: '#fcfcfc',
+            padding: '16px',
+            borderRadius: '20px',
+            border: '1px solid #f2f2f2',
             width: '100%',
-            marginBottom: '24px',
+            boxSizing: 'border-box',
+            marginBottom: '28px',
             fontSize: '0.82rem',
-            textAlign: 'left'
+            textAlign: 'left',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px'
           }}>
-            <div><span>Código do {paymentModalType === 'service' ? 'Agendamento' : paymentModalType === 'event' ? 'Ingresso' : 'Pedido'}:</span> #{placedOrderId}</div>
-            <div><span>Status:</span> Pagamento Confirmado</div>
-            <div style={{ marginTop: '8px', fontSize: '0.72rem', color: '#888' }}>
-              Você ganhou OuroCoins por essa compra! Confira no seu perfil.
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#555' }}>
+              <span>Código do {paymentModalType === 'service' ? 'Agendamento' : paymentModalType === 'event' ? 'Ingresso' : 'Pedido'}:</span>
+              <span style={{ fontWeight: 600, color: '#2d2d2d' }}>#{placedOrderId}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#555' }}>
+              <span>Status:</span>
+              <span style={{ fontWeight: 600, color: '#2ec4b6' }}>Confirmado</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#555', borderTop: '1px dotted #eee', paddingTop: '8px', marginTop: '2px' }}>
+              <span>OuroCoins:</span>
+              <span style={{ fontWeight: 600, color: '#f28d1a' }}>Creditado na Carteira</span>
             </div>
           </div>
         )}
@@ -6198,7 +6980,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             <button 
               onClick={() => onSwitchView('client_tracking')} 
               className="btn btn-primary" 
-              style={{ width: '100%', fontWeight: 500 }}
+              style={{ width: '100%', height: '44px', borderRadius: '16px', fontWeight: 600, fontSize: '0.82rem', background: 'var(--gradient-primary)', border: 'none', color: 'white', cursor: 'pointer', boxShadow: '0 4px 12px rgba(242,141,26,0.2)' }}
             >
               rastrear pedido
             </button>
@@ -6208,7 +6990,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 onSwitchView('client_tickets');
               }} 
               className="btn btn-primary" 
-              style={{ width: '100%', fontWeight: 500 }}
+              style={{ width: '100%', height: '44px', borderRadius: '16px', fontWeight: 600, fontSize: '0.82rem', background: 'var(--gradient-primary)', border: 'none', color: 'white', cursor: 'pointer', boxShadow: '0 4px 12px rgba(242,141,26,0.2)' }}
             >
               ver meus ingressos
             </button>
@@ -6219,7 +7001,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 onSwitchView('client_profile');
               }} 
               className="btn btn-primary" 
-              style={{ width: '100%', fontWeight: 500 }}
+              style={{ width: '100%', height: '44px', borderRadius: '16px', fontWeight: 600, fontSize: '0.82rem', background: 'var(--gradient-primary)', border: 'none', color: 'white', cursor: 'pointer', boxShadow: '0 4px 12px rgba(242,141,26,0.2)' }}
             >
               ver meus agendamentos
             </button>
@@ -6230,7 +7012,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 onSwitchView('client_profile');
               }} 
               className="btn btn-primary" 
-              style={{ width: '100%', fontWeight: 500 }}
+              style={{ width: '100%', height: '44px', borderRadius: '16px', fontWeight: 600, fontSize: '0.82rem', background: 'var(--gradient-primary)', border: 'none', color: 'white', cursor: 'pointer', boxShadow: '0 4px 12px rgba(242,141,26,0.2)' }}
             >
               ver meus pedidos
             </button>
@@ -6239,7 +7021,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           <button 
             onClick={() => { setPlacedOrderId(null); onSwitchView('client_home'); }} 
             className="btn btn-secondary" 
-            style={{ width: '100%', fontWeight: 500 }}
+            style={{ width: '100%', height: '44px', borderRadius: '16px', fontWeight: 600, fontSize: '0.82rem', border: '1px solid #ddd', cursor: 'pointer' }}
           >
             voltar para o início
           </button>
@@ -7250,7 +8032,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                     {o.status === 'checked_in' ? `Entrada validada às ${o.checkInTime}` : 'Apresente na portaria do evento'}
                   </span>
                   <button 
-                    onClick={() => setSelectedTicketForModal(o)}
+                    onClick={() => { setSelectedTicketForModal(o); onTicketModalChange && onTicketModalChange(true); }}
                     style={{ 
                       padding: '6px 12px', 
                       borderRadius: '8px', 
@@ -7285,7 +8067,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             justifyContent: 'center',
             padding: '20px',
             backdropFilter: 'blur(4px)'
-          }} onClick={() => setSelectedTicketForModal(null)}>
+          }} onClick={() => { setSelectedTicketForModal(null); onTicketModalChange && onTicketModalChange(false); }}>
             <div style={{
               width: '100%',
               maxWidth: '340px',
@@ -7315,7 +8097,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                     Connecta+ Eventos
                   </span>
                   <button 
-                    onClick={() => setSelectedTicketForModal(null)}
+                    onClick={() => { setSelectedTicketForModal(null); onTicketModalChange && onTicketModalChange(false); }}
                     style={{ background: 'rgba(255,255,255,0.2)', border: 'none', width: '28px', height: '28px', borderRadius: '50%', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' }}
                   >
                     <X size={16} />
@@ -7371,7 +8153,25 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <span style={{ fontSize: '0.68rem', color: '#999' }}>Data do Evento:</span>
-                    <span style={{ fontSize: '0.68rem', color: '#fff', fontWeight: 600 }}>{selectedTicketForModal.eventDate}</span>
+                    <span style={{ fontSize: '0.68rem', color: '#fff', fontWeight: 600 }}>
+                      {(() => {
+                        const orderEvent = events.find(e => e.id === selectedTicketForModal.eventId);
+                        if (orderEvent && orderEvent.startDate) {
+                          return `${orderEvent.startDate.split('-').reverse().join('/')}${orderEvent.startTime ? ` às ${orderEvent.startTime}` : ''}`;
+                        }
+                        if (selectedTicketForModal.eventDate) {
+                          const cleanDate = selectedTicketForModal.eventDate.split(' até ')[0].split(' às ')[0].split(' AS ')[0];
+                          const timePart = selectedTicketForModal.eventDate.includes(' às ') ? selectedTicketForModal.eventDate.split(' às ')[1] : (selectedTicketForModal.eventDate.includes(' AS ') ? selectedTicketForModal.eventDate.split(' AS ')[1] : '00:00');
+                          if (cleanDate.includes('-')) {
+                            const parts = cleanDate.split('-');
+                            if (parts[0].length === 4) return `${parts[2]}/${parts[1]}/${parts[0]} às ${timePart}`;
+                            return `${parts[0]}/${parts[1]}/${parts[2]} às ${timePart}`;
+                          }
+                          return selectedTicketForModal.eventDate.split(' até ')[0];
+                        }
+                        return '';
+                      })()}
+                    </span>
                   </div>
                 </div>
 
@@ -7401,7 +8201,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 </div>
 
                 <button 
-                  onClick={() => setSelectedTicketForModal(null)}
+                  onClick={() => { setSelectedTicketForModal(null); onTicketModalChange && onTicketModalChange(false); }}
                   style={{
                     width: '100%',
                     padding: '12px',
@@ -7416,7 +8216,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                     transition: 'all 0.2s'
                   }}
                 >
-                  Fechar Carteira
+                  Fechar
                 </button>
               </div>
 
@@ -9179,16 +9979,22 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
 
   // --- SUBVIEW 15: SEARCH PAGE ---
   const renderSearch = () => {
+    const searchCategories = categories ? categories.filter(c => IS_BETA_EVENTS_ONLY ? c.type === 'eventos' : c.type === 'lojas') : [];
     const searchResults = searchQuery.trim() !== '' 
       ? (IS_BETA_EVENTS_ONLY 
-          ? (events || []).filter(e => e.name?.toLowerCase().includes(searchQuery.toLowerCase()) || e.description?.toLowerCase().includes(searchQuery.toLowerCase()) || e.location?.toLowerCase().includes(searchQuery.toLowerCase()))
+          ? (events || []).filter(e => 
+              e.name?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+              e.description?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+              e.location?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+              e.category?.toLowerCase().includes(searchQuery.toLowerCase())
+            )
           : products.filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.description?.toLowerCase().includes(searchQuery.toLowerCase()))
         )
       : [];
 
     return (
       <div style={{ padding: '16px', paddingBottom: '90px' }} className="animate-fade-in">
-        <h2 style={{ fontSize: '1.2rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '16px' }}>
+        <h2 style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '16px' }}>
           {IS_BETA_EVENTS_ONLY ? "O que você quer curtir hoje?" : "O que você está buscando hoje?"}
         </h2>
 
@@ -9234,7 +10040,63 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
           )}
         </div>
 
-        {searchQuery.trim() !== '' ? (
+        {searchQuery.trim() === '' ? (
+          IS_BETA_EVENTS_ONLY ? (
+            <div>
+              <h3 style={{ fontSize: '0.9rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+                Explorar Categorias
+              </h3>
+              {searchCategories.length === 0 ? (
+                <div style={{ fontSize: '0.78rem', color: '#999', textAlign: 'center', padding: '20px' }}>
+                  Nenhuma categoria cadastrada ainda.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '10px' }}>
+                  {searchCategories.map(cat => (
+                    <div
+                      key={cat.id}
+                      onClick={() => setSearchQuery(cat.label)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        backgroundColor: '#fdfdfd',
+                        padding: '12px 14px',
+                        borderRadius: '16px',
+                        border: '1px solid #eee',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.01)'
+                      }}
+                    >
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '10px',
+                        backgroundColor: '#fff9ee',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#f28d1a',
+                        flexShrink: 0
+                      }}>
+                        {renderCategoryIcon(cat.icon)}
+                      </div>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 500, color: '#2d2d2d' }}>{cat.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div>
+              <h3 style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
+                Categorias
+              </h3>
+              {renderGroupedCategoriesList()}
+            </div>
+          )
+        ) : (
           <div>
             <h3 style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
               Resultados para "{searchQuery}"
@@ -9315,15 +10177,6 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               </div>
             )}
           </div>
-        ) : (
-          !IS_BETA_EVENTS_ONLY && (
-            <div>
-              <h3 style={{ fontSize: '0.95rem', fontWeight: 500, color: '#2d2d2d', marginBottom: '12px' }}>
-                Categorias
-              </h3>
-              {renderGroupedCategoriesList()}
-            </div>
-          )
         )}
       </div>
     );
@@ -9701,7 +10554,8 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
               {profileSubSection === 'orders' ? 'Pedidos Feitos' :
                profileSubSection === 'tickets' ? 'Ingressos Comprados' :
                profileSubSection === 'following' ? 'Perfis Seguidos' :
-               profileSubSection === 'services' ? 'Serviços Realizados' : 'Avaliações Feitas'}
+               profileSubSection === 'services' ? 'Serviços Realizados' :
+               profileSubSection === 'notifications' ? 'Notificações' : 'Avaliações Feitas'}
             </h2>
           </div>
 
@@ -10042,7 +10896,10 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
             </span>
             <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
               <button
-                onClick={() => triggerToast("Nenhuma notificação nova por enquanto!")}
+                onClick={() => {
+                  setProfileSubSection('notifications');
+                  if (currentUser) markNotificationsRead(currentUser.id);
+                }}
                 style={{
                   width: '32px',
                   height: '32px',
@@ -10311,7 +11168,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   );
                 })()}
                 <button
-                  onClick={() => onOpenChat()}
+                  onClick={() => onOpenChat(user.id)}
                   style={{
                     padding: '6px 14px',
                     borderRadius: '99px',
@@ -10504,7 +11361,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>CEP</label>
                   <input 
                     type="text" 
-                    placeholder="00000-000"
+                    placeholder=""
                     value={editCep} 
                     onChange={e => handleCepChange(e.target.value)}
                     style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
@@ -10545,7 +11402,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>Telefone</label>
                   <input 
                     type="text" 
-                    placeholder="(31) 99999-9999"
+                    placeholder=""
                     value={editPhone} 
                     onChange={e => handlePhoneChange(e.target.value)}
                     style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
@@ -10556,7 +11413,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#666' }}>CPF</label>
                   <input 
                     type="text" 
-                    placeholder="000.000.000-00"
+                    placeholder=""
                     value={editCpf} 
                     onChange={e => handleCpfChange(e.target.value)}
                     style={{ width: '100%', padding: '10px', borderRadius: '12px', border: '1px solid #ddd', fontSize: '0.8rem', marginTop: '4px', outline: 'none' }}
@@ -10599,7 +11456,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
       case 'client_service': return renderServiceView();
       case 'client_cart': return renderCart();
       case 'client_checkout': return renderCheckout();
-      case 'client_payment_success': return renderPaymentSuccess();
+      case 'client_payment_success': return renderSuccess();
       case 'client_tracking': return renderTracking();
       case 'client_foryou': return renderForYou();
       case 'client_favorites': return renderFavorites();
@@ -10623,8 +11480,9 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         <div style={{
           position: 'fixed',
           top: '24px',
-          left: '50%',
-          transform: 'translateX(-50%)',
+          left: '16px',
+          right: '16px',
+          margin: '0 auto',
           background: 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)',
           color: 'white',
           padding: '12px 20px',
@@ -11136,6 +11994,201 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
         </div>
       )}
 
+      {/* Special Free Ticket Confirmation Modal */}
+      {showFreeTicketConfirmModal && (() => {
+        const ev = events.find(e => e.id === selectedEventId);
+        const activeBatch = ev?.batches?.[selectedBatchIndex] || ev?.batches?.[0];
+        return (
+          <div 
+            onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              zIndex: 99999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backdropFilter: 'blur(6px)',
+              padding: '20px',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div style={{
+              width: '100%',
+              maxWidth: '380px',
+              backgroundColor: '#ffffff',
+              borderRadius: '28px',
+              padding: '24px',
+              boxShadow: '0 12px 36px rgba(0,0,0,0.15)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px',
+              fontFamily: 'Outfit, sans-serif'
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '50%',
+                  backgroundColor: '#f28d1a15',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  margin: '0 auto 12px',
+                  color: '#f28d1a'
+                }}>
+                  <Ticket size={28} />
+                </div>
+                <h3 style={{ fontSize: '1.15rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Confirmar Ingresso Grátis</h3>
+                <p style={{ fontSize: '0.78rem', color: '#666', marginTop: '6px', lineHeight: 1.4 }}>
+                  Você está prestes a garantir seu ingresso gratuito para o evento abaixo.
+                </p>
+              </div>
+
+              <div style={{
+                backgroundColor: '#f9f9f9',
+                borderRadius: '16px',
+                padding: '14px',
+                border: '1px solid #eee',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px'
+              }}>
+                <div style={{ fontSize: '0.72rem', color: '#888', textTransform: 'uppercase', fontWeight: 600 }}>Evento</div>
+                <div style={{ fontSize: '0.88rem', fontWeight: 600, color: '#2d2d2d' }}>{ev?.name}</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#555', borderTop: '1px solid #eee', paddingTop: '8px', marginTop: '4px' }}>
+                  <span>Lote:</span>
+                  <span style={{ fontWeight: 600 }}>{activeBatch?.name}</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', color: '#555' }}>
+                  <span>Quantidade:</span>
+                  <span style={{ fontWeight: 600 }}>{ticketQty}x</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', color: '#f28d1a', fontWeight: 600, borderTop: '1px dotted #ddd', paddingTop: '8px', marginTop: '2px' }}>
+                  <span>Valor Total:</span>
+                  <span>Grátis (R$ 0,00)</span>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+                <button
+                  onClick={() => setShowFreeTicketConfirmModal(false)}
+                  className="btn btn-secondary"
+                  style={{ flex: 1, height: '44px', padding: 0, fontSize: '0.8rem', border: '1px solid #ddd' }}
+                >
+                  Voltar
+                </button>
+                <button
+                  onClick={async () => {
+                    if (ev) {
+                      const res = await buyTicket(ev.id, selectedBatchIndex, ticketQty, commissionerCode, false, '', selectedSeat);
+                      if (res && res.success) {
+                        setShowFreeTicketConfirmModal(false);
+                        setShowFreeTicketSuccessModal(true);
+                      } else {
+                        setCustomAlert({ title: 'Ops!', message: res.message || 'Erro ao emitir ingresso gratuito.' });
+                      }
+                    }
+                  }}
+                  className="btn btn-primary"
+                  style={{ flex: 1, height: '44px', padding: 0, fontSize: '0.8rem', color: '#ffffff', fontWeight: 600 }}
+                >
+                  Resgatar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Free Ticket Success Modal */}
+      {showFreeTicketSuccessModal && (() => {
+        const ev = events.find(e => e.id === selectedEventId);
+        return (
+          <div 
+            onTouchMove={(e) => { if (e.target === e.currentTarget) e.preventDefault(); }}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              backgroundColor: 'rgba(0,0,0,0.6)',
+              zIndex: 999999,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backdropFilter: 'blur(8px)',
+              padding: '20px',
+              boxSizing: 'border-box'
+            }}
+          >
+            <div style={{
+              width: '100%',
+              maxWidth: '360px',
+              backgroundColor: '#ffffff',
+              borderRadius: '28px',
+              padding: '28px 24px 24px',
+              boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              textAlign: 'center',
+              gap: '16px',
+              animation: 'scaleIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both',
+              fontFamily: 'Outfit, sans-serif'
+            }}>
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                backgroundColor: '#2ec4b615',
+                color: '#2ec4b6',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 8px 20px rgba(46,196,182,0.15)',
+                marginBottom: '4px'
+              }}>
+                <Check size={36} />
+              </div>
+              
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Resgate Concluído!</h3>
+              
+              <p style={{ fontSize: '0.82rem', color: '#666', lineHeight: 1.5, margin: 0 }}>
+                Oba! Seu ingresso gratuito para "{ev?.name}" foi gerado e já está disponível na carteira do aplicativo.
+              </p>
+
+              <button
+                onClick={() => {
+                  const ev = events.find(e => e.id === selectedEventId);
+                  const lastOrder = orders.filter(o => o.customerId === currentUser?.id && o.type === 'ticket').sort((a,b) => b.id.localeCompare(a.id))[0];
+                  if (lastOrder) {
+                    setPlacedOrderId(lastOrder.id);
+                  }
+                  setShowFreeTicketSuccessModal(false);
+                  onSwitchView('client_tickets');
+                }}
+                className="btn btn-primary"
+                style={{
+                  width: '100%',
+                  height: '44px',
+                  borderRadius: '16px',
+                  background: 'var(--gradient-primary)',
+                  border: 'none',
+                  color: 'white',
+                  fontWeight: 600,
+                  fontSize: '0.85rem',
+                  cursor: 'pointer',
+                  boxShadow: '0 4px 12px rgba(242,141,26,0.2)',
+                  marginTop: '8px'
+                }}
+              >
+                Visualizar Ingresso
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Modal Intermediário de Pré-Checkout (Dados do Cliente) */}
       {showPreCheckoutModal && (
         <div style={{
@@ -11282,9 +12335,16 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   }
                   setShowPreCheckoutModal(false);
                   if (preCheckoutType === 'event') {
-                    setPaymentModalType('event');
-                    setActivePaymentTab('pix');
-                    setShowPaymentModal(true);
+                    const activeEvent = events.find(e => e.id === selectedEventId);
+                    const activeBatch = activeEvent?.batches?.[selectedBatchIndex] || activeEvent?.batches?.[0];
+                    const isFree = activeBatch && activeBatch.price === 0;
+                    if (isFree) {
+                      setShowFreeTicketConfirmModal(true);
+                    } else {
+                      setPaymentModalType('event');
+                      setActivePaymentTab('pix');
+                      setShowPaymentModal(true);
+                    }
                   } else if (preCheckoutType === 'service') {
                     setPaymentModalType('service');
                     setActivePaymentTab('pix');
@@ -11503,9 +12563,9 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   <button
                     onClick={handlePaymentSubmit}
                     className="btn btn-primary"
-                    style={{ width: '100%', height: '48px', color: '#ffffff', fontWeight: 500 }}
+                    style={{ width: '100%', height: '48px', color: '#ffffff', fontWeight: 600, fontSize: '0.85rem' }}
                   >
-                    concluir e pagar no PIX
+                    confirmar ingresso
                   </button>
                 </div>
               </div>
@@ -11515,7 +12575,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   <label style={{ fontSize: '0.68rem', color: '#666', fontWeight: 500 }}>Número do Cartão</label>
                   <input
                     type="text"
-                    placeholder="4444 4444 4444 4444"
+                    placeholder="0000 0000 0000 0000"
                     value={cardNumber}
                     onChange={(e) => {
                       let val = e.target.value.replace(/\D/g, '');
@@ -11566,7 +12626,7 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   <label style={{ fontSize: '0.68rem', color: '#666', fontWeight: 500 }}>Nome no Cartão</label>
                   <input
                     type="text"
-                    placeholder="MATEUS O SILVA"
+                    placeholder="Nome impresso no cartão"
                     value={cardHolder}
                     onChange={(e) => setCardHolder(e.target.value.toUpperCase())}
                     className="input-field"
@@ -11607,9 +12667,9 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                   <button
                     onClick={handlePaymentSubmit}
                     className="btn btn-primary"
-                    style={{ width: '100%', height: '48px', color: '#ffffff', fontWeight: 500 }}
+                    style={{ width: '100%', height: '48px', color: '#ffffff', fontWeight: 600, fontSize: '0.85rem' }}
                   >
-                    concluir e pagar no Cartão
+                    confirmar ingresso
                   </button>
                 </div>
               </div>
@@ -11725,6 +12785,151 @@ export default function ClientArea({ currentView, onSwitchView, onOpenChat, isVi
                 Enviar Denúncia
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refund Policy Modal */}
+      {showRefundPolicyModal && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1300,
+            padding: '20px'
+          }}
+        >
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '24px',
+            padding: '24px',
+            width: '100%',
+            maxWidth: '380px',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.25)',
+            color: '#2d2d2d',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>
+                Regras de Reembolso
+              </h3>
+              <button 
+                onClick={() => setShowRefundPolicyModal(false)}
+                style={{ background: 'none', border: 'none', fontSize: '1.2rem', cursor: 'pointer', color: '#999', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ 
+              fontSize: '0.78rem', 
+              color: '#555', 
+              lineHeight: 1.5, 
+              backgroundColor: '#f9f9f9', 
+              padding: '16px', 
+              borderRadius: '16px', 
+              borderLeft: '4px solid #f28d1a',
+              maxHeight: '300px',
+              overflowY: 'auto'
+            }}>
+              Atenção! O produtor é o único responsável pela devolução de valores referentes ao(s) ingresso(s). Em caso de arrependimento da compra, o reembolso do valor do ingresso somente será efetuado caso a solicitação seja feita no prazo de até 7 dias a contar da data da compra e desde que realizado o pedido de devolução com no máximo 48h de antecedência do horário de início do evento. Situações fora do descrito estarão condicionadas a decisão dos produtores do evento.
+            </div>
+
+            <button
+              onClick={() => setShowRefundPolicyModal(false)}
+              className="btn btn-primary"
+              style={{ width: '100%', height: '44px', color: '#ffffff', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 500 }}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Alert Modal matching brand visual identity */}
+      {customAlert && (
+        <div 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999999,
+            padding: '20px',
+            animation: 'fadeIn 0.2s ease'
+          }}
+        >
+          <div style={{
+            backgroundColor: '#ffffff',
+            borderRadius: '28px',
+            padding: '28px 24px 24px',
+            width: '100%',
+            maxWidth: '340px',
+            boxShadow: '0 24px 48px rgba(0,0,0,0.16)',
+            color: '#2d2d2d',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            textAlign: 'center',
+            gap: '16px',
+            border: '1px solid #f28d1a15'
+          }}>
+            {/* Warning Icon */}
+            <div style={{
+              width: '60px',
+              height: '60px',
+              borderRadius: '50%',
+              backgroundColor: '#fff7e6',
+              color: '#f28d1a',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 8px 20px rgba(242,141,26,0.1)'
+            }}>
+              <AlertTriangle size={28} />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 650, color: '#2d2d2d', margin: 0 }}>
+                {customAlert.title}
+              </h3>
+              <p style={{ fontSize: '0.82rem', color: '#666', lineHeight: 1.5, margin: 0 }}>
+                {customAlert.message}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setCustomAlert(null)}
+              className="btn btn-primary"
+              style={{
+                width: '100%',
+                height: '44px',
+                color: '#ffffff',
+                borderRadius: '16px',
+                fontSize: '0.85rem',
+                fontWeight: 650,
+                border: 'none',
+                background: 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(242,141,26,0.25)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginTop: '4px'
+              }}
+            >
+              Entendido
+            </button>
           </div>
         </div>
       )}

@@ -2,13 +2,18 @@ import { useState } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
 import { 
   Home, Ticket, Play, Users, MessageSquare, User, 
-  ExternalLink, Copy, Check, Clock, Calendar, LogOut, Layers
+  ExternalLink, Copy, Check, Clock, Calendar, LogOut, Layers,
+  DollarSign, TrendingUp, Percent, Wallet, X
 } from 'lucide-react';
 
 export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
   const { currentUser, logout, events, orders } = useFirebaseMock();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [copiedEventId, setCopiedEventId] = useState(null);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const [withdrawAmount, setWithdrawAmount] = useState('');
+  const [withdrawPix, setWithdrawPix] = useState('');
+  const [withdrawAccount, setWithdrawAccount] = useState('');
 
   const commissionerCode = currentUser?.commissionerCode || '';
 
@@ -25,15 +30,51 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
   // 3. Calcular métricas
   const totalTicketsSold = mySales.reduce((acc, curr) => acc + (curr.quantity || 0), 0);
   
-  // A comissão é calculada de forma acumulada (10% sobre o subtotal do valor do ingresso ou comissão individual se repassado)
-  const totalCommissionsEarned = mySales.reduce((acc, curr) => acc + (curr.commissionFee || 0), 0);
+  // A comissão é calculada pela taxa definida pelo organizador por evento
+  const totalCommissionsEarned = mySales.reduce((acc, curr) => acc + (curr.commissionerFee || curr.commissionFee || 0), 0);
+
+  // Stats por evento
+  const getEventStats = (eventId) => {
+    const eventSales = mySales.filter(s => s.eventId === eventId);
+    const ticketsSold = eventSales.reduce((acc, s) => acc + (s.quantity || 0), 0);
+    const totalGenerated = eventSales.reduce((acc, s) => acc + (s.subtotal || 0), 0);
+    const totalCommission = eventSales.reduce((acc, s) => acc + (s.commissionerFee || s.commissionFee || 0), 0);
+    return { ticketsSold, totalGenerated, totalCommission };
+  };
 
   const handleCopyLink = (eventId) => {
-    // Link de afiliado direcionando para o Connecta+ com o código do comissário parametrizado
     const refLink = `${window.location.origin}/?promo=${commissionerCode.toUpperCase()}&event=${eventId}`;
     navigator.clipboard.writeText(refLink);
     setCopiedEventId(eventId);
     setTimeout(() => setCopiedEventId(null), 2000);
+  };
+
+  // Helper: formatar data do evento para "DD/MM às HH:MM"
+  const formatEventDate = (dateStr) => {
+    if (!dateStr) return '';
+    const startPart = dateStr.split(' até ')[0];
+    const matchISO = startPart.match(/(\d{4})-(\d{2})-(\d{2})\s+[àaA][sS]\s+(\d{2}:\d{2})/);
+    if (matchISO) return `${matchISO[3]}/${matchISO[2]} às ${matchISO[4]}`;
+    const matchBR = startPart.match(/(\d{2})\/(\d{2})\/(\d{4})\s+[àaA][sS]\s+(\d{2}:\d{2})/);
+    if (matchBR) return `${matchBR[1]}/${matchBR[2]} às ${matchBR[4]}`;
+    return startPart;
+  };
+
+  const handleWithdraw = () => {
+    const amt = parseFloat(withdrawAmount);
+    if (!amt || amt <= 0 || amt > totalCommissionsEarned) {
+      alert('Valor inválido para saque.');
+      return;
+    }
+    if (!withdrawPix.trim()) {
+      alert('Informe sua chave PIX.');
+      return;
+    }
+    alert(`Solicitação de saque de R$ ${amt.toFixed(2)} enviada com sucesso! O valor será depositado na chave PIX informada em até 3 dias úteis.`);
+    setShowWithdrawModal(false);
+    setWithdrawAmount('');
+    setWithdrawPix('');
+    setWithdrawAccount('');
   };
 
   const renderDashboard = () => (
@@ -46,28 +87,61 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
       {/* Metrics Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
         {[
-          { label: 'Ingressos Vendidos', val: `${totalTicketsSold} un.`, desc: 'Total acumulado', color: '#fcf6ed' },
-          { label: 'Comissão Acumulada', val: `R$ ${totalCommissionsEarned.toFixed(2)}`, desc: 'Estimada em 10%', color: '#f3faf8' },
-          { label: 'Eventos Ativos', val: `${myLinkedEvents.length} ev.`, desc: 'Em divulgação', color: '#fef3f3' }
+          { label: 'Ingressos Vendidos', val: `${totalTicketsSold} un.` },
+          { label: 'Comissão Acumulada', val: `R$ ${totalCommissionsEarned.toFixed(2)}` },
+          { label: 'Eventos Ativos', val: `${myLinkedEvents.length} ev.` }
         ].map(st => (
           <div
             key={st.label}
             style={{
-              backgroundColor: st.color,
-              padding: '14px',
-              borderRadius: '20px',
-              border: '1.5px solid #eaeaea40',
-              boxShadow: 'var(--shadow-sm)'
+              backgroundColor: '#ffffff',
+              padding: '14px 10px',
+              borderRadius: '16px',
+              border: '1px solid #eef2f6',
+              borderLeft: '4px solid #f28d1a',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center'
             }}
           >
-            <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 500 }}>{st.label}</span>
-            <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#2d2d2d', margin: '4px 0' }}>{st.val}</div>
-            <div style={{ fontSize: '0.62rem', color: '#999' }}>{st.desc}</div>
+            <span style={{ fontSize: '0.68rem', color: '#666', fontWeight: 500 }}>{st.label}</span>
+            <div style={{ fontSize: '1.05rem', fontWeight: 500, color: '#1a1a1a', margin: '4px 0', letterSpacing: '-0.3px' }}>{st.val}</div>
           </div>
         ))}
       </div>
 
-      {/* Chat Suporte Card */}
+      {/* Withdraw Button */}
+      <button
+        onClick={() => {
+          if (totalCommissionsEarned <= 0) {
+            alert('Você ainda não possui comissão acumulada para realizar saques.');
+            return;
+          }
+          setShowWithdrawModal(true);
+          setWithdrawAmount(totalCommissionsEarned.toFixed(2));
+        }}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          padding: '12px',
+          borderRadius: '16px',
+          border: 'none',
+          background: totalCommissionsEarned > 0 ? 'linear-gradient(135deg, #f9bb1a, #f28d1a)' : '#eaeaea',
+          color: totalCommissionsEarned > 0 ? 'white' : '#999',
+          fontWeight: 600,
+          fontSize: '0.85rem',
+          cursor: totalCommissionsEarned > 0 ? 'pointer' : 'not-allowed',
+          boxShadow: totalCommissionsEarned > 0 ? '0 4px 12px rgba(242,141,26,0.3)' : 'none',
+          transition: 'all 0.2s'
+        }}
+      >
+        sacar
+      </button>
+
+      {/* Chat Card */}
       <div style={{
         backgroundColor: '#ffffff',
         borderRadius: '24px',
@@ -77,8 +151,7 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '12px',
-        marginTop: '10px'
+        gap: '12px'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <div style={{
@@ -112,7 +185,7 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
             cursor: 'pointer'
           }}
         >
-          Chat Suporte
+          Chat
         </button>
       </div>
     </div>
@@ -121,7 +194,7 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
   const renderMyLinks = () => (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} className="animate-fade-in">
       <div>
-        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Meus Eventos e Links</h3>
+        <h3 style={{ fontSize: '1rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Meus Eventos</h3>
         <p style={{ fontSize: '0.75rem', color: '#777', margin: '2px 0 0 0' }}>Copie seu link de vendas para divulgar e garantir sua comissão</p>
       </div>
 
@@ -133,6 +206,11 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
         ) : (
           myLinkedEvents.map(ev => {
             const isCopied = copiedEventId === ev.id;
+            const stats = getEventStats(ev.id);
+            const myCommInfo = ev.commissioners?.find(c => c.code.toUpperCase() === commissionerCode.toUpperCase());
+            const commRate = myCommInfo?.rate !== undefined ? myCommInfo.rate : 10;
+            const discountRate = myCommInfo?.discount !== undefined ? myCommInfo.discount : 0;
+
             return (
               <div
                 key={ev.id}
@@ -143,49 +221,96 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
                   border: '1px solid #eee',
                   boxShadow: 'var(--shadow-sm)',
                   display: 'flex',
-                  gap: '12px',
-                  alignItems: 'center'
+                  flexDirection: 'column',
+                  gap: '12px'
                 }}
               >
-                <img 
-                  src={ev.image} 
-                  alt={ev.name} 
-                  style={{ width: '60px', height: '60px', borderRadius: '14px', objectFit: 'cover' }} 
-                />
-                
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ev.name}
-                  </h4>
-                  <div style={{ fontSize: '0.68rem', color: '#f28d1a', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <Calendar size={12} />
-                    <span>{ev.date}</span>
+                {/* Event Header */}
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  <img 
+                    src={ev.image} 
+                    alt={ev.name} 
+                    style={{ width: '56px', height: '56px', borderRadius: '14px', objectFit: 'cover' }} 
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {ev.name}
+                    </h4>
+                    <div style={{ fontSize: '0.68rem', color: '#f28d1a', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <Calendar size={12} />
+                      <span>{formatEventDate(ev.date)}</span>
+                    </div>
                   </div>
-                  <div style={{ fontSize: '0.68rem', color: '#777', marginTop: '4px', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                    Link: {window.location.origin}/?promo={commissionerCode.toUpperCase()}&event={ev.id}
+                  <button
+                    onClick={() => handleCopyLink(ev.id)}
+                    style={{
+                      backgroundColor: isCopied ? '#f3faf8' : '#fff7e6',
+                      color: isCopied ? '#2ec4b6' : '#f28d1a',
+                      border: 'none',
+                      borderRadius: '12px',
+                      width: '36px',
+                      height: '36px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      flexShrink: 0
+                    }}
+                    title="Copiar Link de Vendas"
+                  >
+                    {isCopied ? <Check size={18} /> : <Copy size={18} />}
+                  </button>
+                </div>
+
+                {/* Stats Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                  <div style={{ backgroundColor: '#fcf6ed', padding: '10px', borderRadius: '14px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.6rem', color: '#999', fontWeight: 500, marginBottom: '2px' }}>Sua Comissão</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f28d1a' }}>{commRate}%</div>
+                  </div>
+                  <div style={{ backgroundColor: '#fcf6ed', padding: '10px', borderRadius: '14px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.6rem', color: '#999', fontWeight: 500, marginBottom: '2px' }}>Total Gerado</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f28d1a' }}>R$ {stats.totalGenerated.toFixed(2)}</div>
+                  </div>
+                  <div style={{ backgroundColor: '#fcf6ed', padding: '10px', borderRadius: '14px', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.6rem', color: '#999', fontWeight: 500, marginBottom: '2px' }}>Seu Ganho</div>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#f28d1a' }}>R$ {stats.totalCommission.toFixed(2)}</div>
                   </div>
                 </div>
 
-                <button
-                  onClick={() => handleCopyLink(ev.id)}
-                  style={{
-                    backgroundColor: isCopied ? '#f3faf8' : '#fff7e6',
-                    color: isCopied ? '#2ec4b6' : '#f28d1a',
-                    border: 'none',
-                    borderRadius: '12px',
-                    width: '36px',
-                    height: '36px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease',
-                    flexShrink: 0
-                  }}
-                  title="Copiar Link de Vendas"
-                >
-                  {isCopied ? <Check size={18} /> : <Copy size={18} />}
-                </button>
+                {/* Tags */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                  {discountRate > 0 && (
+                    <span style={{
+                      fontSize: '0.62rem',
+                      fontWeight: 600,
+                      backgroundColor: '#fcf6ed',
+                      color: '#f28d1a',
+                      padding: '4px 10px',
+                      borderRadius: '8px',
+                      border: '1px solid #f28d1a15'
+                    }}>
+                      Desconto do link: {discountRate}%
+                    </span>
+                  )}
+                  <span style={{
+                    fontSize: '0.62rem',
+                    fontWeight: 600,
+                    backgroundColor: '#fcf6ed',
+                    color: '#f28d1a',
+                    padding: '4px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #f28d1a15'
+                  }}>
+                    {stats.ticketsSold} vendidos
+                  </span>
+                </div>
+
+                {/* Link Preview */}
+                <div style={{ fontSize: '0.65rem', color: '#999', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                  Link: {window.location.origin}/?promo={commissionerCode.toUpperCase()}&event={ev.id}
+                </div>
               </div>
             );
           })
@@ -240,7 +365,7 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
                 
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2ec4b6' }}>
-                    + R$ {(sale.commissionFee || 0).toFixed(2)}
+                    + R$ {(sale.commissionerFee || sale.commissionFee || 0).toFixed(2)}
                   </div>
                   <span style={{ fontSize: '0.62rem', color: '#999' }}>Comissão</span>
                 </div>
@@ -270,7 +395,7 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
             {[
               { id: 'home', label: 'Home', icon: <Home size={18} /> },
               { id: 'dashboard', label: 'Painel', icon: <Layers size={18} /> },
-              { id: 'links', label: 'Meus Links', icon: <Ticket size={18} /> },
+              { id: 'links', label: 'Meus Eventos', icon: <Ticket size={18} /> },
               { id: 'sales', label: 'Minhas Vendas', icon: <Users size={18} /> }
             ].map(item => (
               <button
@@ -301,7 +426,7 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 cursor: 'pointer'
               }}
-              title="Chat Suporte"
+              title="Chat"
             >
               <MessageSquare size={16} style={{ color: '#f28d1a' }} />
             </button>
@@ -331,11 +456,116 @@ export default function CommissionerArea({ onOpenChat, onLogout, onGoToHome }) {
         </div>
       </main>
 
+      {/* Withdraw Modal */}
+      {showWithdrawModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 9999,
+          padding: '20px',
+          backdropFilter: 'blur(4px)'
+        }} onClick={() => setShowWithdrawModal(false)}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '28px',
+              padding: '24px',
+              width: '100%',
+              maxWidth: '380px',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '16px'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 650, color: '#2d2d2d', margin: 0 }}>Sacar Saldo</h3>
+              <button onClick={() => setShowWithdrawModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#999', padding: 0 }}>
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{
+              backgroundColor: '#fffdf9',
+              border: '1.5px solid #f28d1a20',
+              borderRadius: '20px',
+              padding: '16px',
+              textAlign: 'left'
+            }}>
+              <span style={{ fontSize: '0.72rem', color: '#888', fontWeight: 500 }}>Saldo disponível para saque</span>
+              <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f28d1a', marginTop: '4px' }}>R$ {totalCommissionsEarned.toFixed(2)}</div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#555' }}>Chave PIX</label>
+              <input
+                type="text"
+                value={withdrawPix}
+                onChange={(e) => setWithdrawPix(e.target.value)}
+                className="input-field"
+                placeholder="CPF, E-mail, Celular ou Chave Aleatória"
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#555' }}>Número da Conta</label>
+              <input
+                type="text"
+                value={withdrawAccount}
+                onChange={(e) => setWithdrawAccount(e.target.value)}
+                className="input-field"
+                placeholder="Ex: Agência 0001, Conta 12345-6"
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: '0.7rem', fontWeight: 600, color: '#555' }}>Valor do Saque (R$)</label>
+              <input
+                type="number"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                className="input-field"
+                placeholder="0.00"
+                min="1"
+                max={totalCommissionsEarned}
+                step="0.01"
+              />
+            </div>
+
+            <button
+              onClick={handleWithdraw}
+              style={{
+                padding: '12px',
+                borderRadius: '16px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #f9bb1a, #f28d1a)',
+                color: 'white',
+                fontWeight: 600,
+                fontSize: '0.85rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 4px 12px rgba(242,141,26,0.25)',
+                marginTop: '6px'
+              }}
+            >
+              Solicitar Saque
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Mobile Bottom Nav */}
       <div className="bottom-nav">
         {[
           { id: 'dashboard', label: 'Painel', icon: <Layers size={20} /> },
-          { id: 'links', label: 'Links', icon: <Ticket size={20} /> },
+          { id: 'links', label: 'Eventos', icon: <Ticket size={20} /> },
           { id: 'sales', label: 'Vendas', icon: <Users size={20} /> }
         ].map(item => (
           <button

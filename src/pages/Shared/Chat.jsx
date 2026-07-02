@@ -2,9 +2,14 @@ import { useState, useRef, useEffect } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
 import { Send, ArrowLeft, MessageSquare, Bell, LogOut } from 'lucide-react';
 
-export default function Chat({ onCloseChat, onToggleNotifications }) {
+export default function Chat({ onCloseChat, onToggleNotifications, targetChatUserId }) {
   const { currentUser, chats, addMessage, users, deletedUsers, logout, notifications } = useFirebaseMock();
-  const [activeRoom, setActiveRoom] = useState(null); // roomKey string
+  const [activeRoom, setActiveRoom] = useState(() => {
+    if (targetChatUserId && currentUser) {
+      return `${currentUser.id}_${targetChatUserId}`;
+    }
+    return null;
+  }); // roomKey string
   const [text, setText] = useState('');
   const chatEndRef = useRef(null);
 
@@ -12,6 +17,12 @@ export default function Chat({ onCloseChat, onToggleNotifications }) {
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [chats, activeRoom]);
+
+  useEffect(() => {
+    if (targetChatUserId && currentUser) {
+      setActiveRoom(`${currentUser.id}_${targetChatUserId}`);
+    }
+  }, [targetChatUserId, currentUser]);
 
   const unreadNotifications = (notifications || []).filter(n => !n.read && n.userId === currentUser?.id);
   const isPartner = currentUser && currentUser.role !== 'client' && currentUser.role !== 'admin';
@@ -23,7 +34,7 @@ export default function Chat({ onCloseChat, onToggleNotifications }) {
     const defaultRooms = [];
     
     // Every partner/client can chat with support
-    if (currentUser.role !== 'admin') {
+    if (currentUser && currentUser.role !== 'admin') {
       defaultRooms.push({
         key: `${currentUser.id}_admin`,
         title: 'Suporte Connecta+',
@@ -31,7 +42,49 @@ export default function Chat({ onCloseChat, onToggleNotifications }) {
         avatar: '/support-avatar.png',
         role: 'admin'
       });
-    } else if (currentUser.role === 'admin') {
+    }
+
+    if (currentUser) {
+      // Find other active rooms for this user in chats collection
+      const activeKeys = new Set();
+      chats.forEach(msg => {
+        if (msg.roomKey && msg.roomKey.includes(currentUser.id)) {
+          activeKeys.add(msg.roomKey);
+        }
+      });
+
+      // Add target user room key if present
+      if (targetChatUserId) {
+        activeKeys.add(`${currentUser.id}_${targetChatUserId}`);
+      }
+
+      // Populate room info
+      activeKeys.forEach(roomKey => {
+        if (roomKey === `${currentUser.id}_admin` || roomKey === `admin_${currentUser.id}`) {
+          return;
+        }
+        const parts = roomKey.split('_');
+        const otherUserId = parts.find(p => p !== currentUser.id) || parts[0];
+        
+        let otherUserObj = users?.find(u => u.id === otherUserId);
+        if (!otherUserObj) {
+          otherUserObj = deletedUsers?.find(u => u.id === otherUserId);
+        }
+
+        if (otherUserObj) {
+          const title = otherUserObj.role === 'seller' ? (otherUserObj.companyName || otherUserObj.name) : otherUserObj.name;
+          defaultRooms.push({
+            key: roomKey,
+            title: title || 'Conversa',
+            subtitle: otherUserObj.role === 'provider' ? 'Prestador' : (otherUserObj.role === 'seller' ? 'Loja' : (otherUserObj.role === 'events' || otherUserObj.role === 'promoter' ? 'Organizador' : 'Usuário')),
+            avatar: otherUserObj.avatar || otherUserObj.logo || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23cccccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>',
+            role: otherUserObj.role
+          });
+        }
+      });
+    }
+
+    if (currentUser && currentUser.role === 'admin') {
       const adminRooms = [];
       const userIdsInChats = new Set();
       
@@ -80,7 +133,14 @@ export default function Chat({ onCloseChat, onToggleNotifications }) {
 
   const roomsList = getAvailableRooms();
   const currentRoomDetails = roomsList.find(r => r.key === activeRoom);
-  const activeRoomMessages = chats.filter(c => c.roomKey === activeRoom);
+  const activeRoomMessages = chats
+    .filter(c => c.roomKey === activeRoom)
+    .sort((a, b) => {
+      const timeA = a.createdAt || 0;
+      const timeB = b.createdAt || 0;
+      if (timeA !== timeB) return timeA - timeB;
+      return a.id.localeCompare(b.id);
+    });
 
   return (
     <div style={{
@@ -130,7 +190,7 @@ export default function Chat({ onCloseChat, onToggleNotifications }) {
                   style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '1.5px solid #f28d1a' }}
                 />
                 <div>
-                  <div style={{ fontSize: '0.92rem', fontWeight: /suporte\s+connecta/i.test(roomTitle) ? 400 : 700, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <div style={{ fontSize: '0.92rem', fontWeight: 400, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px' }}>
                     {roomTitle}
                     {isAdminRoom && currentUser.role !== 'admin' && (
                       <svg viewBox="0 0 24 24" width="12" height="12">
@@ -193,7 +253,13 @@ export default function Chat({ onCloseChat, onToggleNotifications }) {
           <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {/* Removed description */}
             {roomsList.map(room => {
-              const lastMsg = chats.filter(c => c.roomKey === room.key).pop();
+              const roomMessages = chats.filter(c => c.roomKey === room.key).sort((a, b) => {
+                const timeA = a.createdAt || 0;
+                const timeB = b.createdAt || 0;
+                if (timeA !== timeB) return timeA - timeB;
+                return a.id.localeCompare(b.id);
+              });
+              const lastMsg = roomMessages[roomMessages.length - 1];
               const isAdminRoom = room.role === 'admin' || room.key.endsWith('_admin');
               const roomTitle = (isAdminRoom && currentUser.role !== 'admin') ? 'Suporte Connecta' : room.title;
               const roomAvatar = (isAdminRoom && currentUser.role !== 'admin') ? '/support-avatar.png' : room.avatar;
@@ -224,7 +290,7 @@ export default function Chat({ onCloseChat, onToggleNotifications }) {
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                      <span style={{ fontSize: '0.9rem', fontWeight: /suporte\s+connecta/i.test(roomTitle) ? 400 : 700, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>
+                      <span style={{ fontSize: '0.9rem', fontWeight: 400, color: '#2d2d2d', display: 'flex', alignItems: 'center', gap: '4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '70%' }}>
                         {roomTitle}
                         {isAdminRoom && currentUser.role !== 'admin' && (
                           <svg viewBox="0 0 24 24" width="12" height="12" style={{ flexShrink: 0 }}>
@@ -277,7 +343,7 @@ export default function Chat({ onCloseChat, onToggleNotifications }) {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
                 {activeRoomMessages.map(msg => {
-                  const isMe = msg.senderId === currentUser.id;
+                  const isMe = msg.senderId === currentUser.id || (currentUser.role === 'admin' && (msg.senderId === 'admin' || msg.senderRole === 'admin'));
                   return (
                     <div
                       key={msg.id}

@@ -1,10 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useFirebaseMock } from '../../context/FirebaseMockContext';
 import { 
-  Calendar, MessageSquare, Home, Play, Upload, X, 
+  Calendar, MessageSquare, Home, Play, Upload, X, Check,
   User, MapPin, Phone, Clock, Star, Users, Camera, Save, Edit, Trash2, QrCode,
-  Bell, LogOut, Layers
+  Bell, LogOut, Layers, ChevronDown, ChevronUp
 } from 'lucide-react';
+import { uploadAvatar, uploadCover, uploadEventImage, uploadVideoFile } from '../../firebase/storage';
+
 // Helper component for Date Roller Picker
 function DateRollerPicker({ label, value, onChange, required }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -440,14 +442,18 @@ function TimeRollerPicker({ label, value, onChange, required }) {
 
 export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNotificationsCount, onLogout, onGoToHome }) {
   const { 
-    currentUser, events, addEvent, updateEvent, addCommissioner, addVideo, 
+    currentUser, events, addEvent, updateEvent, addCommissioner, removeCommissioner,
+    linkExistingCommissionerToEvent, updateCommissionerRates, addVideo, 
     setUsers, deleteEvent, visualLayoutSettings, updateUserProfile, categories, users,
     videos, deleteVideo, updateVideo, validateTicket, orders
   } = useFirebaseMock();
 
   const eventCategoriesFromDb = categories ? categories.filter(c => c.type === 'eventos').map(c => c.label) : [];
-  const eventCategoriesList = eventCategoriesFromDb.length > 0 ? eventCategoriesFromDb : ['Eventos - Festas e Shows', 'Eventos - Universitários e Repúblicas', 'Eventos - Culturais e Festivais'];
+  const eventCategoriesList = eventCategoriesFromDb.length > 0 
+    ? eventCategoriesFromDb 
+    : ['Eventos - Culturais e Festivais', 'Eventos - Festas e Shows', 'Eventos - Universitários e Repúblicas'];
 
+  const [ticketFilterEventId, setTicketFilterEventId] = useState('all');
   const [activeTab, setActiveTab] = useState(() => {
     return localStorage.getItem('connecta_organizer_active_tab') || 'dashboard';
   });
@@ -473,6 +479,9 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   const [html5QrcodeLoaded, setHtml5QrcodeLoaded] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
   const [scannerTab, setScannerTab] = useState('camera'); // 'camera' or 'list'
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [isSyncingOffline, setIsSyncingOffline] = useState(false);
+  const [offlineSyncMessage, setOfflineSyncMessage] = useState('');
 
   useEffect(() => {
     if (showScannerModal && !html5QrcodeLoaded) {
@@ -488,20 +497,50 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
     }
   }, [showScannerModal, html5QrcodeLoaded]);
 
+  const scannerRef = useRef(null);
+
   useEffect(() => {
-    let html5QrCodeScanner = null;
     if (showScannerModal && cameraActive && html5QrcodeLoaded && scannerTab === 'camera') {
+      if (scannerRef.current) {
+        try {
+          if (scannerRef.current.isScanning) {
+            scannerRef.current.stop().catch(() => {});
+          }
+        } catch (e) {}
+      }
+
       try {
-        html5QrCodeScanner = new window.Html5Qrcode("reader");
-        html5QrCodeScanner.start(
+        const scannerInstance = new window.Html5Qrcode("reader");
+        scannerRef.current = scannerInstance;
+
+        scannerInstance.start(
           { facingMode: "environment" },
           {
             fps: 10,
-            qrbox: { width: 220, height: 220 }
+            qrbox: (width, height) => {
+              const min = Math.min(width, height);
+              return { width: Math.round(min * 0.8), height: Math.round(min * 0.8) };
+            }
           },
           (decodedText) => {
-            handleTicketScanSubmit(decodedText);
-            setCameraActive(false); // desliga câmera após scan para focar no resultado
+            // Executa com um pequeno delay para evitar conflito de thread no html5-qrcode
+            setTimeout(() => {
+              if (scannerRef.current && scannerRef.current.isScanning) {
+                scannerRef.current.stop()
+                  .then(() => {
+                    handleTicketScanSubmit(decodedText);
+                    setCameraActive(false);
+                  })
+                  .catch((err) => {
+                    console.error("Erro ao parar scanner no callback de sucesso:", err);
+                    handleTicketScanSubmit(decodedText);
+                    setCameraActive(false);
+                  });
+              } else {
+                handleTicketScanSubmit(decodedText);
+                setCameraActive(false);
+              }
+            }, 100);
           },
           () => {
             // erro de leitura silencioso
@@ -517,8 +556,22 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
     }
 
     return () => {
-      if (html5QrCodeScanner && html5QrCodeScanner.isScanning) {
-        html5QrCodeScanner.stop().catch(err => console.error("Erro ao desligar câmera no cleanup:", err));
+      if (scannerRef.current) {
+        const instance = scannerRef.current;
+        scannerRef.current = null;
+        try {
+          if (instance.isScanning) {
+            instance.stop()
+              .then(() => {
+                try {
+                  instance.clear();
+                } catch (e) {}
+              })
+              .catch(err => console.error("Erro ao desligar câmera no cleanup:", err));
+          }
+        } catch (err) {
+          console.error("Erro síncrono no cleanup:", err);
+        }
       }
     };
   }, [showScannerModal, cameraActive, html5QrcodeLoaded, scannerTab]);
@@ -532,6 +585,82 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
     // Suporta formato com ou sem '#' e limpa espaços
     const formattedCode = codeToValidate.replace('Ticket #', '').replace('#', '').trim();
     
+    if (isOfflineMode) {
+      // MODO OFFLINE ATIVO
+      const storageKey = `connecta_offline_tickets_${currentUser.id}`;
+      const savedData = localStorage.getItem(storageKey);
+      if (!savedData) {
+        setScannerResult({ success: false, message: 'Nenhuma base offline carregada! Por favor, ative a internet e clique em "Baixar Ingressos".' });
+        return;
+      }
+
+      let localTickets = [];
+      try {
+        localTickets = JSON.parse(savedData);
+      } catch (e) {
+        setScannerResult({ success: false, message: 'Erro ao ler a base offline local.' });
+        return;
+      }
+
+      const cleanId = formattedCode.toUpperCase();
+      const ticketIndex = localTickets.findIndex(o => o.id.toUpperCase() === cleanId);
+      
+      if (ticketIndex === -1) {
+        setScannerResult({ success: false, message: 'Ingresso não encontrado na base offline local!' });
+        return;
+      }
+
+      const ticket = localTickets[ticketIndex];
+      if (ticket.type !== 'ticket') {
+        setScannerResult({ success: false, message: 'Este ID não corresponde a um ingresso!' });
+        return;
+      }
+
+      if (scannerFilterEventId && scannerFilterEventId !== 'all' && ticket.eventId !== scannerFilterEventId) {
+        const selectedEvent = myEvents.find(e => e.id === scannerFilterEventId);
+        setScannerResult({ 
+          success: false, 
+          message: `Este ingresso pertence ao evento "${ticket.eventName}", mas a validação está configurada apenas para o evento "${selectedEvent?.name || 'evento selecionado'}"!` 
+        });
+        return;
+      }
+
+      if (ticket.status === 'checked_in') {
+        setScannerResult({ 
+          success: false, 
+          message: `Ingresso já utilizado! Entrada offline realizada em ${ticket.checkInTime || 'horário desconhecido'}.` 
+        });
+        return;
+      }
+
+      // Sucesso no check-in offline!
+      const checkInTime = new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      
+      // Atualizar o status localmente
+      ticket.status = 'checked_in';
+      ticket.checkInTime = checkInTime;
+      localTickets[ticketIndex] = ticket;
+      
+      // Salvar de volta na base offline local
+      localStorage.setItem(storageKey, JSON.stringify(localTickets));
+
+      // Adicionar na fila de sincronização pendente
+      const queueKey = `connecta_offline_sync_queue_${currentUser.id}`;
+      const queueData = localStorage.getItem(queueKey);
+      let syncQueue = queueData ? JSON.parse(queueData) : [];
+      syncQueue.push({ id: ticket.id, checkInTime });
+      localStorage.setItem(queueKey, JSON.stringify(syncQueue));
+
+      setScannerResult({ 
+        success: true, 
+        message: 'Ingresso validado offline com sucesso! Entrada liberada.',
+        ticket: { ...ticket }
+      });
+      setScannerInputValue('');
+      return;
+    }
+
+    // MODO ONLINE PADRÃO
     const res = await validateTicket(formattedCode, currentUser.id, scannerFilterEventId);
     if (res.success) {
       setScannerResult({ success: true, message: res.message, ticket: res.ticket });
@@ -539,6 +668,78 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
     } else {
       setScannerResult({ success: false, message: res.message });
     }
+  };
+
+  const handleDownloadOfflineTickets = () => {
+    setIsSyncingOffline(true);
+    setOfflineSyncMessage('Baixando ingressos do banco...');
+
+    setTimeout(() => {
+      // 1. Filtrar todos os ingressos pertencentes aos eventos deste organizador
+      const myEventIds = myEvents.map(e => e.id);
+      const myTickets = orders.filter(o => o.type === 'ticket' && myEventIds.includes(o.eventId));
+
+      // 2. Salvar no localStorage
+      const storageKey = `connecta_offline_tickets_${currentUser.id}`;
+      localStorage.setItem(storageKey, JSON.stringify(myTickets));
+
+      setIsSyncingOffline(false);
+      setOfflineSyncMessage(`Pronto! ${myTickets.length} ingressos baixados para uso offline.`);
+      setTimeout(() => setOfflineSyncMessage(''), 3000);
+    }, 800);
+  };
+
+  const handleSyncOfflineCheckins = async () => {
+    const queueKey = `connecta_offline_sync_queue_${currentUser.id}`;
+    const queueData = localStorage.getItem(queueKey);
+    if (!queueData) {
+      setOfflineSyncMessage('Nenhum check-in offline pendente para sincronizar.');
+      setTimeout(() => setOfflineSyncMessage(''), 3000);
+      return;
+    }
+
+    let syncQueue = [];
+    try {
+      syncQueue = JSON.parse(queueData);
+    } catch (e) {
+      localStorage.removeItem(queueKey);
+      return;
+    }
+
+    if (syncQueue.length === 0) {
+      setOfflineSyncMessage('Nenhum check-in offline pendente para sincronizar.');
+      setTimeout(() => setOfflineSyncMessage(''), 3000);
+      return;
+    }
+
+    setIsSyncingOffline(true);
+    setOfflineSyncMessage(`Sincronizando ${syncQueue.length} check-ins offline com o servidor...`);
+
+    let successCount = 0;
+    for (const item of syncQueue) {
+      try {
+        const res = await validateTicket(item.id, currentUser.id, 'all');
+        if (res.success) {
+          successCount++;
+        }
+      } catch (err) {
+        console.error("Erro ao sincronizar check-in offline:", err);
+      }
+    }
+
+    // Limpar fila
+    localStorage.removeItem(queueKey);
+    setIsSyncingOffline(false);
+    setOfflineSyncMessage(`Sincronização concluída! ${successCount} de ${syncQueue.length} check-ins atualizados no banco.`);
+    setTimeout(() => setOfflineSyncMessage(''), 4000);
+  };
+
+  const handleCloseScanner = () => {
+    setCameraActive(false);
+    setTimeout(() => {
+      setShowScannerModal(false);
+      setScannerResult(null);
+    }, 150);
   };
 
   // Edit profile states
@@ -576,6 +777,7 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   const [salesStartTime, setSalesStartTime] = useState('');
 
   // Structured address states
+  const [venueName, setVenueName] = useState('');
   const [addressCep, setAddressCep] = useState('');
   const [addressStreet, setAddressStreet] = useState('');
   const [addressNumber, setAddressNumber] = useState('');
@@ -625,9 +827,9 @@ export default function EventsArea({ onOpenChat, onToggleNotifications, unreadNo
   const [hasNumberedSeats, setHasNumberedSeats] = useState(false);
   const [totalSeats, setTotalSeats] = useState('');
   const [feeOption, setFeeOption] = useState('absorver'); // 'absorver' or 'repassar'
+  const [maxTicketsPerCPF, setMaxTicketsPerCPF] = useState('');
+  const [minAge, setMinAge] = useState('0');
   const [coupons, setCoupons] = useState([]); // Array of { code, discountType: 'fixed'|'percent', value }
-  const [policy, setPolicy] = useState('');
-
   const defaultPolicyTemplate = `1. REEMBOLSO E CANCELAMENTO:
 Atenção! O produtor é o único responsável pela devolução de valores referentes ao(s) ingresso(s). Em caso de arrependimento da compra, o reembolso do valor do ingresso somente será efetuado caso a solicitação seja feita no prazo de até 7 dias a contar da data da compra e desde que realizado o pedido de devolução com no máximo 48h de antecedência do horário de início do evento. Situações fora do descrito estarão condicionadas a decisão dos produtores do evento.
 
@@ -637,6 +839,8 @@ Atenção! O produtor é o único responsável pela devolução de valores refer
 3. USO DE IMAGEM:
 Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua imagem e voz em fotografias, vídeos e materiais promocionais do evento, sem direito a compensação financeira.`;
 
+  const [policy, setPolicy] = useState(defaultPolicyTemplate);
+
   // Promoter states
   const [commName, setCommName] = useState('');
   const [commCode, setCommCode] = useState('');
@@ -644,9 +848,18 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
   const [commPhone, setCommPhone] = useState('');
   const [commPassword, setCommPassword] = useState('');
   const [commAvatar, setCommAvatar] = useState('');
+  const [commRate, setCommRate] = useState('10');
+  const [commDiscount, setCommDiscount] = useState('0');
+  const [commFormMode, setCommFormMode] = useState('new'); // 'new' or 'existing'
+  const [selectedExistingCommId, setSelectedExistingCommId] = useState('');
+  const [editingCommCode, setEditingCommCode] = useState(null);
+  const [expandedCommCode, setExpandedCommCode] = useState(null);
+  const [editCommRate, setEditCommRate] = useState('10');
+  const [editCommDiscount, setEditCommDiscount] = useState('0');
   const [generatedLink, setGeneratedLink] = useState('');
   const [selectedEventId, setSelectedEventId] = useState('');
   const [editingEventId, setEditingEventId] = useState(null);
+  const [batchSalesMode, setBatchSalesMode] = useState('sequential');
 
   // Reels upload states
   const [vidTitle, setVidTitle] = useState('');
@@ -676,11 +889,32 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
     }
   };
 
-  const myEvents = events ? events.filter(e => e.organizerId === currentUser?.id) : [];
+  const parseEventDate = (ev) => {
+    if (ev.startDate) {
+      return new Date(`${ev.startDate}T${ev.startTime || '00:00'}`);
+    }
+    if (ev.date) {
+      const clean = ev.date.split(' até ')[0].split(' às ')[0].split(' AS ')[0];
+      const time = ev.date.includes(' às ') ? ev.date.split(' às ')[1] : '00:00';
+      if (clean.includes('-')) {
+        const parts = clean.split('-');
+        if (parts[0].length === 4) return new Date(`${clean}T${time}`);
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${time}`);
+      } else if (clean.includes('/')) {
+        const parts = clean.split('/');
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}T${time}`);
+      }
+    }
+    return new Date(2099, 11, 31);
+  };
+
+  const myEvents = events ? events.filter(e => e.organizerId === currentUser?.id).sort((a, b) => parseEventDate(a) - parseEventDate(b)) : [];
+  const organizerTickets = (orders || []).filter(o => o.type === 'ticket' && myEvents.some(me => me.id === o.eventId));
 
   // Compute sales stats
   let totalTicketsSold = 0;
   let grossSales = 0;
+  let freeTicketsClaimed = 0;
   myEvents.forEach(e => {
     if (e && e.batches && Array.isArray(e.batches)) {
       e.batches.forEach(b => {
@@ -688,6 +922,9 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         const ticketPrice = parseFloat(b.price || 0);
         if (!isNaN(soldQty) && soldQty > 0) {
           totalTicketsSold += soldQty;
+          if (ticketPrice === 0) {
+            freeTicketsClaimed += soldQty;
+          }
         }
         if (!isNaN(soldQty) && !isNaN(ticketPrice) && soldQty > 0) {
           grossSales += soldQty * ticketPrice;
@@ -701,7 +938,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
   const withdrawableBalance = isNaN(netEarnings) ? 0 : netEarnings;
 
   const handleAddBatch = (type = 'pago') => {
-    setBatches([...batches, { name: '', type, price: type === 'gratuito' ? '0' : '', limit: '', startDate: '', startTime: '', endDate: '', endTime: '', sold: 0, feeOption: 'repassar' }]);
+    setBatches([...batches, { name: '', type, price: type === 'gratuito' ? '0' : '', limit: '', startDate: '', startTime: '', endDate: '', endTime: '', sold: 0, feeOption: 'repassar', active: true }]);
   };
 
   const handleRemoveBatch = (idx) => {
@@ -736,6 +973,45 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
     }));
   };
 
+  const resetEventForm = () => {
+    setEditingEventId(null);
+    setEvName('');
+    setEvDate('');
+    setEvLocation('');
+    setEvDescription('');
+    setEvImages(Array(10).fill(''));
+    setBatches([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '', active: true }]);
+    setBatchSalesMode('sequential');
+    setEventCategory('');
+    setTags('');
+    setEventType('fisico');
+    setHasNumberedSeats(false);
+    setTotalSeats('');
+    setFeeOption('absorver');
+    setMaxTicketsPerCPF('');
+    setMinAge('0');
+    setCoupons([]);
+    setPolicy(defaultPolicyTemplate);
+    setHomepageBanner('');
+
+    // Reset novos states estruturados
+    setStartDate('');
+    setStartTime('');
+    setEndDate('');
+    setEndTime('');
+    setSalesStartDate('');
+    setSalesStartTime('');
+    setVenueName('');
+    setAddressCep('');
+    setAddressStreet('');
+    setAddressNumber('');
+    setAddressComplement('');
+    setAddressNeighborhood('');
+    setAddressCity('');
+    setAddressState('');
+    setOnlineLink('');
+  };
+
   const handleEventSubmit = (e) => {
     e.preventDefault();
     if (!evName) {
@@ -749,7 +1025,9 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         alert('Por favor, preencha o endereço completo (Rua, Número, Cidade e Estado) para eventos físicos!');
         return;
       }
-      finalLocation = `${addressStreet}, ${addressNumber} ${addressComplement ? `(${addressComplement})` : ''} - ${addressNeighborhood}, ${addressCity} - ${addressState}, CEP: ${addressCep}`;
+      finalLocation = venueName
+        ? `${venueName} - ${addressStreet}, ${addressNumber}${addressComplement ? ` (${addressComplement})` : ''} - ${addressNeighborhood ? addressNeighborhood + ', ' : ''}${addressCity} - ${addressState}`
+        : `${addressStreet}, ${addressNumber} ${addressComplement ? `(${addressComplement})` : ''} - ${addressNeighborhood}, ${addressCity} - ${addressState}, CEP: ${addressCep}`;
     } else {
       finalLocation = onlineLink ? `Virtual (Link: ${onlineLink})` : 'Virtual (Link de transmissão online)';
     }
@@ -777,7 +1055,8 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       endDate: b.endDate || '',
       endTime: b.endTime || '',
       sold: b.sold || 0,
-      feeOption: b.feeOption || 'repassar'
+      feeOption: b.feeOption || 'repassar',
+      active: b.active !== undefined ? b.active : true
     })).filter(b => b.limit > 0);
 
     if (parsedBatches.length === 0) {
@@ -795,6 +1074,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       endTime,
       salesStartDate,
       salesStartTime,
+      venueName,
       addressCep,
       addressStreet,
       addressNumber,
@@ -813,9 +1093,12 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       hasNumberedSeats,
       totalSeats: hasNumberedSeats ? parseInt(totalSeats || 0) : null,
       feeOption,
+      maxTicketsPerCPF: maxTicketsPerCPF ? parseInt(maxTicketsPerCPF) : null,
+      minAge: parseInt(minAge || 0),
       coupons: coupons.filter(c => c.code.trim() !== ''),
       policy: policy || defaultPolicyTemplate,
-      homepageBanner
+      homepageBanner,
+      batchSalesMode
     };
 
     if (editingEventId) {
@@ -846,38 +1129,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
     }
 
     // Reset Form
-    setEvName('');
-    setEvDate('');
-    setEvLocation('');
-    setEvDescription('');
-    setEvImages(Array(10).fill(''));
-    setBatches([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '' }]);
-    setEventCategory('');
-    setTags('');
-    setEventType('fisico');
-    setHasNumberedSeats(false);
-    setTotalSeats('');
-    setFeeOption('absorver');
-    setCoupons([]);
-    setPolicy('');
-    setHomepageBanner('');
-
-    // Reset novos states estruturados
-    setStartDate('');
-    setStartTime('');
-    setEndDate('');
-    setEndTime('');
-    setSalesStartDate('');
-    setSalesStartTime('');
-    setAddressCep('');
-    setAddressStreet('');
-    setAddressNumber('');
-    setAddressComplement('');
-    setAddressNeighborhood('');
-    setAddressCity('');
-    setAddressState('');
-    setOnlineLink('');
-
+    resetEventForm();
     setActiveTab('events');
   };
 
@@ -888,6 +1140,28 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       alert('Selecione um evento para cadastrar o comissário!');
       return;
     }
+
+    if (commFormMode === 'existing') {
+      if (!selectedExistingCommId) {
+        alert('Selecione um comissário existente!');
+        return;
+      }
+      const res = await linkExistingCommissionerToEvent(eventIdToUse, {
+        userId: selectedExistingCommId,
+        rate: parseFloat(commRate || 10),
+        discount: parseFloat(commDiscount || 0)
+      });
+      if (res.success) {
+        setSelectedExistingCommId('');
+        setCommRate('10');
+        setCommDiscount('0');
+        alert('Comissário existente vinculado com sucesso!');
+      } else {
+        alert(res.message || 'Erro ao vincular comissário.');
+      }
+      return;
+    }
+
     if (!commName || !commEmail || !commPhone) {
       alert('Nome, e-mail e telefone são obrigatórios para criar o comissário!');
       return;
@@ -902,7 +1176,9 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       phone: commPhone,
       avatar: commAvatar,
       password: finalPassword,
-      code: finalCode
+      code: finalCode,
+      rate: parseFloat(commRate || 10),
+      discount: parseFloat(commDiscount || 0)
     });
 
     if (res.success) {
@@ -915,6 +1191,8 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       setCommPassword('');
       setCommAvatar('');
       setCommCode('');
+      setCommRate('10');
+      setCommDiscount('0');
       
       alert('Comissário criado com sucesso e vinculado ao evento! O link de acesso direto para ele logar foi gerado abaixo.');
     } else {
@@ -1293,10 +1571,13 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                     <div style={{ padding: '4px' }}>
                       <div style={{ fontSize: '0.68rem', color: '#f28d1a', fontWeight: 500, textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <Calendar size={11} />
-                        <span>{ev.date}</span>
+                        <span>
+                          {ev.startDate ? ev.startDate.split('-').reverse().join('/') : ev.date?.split(' até ')[0]}
+                          {ev.startTime ? ` às ${ev.startTime}` : ''}
+                        </span>
                       </div>
                       <h5 style={{ fontSize: '0.78rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.name}</h5>
-                      <div style={{ fontSize: '0.68rem', color: '#777' }}>Local: {ev.location}</div>
+                      <div style={{ fontSize: '0.68rem', color: '#777' }}>Local: {ev.venueName || ev.location?.split(' - ')[0]}</div>
                       
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '8px', borderTop: '1px solid #f9f9f9', paddingTop: '6px' }}>
                         <span style={{ fontSize: '0.68rem', color: '#888' }}>{activeBatch?.name || 'Lote'}</span>
@@ -1330,8 +1611,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
 
 
   const renderScannerModal = () => {
-    const organizerTickets = (orders || []).filter(o => o.type === 'ticket' && myEvents.some(me => me.id === o.eventId));
-    
     const filteredTickets = organizerTickets
       .filter(o => scannerFilterEventId === 'all' ? true : o.eventId === scannerFilterEventId)
       .filter(o => {
@@ -1340,6 +1619,17 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         return (o.customerName || '').toLowerCase().includes(term) || 
                (o.id || '').toLowerCase().includes(term) ||
                (o.eventName || '').toLowerCase().includes(term);
+      })
+      .sort((a, b) => {
+        const isCheckedA = a.status === 'checked_in';
+        const isCheckedB = b.status === 'checked_in';
+        if (isCheckedA && !isCheckedB) return -1;
+        if (!isCheckedA && isCheckedB) return 1;
+        if (isCheckedA && isCheckedB) {
+          // Sort by check-in time descending (most recent first)
+          return (b.checkInTime || '').localeCompare(a.checkInTime || '');
+        }
+        return (a.customerName || '').localeCompare(b.customerName || '');
       });
 
     return (
@@ -1356,10 +1646,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         justifyContent: 'center',
         zIndex: 2000,
         padding: '16px'
-      }} onClick={() => {
-        setCameraActive(false);
-        setShowScannerModal(false);
-      }}>
+      }} onClick={handleCloseScanner}>
         <div style={{
           backgroundColor: 'white',
           borderRadius: '24px',
@@ -1380,153 +1667,551 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
               <span style={{ fontSize: '0.65rem', color: '#777' }}>Controle de entrada em tempo real</span>
             </div>
             <button 
-              onClick={() => {
-                setCameraActive(false);
-                setShowScannerModal(false);
-              }}
+              onClick={handleCloseScanner}
               style={{ background: '#f5f5f5', border: 'none', width: '30px', height: '30px', borderRadius: '50%', color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', outline: 'none' }}
             >
               <X size={16} />
             </button>
           </div>
 
-          {/* Event Selector (Global for both camera and list validation) */}
-          <div style={{ marginBottom: '14px' }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555', display: 'block', marginBottom: '6px' }}>
-              Selecionar Evento para Validação
-            </label>
-            <select
-              value={scannerFilterEventId}
-              onChange={(e) => {
-                setScannerFilterEventId(e.target.value);
-                setScannerResult(null);
-              }}
-              style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: '12px',
-                border: '1.5px solid #eee',
-                fontSize: '0.8rem',
-                outline: 'none',
-                backgroundColor: '#fafafa',
-                fontWeight: 500,
-                color: '#333'
-              }}
-            >
-              <option value="all">Todos os eventos</option>
-              {myEvents.map(e => (
-                <option key={e.id} value={e.id}>{e.name}</option>
-              ))}
-            </select>
-          </div>
+          {/* Main Validation Panel (Always mounted!) */}
+          <>
+            {/* Event Selector (Global for both camera and list validation) */}
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555', display: 'block', marginBottom: '6px' }}>
+                Selecionar Evento
+              </label>
+              <select
+                value={scannerFilterEventId}
+                onChange={(e) => {
+                  setScannerFilterEventId(e.target.value);
+                  setScannerResult(null);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '10px',
+                  borderRadius: '12px',
+                  border: '1.5px solid #eee',
+                  fontSize: '0.8rem',
+                  outline: 'none',
+                  backgroundColor: '#fafafa',
+                  fontWeight: 500,
+                  color: '#333'
+                }}
+              >
+                <option value="all">Todos os eventos</option>
+                {myEvents.map(e => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+            </div>
 
-          {(() => {
-            const selectedEvent = myEvents.find(e => e.id === scannerFilterEventId);
-            if (!selectedEvent) return null;
-
-            const activeBatch = selectedEvent.batches 
-              ? selectedEvent.batches.find(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) < parseInt(b.limit || 0, 10)) || selectedEvent.batches[0] 
-              : null;
-            const isSoldOut = selectedEvent.batches && selectedEvent.batches.length > 0 
-              ? selectedEvent.batches.every(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) >= parseInt(b.limit || 0, 10)) 
-              : false;
-
-            return (
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                padding: '12px',
-                backgroundColor: '#fdfbf7',
-                border: '1px solid #f6e8d5',
-                borderRadius: '16px',
-                marginBottom: '14px',
-                animation: 'fadeIn 0.2s ease'
-              }}>
-                <img 
-                  src={selectedEvent.image} 
-                  alt={selectedEvent.name} 
-                  style={{
-                    width: '44px',
-                    height: '44px',
-                    borderRadius: '10px',
-                    objectFit: 'cover'
-                  }}
-                />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <h4 style={{
-                    fontSize: '0.82rem',
-                    fontWeight: 600,
-                    color: '#2d2d2d',
-                    margin: '0 0 2px 0',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis'
+            {/* Offline Mode Controls */}
+            <div style={{ 
+              backgroundColor: isOfflineMode ? '#fff3e0' : '#f8f9fa',
+              borderRadius: '16px',
+              padding: '12px',
+              marginBottom: '14px',
+              border: isOfflineMode ? '1px solid #ffe0b2' : '1px solid #eee',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '8px'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.72rem', fontWeight: 600, color: '#333' }}>
+                  Modo Offline da Portaria
+                </span>
+                <label style={{ position: 'relative', display: 'inline-block', width: '38px', height: '20px' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={isOfflineMode}
+                    onChange={(e) => {
+                      setIsOfflineMode(e.target.checked);
+                      setScannerResult(null);
+                    }}
+                    style={{ opacity: 0, width: 0, height: 0 }} 
+                  />
+                  <span style={{
+                    position: 'absolute', cursor: 'pointer', top: 0, left: 0, right: 0, bottom: 0,
+                    backgroundColor: isOfflineMode ? '#f28d1a' : '#ccc',
+                    borderRadius: '20px',
+                    transition: '0.4s'
                   }}>
-                    {selectedEvent.name}
-                  </h4>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{
-                      fontSize: '0.64rem',
-                      backgroundColor: '#f28d1a15',
-                      color: '#f28d1a',
-                      padding: '2px 8px',
-                      borderRadius: '20px',
-                      fontWeight: 500
+                      position: 'absolute', content: '""', height: '14px', width: '14px', left: '3px', bottom: '3px',
+                      backgroundColor: 'white',
+                      borderRadius: '50%',
+                      transform: isOfflineMode ? 'translateX(18px)' : 'translateX(0)',
+                      transition: '0.4s'
+                    }} />
+                  </span>
+                </label>
+              </div>
+
+              {/* Actions & Status */}
+              <div style={{ display: 'flex', gap: '8px', marginTop: '4px' }}>
+                <button
+                  type="button"
+                  onClick={handleDownloadOfflineTickets}
+                  disabled={isSyncingOffline}
+                  style={{
+                    flex: 1,
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    border: '1px solid #ccc',
+                    backgroundColor: '#ffffff',
+                    color: '#333',
+                    fontSize: '0.65rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    opacity: isSyncingOffline ? 0.6 : 1
+                  }}
+                >
+                  Baixar Ingressos
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSyncOfflineCheckins}
+                  disabled={isSyncingOffline}
+                  style={{
+                    flex: 1,
+                    padding: '6px 10px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    backgroundColor: '#f28d1a',
+                    color: 'white',
+                    fontSize: '0.65rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    opacity: isSyncingOffline ? 0.6 : 1
+                  }}
+                >
+                  Sincronizar
+                </button>
+              </div>
+
+              {offlineSyncMessage && (
+                <div style={{ fontSize: '0.62rem', color: '#f28d1a', fontWeight: 500, marginTop: '2px', textAlign: 'center' }}>
+                  {offlineSyncMessage}
+                </div>
+              )}
+            </div>
+
+            {(() => {
+              const selectedEvent = myEvents.find(e => e.id === scannerFilterEventId);
+              if (!selectedEvent) return null;
+
+              const activeBatch = selectedEvent.batches 
+                ? selectedEvent.batches.find(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) < parseInt(b.limit || 0, 10)) || selectedEvent.batches[0] 
+                : null;
+              const isSoldOut = selectedEvent.batches && selectedEvent.batches.length > 0 
+                ? selectedEvent.batches.every(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) >= parseInt(b.limit || 0, 10)) 
+                : false;
+
+              return (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px',
+                  backgroundColor: '#fdfbf7',
+                  border: '1px solid #f6e8d5',
+                  borderRadius: '16px',
+                  marginBottom: '14px',
+                  animation: 'fadeIn 0.2s ease'
+                }}>
+                  <img 
+                    src={selectedEvent.image} 
+                    alt={selectedEvent.name} 
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '10px',
+                      objectFit: 'cover'
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h4 style={{
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: '#2d2d2d',
+                      margin: '0 0 2px 0',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
                     }}>
-                      Lote: {activeBatch?.name || 'Lote Único'}
-                    </span>
-                    {activeBatch && (
-                      <span style={{ fontSize: '0.64rem', color: '#666', fontWeight: 500 }}>
-                        {isSoldOut ? 'Esgotado' : `R$ ${parseFloat(activeBatch.price || 0).toFixed(2)}`}
+                      {selectedEvent.name}
+                    </h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{
+                        fontSize: '0.64rem',
+                        backgroundColor: '#f28d1a15',
+                        color: '#f28d1a',
+                        padding: '2px 8px',
+                        borderRadius: '20px',
+                        fontWeight: 500
+                      }}>
+                        Lote: {activeBatch?.name || 'Lote Único'}
                       </span>
+                      {activeBatch && (
+                        <span style={{ fontSize: '0.64rem', color: '#666', fontWeight: 500 }}>
+                          {isSoldOut ? 'Esgotado' : `R$ ${parseFloat(activeBatch.price || 0).toFixed(2)}`}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Navigation Tabs */}
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', borderBottom: '1px solid #eee', paddingBottom: '8px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setScannerTab('camera');
+                  setScannerResult(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  border: 'none',
+                  background: scannerTab === 'camera' ? '#fcf6ed' : 'none',
+                  color: scannerTab === 'camera' ? '#f28d1a' : '#666',
+                  borderRadius: '10px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                QR Code
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setScannerTab('list');
+                  setCameraActive(false);
+                  setScannerResult(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  border: 'none',
+                  background: scannerTab === 'list' ? '#fcf6ed' : 'none',
+                  color: scannerTab === 'list' ? '#f28d1a' : '#666',
+                  borderRadius: '10px',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Lista
+              </button>
+            </div>
+
+            {/* Tab Content */}
+            <div style={{ flex: 1, overflowY: 'auto' }}>
+              {scannerTab === 'camera' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{
+                    width: '100%',
+                    maxWidth: '260px',
+                    aspectRatio: '1 / 1',
+                    alignSelf: 'center',
+                    backgroundColor: '#111',
+                    borderRadius: '16px',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white',
+                    position: 'relative'
+                  }}>
+                    <div id="reader" style={{ width: '100%', height: '100%', display: cameraActive ? 'block' : 'none' }}></div>
+                    {!cameraActive && (
+                      <div style={{ textAlign: 'center', padding: '20px', position: 'absolute' }}>
+                        <div style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '10px' }}>
+                          Ative o scanner de câmera para ler QR Codes
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setScannerResult(null);
+                            setCameraActive(true);
+                          }}
+                          style={{
+                            padding: '10px 18px',
+                            borderRadius: '12px',
+                            border: 'none',
+                            backgroundColor: '#f28d1a',
+                            color: 'white',
+                            fontSize: '0.75rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '6px'
+                          }}
+                        >
+                          <Camera size={16} />
+                          Ligar Câmera
+                        </button>
+                      </div>
+                    )}
+                    {cameraActive && (
+                      <button
+                        type="button"
+                        onClick={() => setCameraActive(false)}
+                        style={{
+                          position: 'absolute',
+                          bottom: '10px',
+                          padding: '4px 10px',
+                          borderRadius: '8px',
+                          border: 'none',
+                          backgroundColor: 'rgba(255,255,255,0.2)',
+                          color: 'white',
+                          fontSize: '0.62rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          backdropFilter: 'blur(4px)'
+                        }}
+                      >
+                        Desligar Câmera
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ borderTop: '1px solid #eee', paddingTop: '14px', marginTop: '4px' }}>
+                    <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555', display: 'block', marginBottom: '6px' }}>
+                      Validação Manual por Código
+                    </label>
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      handleTicketScanSubmit();
+                    }} style={{ display: 'flex', gap: '8px' }}>
+                      <input
+                        type="text"
+                        placeholder="Código do ingresso"
+                        value={scannerInputValue}
+                        onChange={(e) => setScannerInputValue(e.target.value)}
+                        style={{
+                          flex: 1,
+                          padding: '8px 12px',
+                          borderRadius: '10px',
+                          border: '1.5px solid #eee',
+                          fontSize: '0.78rem',
+                          outline: 'none'
+                        }}
+                      />
+                      <button
+                        type="submit"
+                        style={{
+                          padding: '8px 16px',
+                          borderRadius: '10px',
+                          border: 'none',
+                          backgroundColor: '#f28d1a',
+                          color: 'white',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Validar
+                      </button>
+                    </form>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input
+                      type="text"
+                      placeholder="Buscar titular ou ID..."
+                      value={scannerSearchTerm}
+                      onChange={(e) => setScannerSearchTerm(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '8px 12px',
+                        borderRadius: '10px',
+                        border: '1.5px solid #eee',
+                        fontSize: '0.78rem',
+                        outline: 'none'
+                      }}
+                    />
+                  </div>
+
+                  <div style={{ 
+                    maxHeight: '220px', 
+                    overflowY: 'auto', 
+                    border: '1px solid #eee', 
+                    borderRadius: '14px',
+                    backgroundColor: '#fafafa' 
+                  }}>
+                    {filteredTickets.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '30px 10px', color: '#999', fontSize: '0.75rem' }}>
+                        Nenhum ingresso vendido atende aos filtros.
+                      </div>
+                    ) : (
+                      filteredTickets.map(t => (
+                        <div 
+                          key={t.id} 
+                          style={{ 
+                            padding: '10px 12px', 
+                            borderBottom: '1px solid #eee',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            gap: '10px',
+                            backgroundColor: 'white'
+                          }}
+                        >
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {t.customerName}
+                            </div>
+                            <div style={{ fontSize: '0.62rem', color: '#666', marginTop: '2px' }}>
+                              #{t.id} • {t.batchName || 'Lote Único'} ({t.quantity} un.)
+                            </div>
+                            {t.status === 'checked_in' && t.checkInTime && (
+                              <div style={{ fontSize: '0.62rem', color: '#20a396', marginTop: '2px', fontWeight: 500 }}>
+                                Check-in: {t.checkInTime}
+                              </div>
+                            )}
+                            <div style={{ fontSize: '0.62rem', color: '#999', fontStyle: 'italic' }}>
+                              {t.eventName}
+                            </div>
+                          </div>
+                          <div>
+                            {t.status === 'checked_in' ? (
+                              <span style={{
+                                fontSize: '0.62rem',
+                                color: '#ff5e5b',
+                                backgroundColor: '#ffebe9',
+                                padding: '2px 8px',
+                                borderRadius: '6px',
+                                fontWeight: 600,
+                                whiteSpace: 'nowrap'
+                              }}>
+                                Utilizado
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleTicketScanSubmit(t.id)}
+                                style={{
+                                  padding: '4px 10px',
+                                  borderRadius: '6px',
+                                  border: 'none',
+                                  backgroundColor: '#f28d1a',
+                                  color: 'white',
+                                  fontSize: '0.62rem',
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  whiteSpace: 'nowrap'
+                                }}
+                              >
+                                Check-in
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))
                     )}
                   </div>
                 </div>
-              </div>
-            );
-          })()}
+              )}
+            </div>
+          </>
 
-          {/* Scanner Feedback (Success/Error Message) */}
+          {/* Results Overlay (Renders on top of the main panel) */}
           {scannerResult && (
             <div style={{
-              backgroundColor: scannerResult.loading 
-                ? '#fffdf4' 
-                : scannerResult.success 
-                  ? '#e6f9f6' 
-                  : '#ffebe9',
-              borderRadius: '16px',
-              padding: '14px',
-              marginBottom: '14px',
-              border: `1.5px solid ${
-                scannerResult.loading 
-                  ? '#f28d1a30' 
-                  : scannerResult.success 
-                    ? '#2ec4b630' 
-                    : '#ff5e5b30'
-              }`,
+              position: 'absolute',
+              top: '65px',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              padding: '0 20px 20px 20px',
+              backgroundColor: 'white',
+              borderBottomLeftRadius: '24px',
+              borderBottomRightRadius: '24px',
+              zIndex: 100,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
               textAlign: 'center',
-              position: 'relative'
+              animation: 'fadeIn 0.2s ease'
             }}>
               {scannerResult.loading ? (
-                <div style={{ padding: '10px 0' }}>
-                  <div style={{ fontSize: '0.8rem', color: '#f28d1a', fontWeight: 600 }}>Processando check-in...</div>
-                  <span style={{ fontSize: '0.68rem', color: '#999' }}>Aguardando resposta do servidor</span>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                  <div style={{
+                    width: '44px',
+                    height: '44px',
+                    border: '3.5px solid rgba(242, 141, 26, 0.15)',
+                    borderTop: '3.5px solid #f28d1a',
+                    borderRadius: '50%',
+                    animation: 'spin 0.8s linear infinite'
+                  }}></div>
+                  <h4 style={{ fontSize: '1.05rem', fontWeight: 650, color: '#f28d1a', margin: 0 }}>Processando check-in...</h4>
+                  <p style={{ fontSize: '0.75rem', color: '#888', margin: 0 }}>Aguardando resposta do servidor</p>
                 </div>
               ) : (
-                <div>
-                  <div style={{ 
-                    fontSize: '0.85rem', 
-                    fontWeight: 700, 
-                    color: scannerResult.success ? '#20a396' : '#ff5e5b',
-                    marginBottom: '4px'
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%' }}>
+                  <div style={{
+                    width: '76px',
+                    height: '76px',
+                    borderRadius: '50%',
+                    backgroundColor: scannerResult.success ? '#e6f9f6' : '#ffebe9',
+                    border: `2.5px solid ${scannerResult.success ? '#2ec4b6' : '#ff5e5b'}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginBottom: '16px',
+                    boxShadow: scannerResult.success ? '0 8px 24px rgba(46,196,182,0.2)' : '0 8px 24px rgba(255,94,91,0.2)',
+                    color: scannerResult.success ? '#2ec4b6' : '#ff5e5b'
                   }}>
-                    {scannerResult.success ? 'CHECK-IN LIBERADO' : 'CONTRATEMPO NA ENTRADA'}
+                    {scannerResult.success ? <Check size={36} strokeWidth={3} /> : <X size={36} strokeWidth={3} />}
                   </div>
-                  <p style={{ fontSize: '0.75rem', color: '#333', margin: '4px 0 8px 0' }}>{scannerResult.message}</p>
-                  
+
+                  <h3 style={{
+                    fontSize: '1.25rem',
+                    fontWeight: 750,
+                    color: scannerResult.success ? '#20a396' : '#ff5e5b',
+                    margin: '0 0 6px 0',
+                    letterSpacing: '0.3px'
+                  }}>
+                    {scannerResult.success ? 'CHECK-IN LIBERADO' : 'CHECK-IN BARRADO'}
+                  </h3>
+
+                  <p style={{
+                    fontSize: '0.82rem',
+                    fontWeight: 500,
+                    color: '#555',
+                    margin: '0 0 20px 0',
+                    lineHeight: 1.4,
+                    maxWidth: '280px'
+                  }}>
+                    {scannerResult.message}
+                  </p>
+
                   {scannerResult.success && scannerResult.ticket && (
-                    <div style={{ backgroundColor: 'rgba(46,196,182,0.06)', borderRadius: '10px', padding: '8px', textAlign: 'left', fontSize: '0.7rem', color: '#444', marginBottom: '8px' }}>
+                    <div style={{
+                      backgroundColor: '#f8faf9',
+                      border: '1px solid #e8edea',
+                      borderRadius: '16px',
+                      padding: '14px',
+                      width: '100%',
+                      textAlign: 'left',
+                      fontSize: '0.75rem',
+                      color: '#444',
+                      marginBottom: '24px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '8px'
+                    }}>
+                      <div style={{ borderBottom: '1px solid #eee', paddingBottom: '6px', marginBottom: '2px', fontWeight: 650, color: '#20a396', fontSize: '0.78rem' }}>Detalhes do Ingresso</div>
                       <div><strong>Titular:</strong> {scannerResult.ticket.customerName}</div>
                       <div><strong>Lote:</strong> {scannerResult.ticket.batchName || 'Lote Único'}</div>
                       <div><strong>Ingressos:</strong> {scannerResult.ticket.quantity} un.</div>
@@ -1542,269 +2227,26 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                       }
                     }}
                     style={{
-                      padding: '6px 14px',
-                      borderRadius: '8px',
+                      padding: '11px 24px',
+                      borderRadius: '12px',
                       border: 'none',
                       backgroundColor: scannerResult.success ? '#f28d1a' : '#ff5e5b',
                       color: 'white',
-                      fontSize: '0.68rem',
-                      fontWeight: 600,
-                      cursor: 'pointer'
+                      fontSize: '0.8rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      boxShadow: `0 6px 16px ${scannerResult.success ? 'rgba(242,141,26,0.3)' : 'rgba(255,94,91,0.3)'}`,
+                      width: '100%',
+                      maxWidth: '240px',
+                      transition: 'all 0.2s'
                     }}
                   >
-                    Próximo Ingresso
+                    {scannerTab === 'list' ? 'Voltar para a Lista' : (scannerResult.success ? 'Próximo Ingresso' : 'Tentar Novamente')}
                   </button>
                 </div>
               )}
             </div>
           )}
-
-          {/* Navigation Tabs */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '14px', borderBottom: '1px solid #eee', paddingBottom: '8px' }}>
-            <button
-              onClick={() => {
-                setScannerTab('camera');
-                setScannerResult(null);
-              }}
-              style={{
-                flex: 1,
-                padding: '8px',
-                border: 'none',
-                background: scannerTab === 'camera' ? '#fcf6ed' : 'none',
-                color: scannerTab === 'camera' ? '#f28d1a' : '#666',
-                borderRadius: '10px',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              Câmera QR Code
-            </button>
-            <button
-              onClick={() => {
-                setScannerTab('list');
-                setCameraActive(false);
-                setScannerResult(null);
-              }}
-              style={{
-                flex: 1,
-                padding: '8px',
-                border: 'none',
-                background: scannerTab === 'list' ? '#fcf6ed' : 'none',
-                color: scannerTab === 'list' ? '#f28d1a' : '#666',
-                borderRadius: '10px',
-                fontSize: '0.78rem',
-                fontWeight: 600,
-                cursor: 'pointer'
-              }}
-            >
-              Portaria (Lista)
-            </button>
-          </div>
-
-          {/* Tab Content */}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {scannerTab === 'camera' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                <div style={{
-                  height: '220px',
-                  backgroundColor: '#111',
-                  borderRadius: '16px',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: 'white',
-                  position: 'relative'
-                }}>
-                  {cameraActive ? (
-                    <div id="reader" style={{ width: '100%', height: '100%' }}></div>
-                  ) : (
-                    <div style={{ textAlign: 'center', padding: '20px' }}>
-                      <div style={{ fontSize: '0.75rem', color: '#aaa', marginBottom: '10px' }}>
-                        Ative o scanner de câmera para ler QR Codes
-                      </div>
-                      <button
-                        onClick={() => {
-                          setScannerResult(null);
-                          setCameraActive(true);
-                        }}
-                        style={{
-                          padding: '10px 18px',
-                          borderRadius: '12px',
-                          border: 'none',
-                          backgroundColor: '#f28d1a',
-                          color: 'white',
-                          fontSize: '0.75rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}
-                      >
-                        <Camera size={16} />
-                        Ligar Câmera
-                      </button>
-                    </div>
-                  )}
-                  {cameraActive && (
-                    <button
-                      onClick={() => setCameraActive(false)}
-                      style={{
-                        position: 'absolute',
-                        bottom: '10px',
-                        padding: '4px 10px',
-                        borderRadius: '8px',
-                        border: 'none',
-                        backgroundColor: 'rgba(255,255,255,0.2)',
-                        color: 'white',
-                        fontSize: '0.62rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        backdropFilter: 'blur(4px)'
-                      }}
-                    >
-                      Desligar Câmera
-                    </button>
-                  )}
-                </div>
-
-                <div style={{ borderTop: '1px solid #eee', paddingTop: '14px', marginTop: '4px' }}>
-                  <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555', display: 'block', marginBottom: '6px' }}>
-                    Validação Manual por Código
-                  </label>
-                  <form onSubmit={(e) => {
-                    e.preventDefault();
-                    handleTicketScanSubmit();
-                  }} style={{ display: 'flex', gap: '8px' }}>
-                    <input
-                      type="text"
-                      placeholder="Código do ingresso (ex: Ticket #12345)"
-                      value={scannerInputValue}
-                      onChange={(e) => setScannerInputValue(e.target.value)}
-                      style={{
-                        flex: 1,
-                        padding: '8px 12px',
-                        borderRadius: '10px',
-                        border: '1.5px solid #eee',
-                        fontSize: '0.78rem',
-                        outline: 'none'
-                      }}
-                    />
-                    <button
-                      type="submit"
-                      style={{
-                        padding: '8px 16px',
-                        borderRadius: '10px',
-                        border: 'none',
-                        backgroundColor: '#f28d1a',
-                        color: 'white',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        cursor: 'pointer'
-                      }}
-                    >
-                      Validar
-                    </button>
-                  </form>
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="text"
-                    placeholder="Buscar titular ou ID..."
-                    value={scannerSearchTerm}
-                    onChange={(e) => setScannerSearchTerm(e.target.value)}
-                    style={{
-                      flex: 1,
-                      padding: '8px 12px',
-                      borderRadius: '10px',
-                      border: '1.5px solid #eee',
-                      fontSize: '0.78rem',
-                      outline: 'none'
-                    }}
-                  />
-                </div>
-
-                <div style={{ 
-                  maxHeight: '220px', 
-                  overflowY: 'auto', 
-                  border: '1px solid #eee', 
-                  borderRadius: '14px',
-                  backgroundColor: '#fafafa' 
-                }}>
-                  {filteredTickets.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '30px 10px', color: '#999', fontSize: '0.75rem' }}>
-                      Nenhum ingresso vendido atende aos filtros.
-                    </div>
-                  ) : (
-                    filteredTickets.map(t => (
-                      <div 
-                        key={t.id} 
-                        style={{ 
-                          padding: '10px 12px', 
-                          borderBottom: '1px solid #eee',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          gap: '10px',
-                          backgroundColor: 'white'
-                        }}
-                      >
-                        <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#333', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {t.customerName}
-                          </div>
-                          <div style={{ fontSize: '0.62rem', color: '#666', marginTop: '2px' }}>
-                            #{t.id} • {t.batchName || 'Lote Único'} ({t.quantity} un.)
-                          </div>
-                          <div style={{ fontSize: '0.62rem', color: '#999', fontStyle: 'italic' }}>
-                            {t.eventName}
-                          </div>
-                        </div>
-                        <div>
-                          {t.status === 'checked_in' ? (
-                            <span style={{
-                              fontSize: '0.62rem',
-                              color: '#ff5e5b',
-                              backgroundColor: '#ffebe9',
-                              padding: '2px 8px',
-                              borderRadius: '6px',
-                              fontWeight: 600,
-                              whiteSpace: 'nowrap'
-                            }}>
-                              Utilizado
-                            </span>
-                          ) : (
-                            <button
-                              onClick={() => handleTicketScanSubmit(t.id)}
-                              style={{
-                                padding: '4px 10px',
-                                borderRadius: '6px',
-                                border: 'none',
-                                backgroundColor: '#f28d1a',
-                                color: 'white',
-                                fontSize: '0.62rem',
-                                fontWeight: 600,
-                                cursor: 'pointer',
-                                whiteSpace: 'nowrap'
-                              }}
-                            >
-                              Check-in
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
     );
@@ -1816,31 +2258,36 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ fontSize: '1.2rem', fontWeight: 500, color: '#2d2d2d' }}>{currentUser.companyName || currentUser.name}</h2>
-          <p style={{ fontSize: '0.78rem', color: '#777' }}>Organizador de Eventos | Ouro Preto</p>
+          <p style={{ fontSize: '0.78rem', color: '#777' }}>Organizador de Eventos</p>
         </div>
       </div>
 
       {/* Metrics */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {[
-          { label: 'Saldo Disponível', val: `R$ ${withdrawableBalance.toFixed(2)}`, desc: 'Líquido para saque', color: '#fffdf4', btn: 'Sacar' },
-          { label: 'Ingressos Vendidos', val: `${totalTicketsSold} un.`, desc: 'Total geral acumulado', color: '#fcf6ed' },
-          { label: 'Receita Bruta', val: `R$ ${grossSales.toFixed(2)}`, desc: 'Sem dedução da comissão', color: '#f3faf8' },
-          { label: 'Eventos Cadastrados', val: `${myEvents.length} ev.`, desc: 'Ativos e finalizados', color: '#fef3f3' }
-        ].map(st => (
+          { label: 'Saldo Disponível', val: `R$ ${withdrawableBalance.toFixed(2)}`, desc: '', btn: 'Sacar' },
+          { label: 'Ingressos Vendidos', val: `${totalTicketsSold} un.`, desc: '' },
+          { label: 'Ingressos Grátis', val: `${freeTicketsClaimed} un.`, desc: '' },
+          { label: 'Receita Bruta', val: `R$ ${grossSales.toFixed(2)}`, desc: '' },
+          { label: 'Eventos Cadastrados', val: `${myEvents.length} ev.`, desc: '' }
+        ].map((st) => (
           <div
             key={st.label}
             style={{
-              backgroundColor: st.color,
-              padding: '14px',
-              borderRadius: '20px',
-              border: '1.5px solid #eaeaea40',
-              boxShadow: 'var(--shadow-sm)'
+              backgroundColor: '#ffffff',
+              padding: '14px 14px 14px 18px',
+              borderRadius: '16px',
+              border: '1px solid #eef2f6',
+              borderLeft: '4px solid #f28d1a',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center'
             }}
           >
-            <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 500 }}>{st.label}</span>
-            <div style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0' }}>{st.val}</div>
-            <div style={{ fontSize: '0.62rem', color: '#999' }}>{st.desc}</div>
+            <span style={{ fontSize: '0.72rem', color: '#666', fontWeight: 500 }}>{st.label}</span>
+            <div style={{ fontSize: '1.2rem', fontWeight: 500, color: '#1a1a1a', margin: '4px 0', letterSpacing: '-0.3px' }}>{st.val}</div>
+            {st.desc && <div style={{ fontSize: '0.62rem', color: '#999' }}>{st.desc}</div>}
             {st.btn && (
               <button 
                 onClick={() => {
@@ -1853,14 +2300,17 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                 }}
                 style={{
                   marginTop: '8px',
-                  padding: '2px 10px',
+                  padding: '4px 12px',
                   borderRadius: '8px',
                   border: 'none',
                   backgroundColor: '#f28d1a',
                   color: 'white',
-                  fontWeight: 500,
-                  fontSize: '0.62rem',
-                  cursor: 'pointer'
+                  fontWeight: 600,
+                  fontSize: '0.65rem',
+                  cursor: 'pointer',
+                  alignSelf: 'flex-start',
+                  boxShadow: '0 2px 6px rgba(242,141,26,0.2)',
+                  transition: 'all 0.2s'
                 }}
               >
                 {st.btn}
@@ -1909,6 +2359,8 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
           onClick={() => {
             setScannerResult(null);
             setScannerInputValue('');
+            setCameraActive(true);
+            setScannerTab('camera');
             setShowScannerModal(true);
           }}
           style={{
@@ -1923,7 +2375,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             boxShadow: '0 4px 12px rgba(242, 141, 26, 0.2)'
           }}
         >
-          Validar Entrada
+          validar
         </button>
       </div>
 
@@ -1971,8 +2423,119 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             cursor: 'pointer'
           }}
         >
-          Chat Suporte
+          chat
         </button>
+      </div>
+
+      {/* Ingressos Adquiridos List */}
+      <div style={{
+        backgroundColor: '#ffffff',
+        padding: '18px',
+        borderRadius: '24px',
+        border: '1px solid #eee',
+        boxShadow: 'var(--shadow-sm)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '14px',
+        marginTop: '16px'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
+          <h3 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0 }}>Ingressos Adquiridos</h3>
+          <select
+            value={ticketFilterEventId}
+            onChange={(e) => setTicketFilterEventId(e.target.value)}
+            style={{
+              padding: '6px 10px',
+              fontSize: '0.72rem',
+              borderRadius: '8px',
+              border: '1.5px solid #eee',
+              backgroundColor: 'white',
+              cursor: 'pointer',
+              outline: 'none',
+              color: '#555'
+            }}
+          >
+            <option value="all">Todos os eventos</option>
+            {myEvents.map(e => (
+              <option key={e.id} value={e.id}>{e.name}</option>
+            ))}
+          </select>
+        </div>
+
+        {(() => {
+          const filteredTickets = organizerTickets.filter(o => 
+            ticketFilterEventId === 'all' || o.eventId === ticketFilterEventId
+          );
+
+          if (filteredTickets.length === 0) {
+            return (
+              <div style={{ textAlign: 'center', padding: '30px 10px', color: '#999', fontSize: '0.75rem' }}>
+                Nenhum ingresso adquirido com este filtro.
+              </div>
+            );
+          }
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {filteredTickets.map(o => {
+                const customerUser = users.find(u => u.id === o.customerId);
+                const customerAvatar = customerUser?.avatar || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%23ccc"><path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/></svg>';
+                const isFreeTicket = parseFloat(o.ticketPrice || 0) === 0;
+
+                return (
+                  <div
+                    key={o.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '12px',
+                      borderRadius: '16px',
+                      backgroundColor: '#fcfcfc',
+                      border: '1px solid #f2f2f2'
+                    }}
+                  >
+                    {/* Event Banner Thumb */}
+                    <img 
+                      src={o.eventImage || 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 60"><rect width="100" height="60" fill="%23eaeaea"/></svg>'} 
+                      alt={o.eventName} 
+                      style={{ width: '44px', height: '44px', borderRadius: '10px', objectFit: 'cover', flexShrink: 0 }} 
+                    />
+
+                    {/* Ticket details */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#2d2d2d', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {o.eventName}
+                      </div>
+                      
+                      {/* Buyer row */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+                        <img 
+                          src={customerAvatar} 
+                          alt={o.customerName} 
+                          style={{ width: '16px', height: '16px', borderRadius: '50%', objectFit: 'cover' }} 
+                        />
+                        <span style={{ fontSize: '0.68rem', color: '#666', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {o.customerName}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Qty & Price */}
+                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                      <div style={{ fontSize: '0.7rem', color: '#888' }}>
+                        {o.quantity}x {o.batchName}
+                      </div>
+                      <div style={{ fontSize: '0.78rem', fontWeight: 600, color: isFreeTicket ? '#2ec4b6' : '#f28d1a', marginTop: '2px' }}>
+                        {isFreeTicket ? 'Grátis' : `R$ ${o.total.toFixed(2)}`}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Informações sobre Taxas (discreto) */}
@@ -2083,7 +2646,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
         <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d' }}>Meus Eventos ({myEvents.length})</h3>
         <button
-          onClick={() => setActiveTab('add_event')}
+          onClick={() => { resetEventForm(); setActiveTab('add_event'); }}
           style={{
             padding: '6px 12px',
             borderRadius: '99px',
@@ -2149,17 +2712,21 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                           startTime: b.startTime || '',
                           endDate: b.endDate || '',
                           endTime: b.endTime || '',
-                          sold: b.sold || 0
+                          sold: b.sold || 0,
+                          active: b.active !== undefined ? b.active : true
                         })));
                       } else {
-                        setBatches([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '' }]);
+                        setBatches([{ name: 'Lote Único', price: '', limit: '', type: 'pago', startDate: '', startTime: '', endDate: '', endTime: '', active: true }]);
                       }
+                      setBatchSalesMode(ev.batchSalesMode || 'sequential');
                       setEventCategory(ev.category || '');
                       setTags(ev.tags ? ev.tags.join(', ') : '');
                       setEventType(ev.eventType || 'fisico');
                       setHasNumberedSeats(ev.hasNumberedSeats || false);
                       setTotalSeats(ev.totalSeats !== null && ev.totalSeats !== undefined ? ev.totalSeats.toString() : '');
                       setFeeOption(ev.feeOption || 'absorver');
+                      setMaxTicketsPerCPF(ev.maxTicketsPerCPF ? ev.maxTicketsPerCPF.toString() : '');
+                      setMinAge(ev.minAge !== undefined ? ev.minAge.toString() : '0');
                       setCoupons(ev.coupons || []);
                       setPolicy(ev.policy || '');
 
@@ -2170,6 +2737,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                       setEndTime(ev.endTime || '');
                       setSalesStartDate(ev.salesStartDate || '');
                       setSalesStartTime(ev.salesStartTime || '');
+                      setVenueName(ev.venueName || '');
                       setAddressCep(ev.addressCep || '');
                       setAddressStreet(ev.addressStreet || '');
                       setAddressNumber(ev.addressNumber || '');
@@ -2192,6 +2760,8 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                       setScannerFilterEventId(ev.id);
                       setScannerResult(null);
                       setScannerInputValue('');
+                      setCameraActive(true);
+                      setScannerTab('camera');
                       setShowScannerModal(true);
                     }}
                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#2ec4b6', padding: '4px' }}
@@ -2212,7 +2782,34 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                   </button>
                 </div>
               </div>
-              <div style={{ fontSize: '0.7rem', color: '#777', margin: '4px 0', display: 'flex', alignItems: 'center', gap: '4px' }}><Calendar size={12} /> {ev.date}</div>
+              <div style={{ fontSize: '0.7rem', color: '#777', margin: '4px 0', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <Calendar size={12} style={{ flexShrink: 0 }} />
+                  <span style={{ color: '#999', minWidth: '100px' }}>Início:</span>
+                  <span style={{ fontWeight: 500, color: '#555' }}>{ev.startDate ? ev.startDate.split('-').reverse().join('/') : '—'}</span>
+                </div>
+                {ev.endDate && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Calendar size={12} style={{ flexShrink: 0, opacity: 0 }} />
+                    <span style={{ color: '#999', minWidth: '100px' }}>Término:</span>
+                    <span style={{ fontWeight: 500, color: '#555' }}>{ev.endDate.split('-').reverse().join('/')}</span>
+                  </div>
+                )}
+                {ev.startTime && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Calendar size={12} style={{ flexShrink: 0, opacity: 0 }} />
+                    <span style={{ color: '#999', minWidth: '100px' }}>Horário de início:</span>
+                    <span style={{ fontWeight: 500, color: '#555' }}>{ev.startTime}</span>
+                  </div>
+                )}
+                {ev.endTime && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <Calendar size={12} style={{ flexShrink: 0, opacity: 0 }} />
+                    <span style={{ color: '#999', minWidth: '100px' }}>Horário de término:</span>
+                    <span style={{ fontWeight: 500, color: '#555' }}>{ev.endTime}</span>
+                  </div>
+                )}
+              </div>
             </div>
             <div style={{ borderTop: '1px solid #f9f9f9', paddingTop: '6px', marginTop: '6px', fontSize: '0.72rem', color: '#666' }}>
               {ev.batches.map(b => (
@@ -2254,13 +2851,27 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Categoria</label>
-            <input 
-              type="text" 
+            <select 
               value={eventCategory} 
               onChange={(e) => setEventCategory(e.target.value)} 
-              className="input-field" 
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                fontSize: '0.78rem',
+                borderRadius: '12px',
+                border: '1.5px solid #eee',
+                backgroundColor: 'white',
+                outline: 'none',
+                height: '36px',
+                fontWeight: 500
+              }}
               required 
-            />
+            >
+              <option value="">Selecione...</option>
+              {eventCategoriesList.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
           </div>
 
           <div className="form-group" style={{ marginBottom: 0 }}>
@@ -2278,17 +2889,6 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
           <div className="form-group" style={{ marginBottom: 0 }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Localização</label>
-            <input 
-              type="text" 
-              value={evLocation} 
-              onChange={(e) => setEvLocation(e.target.value)} 
-              className="input-field" 
-              required 
-            />
-          </div>
-
-          <div className="form-group" style={{ marginBottom: 0 }}>
             <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Tags</label>
             <input 
               type="text" 
@@ -2297,7 +2897,25 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
               className="input-field" 
             />
           </div>
+
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Classificação Etária</label>
+            <select
+              value={minAge}
+              onChange={(e) => setMinAge(e.target.value)}
+              style={{ width: '100%', padding: '8px 12px', fontSize: '0.78rem', borderRadius: '12px', border: '1.5px solid #eee', backgroundColor: 'white', outline: 'none', height: '36px' }}
+            >
+              <option value="0">Livre</option>
+              <option value="10">+10 anos</option>
+              <option value="12">+12 anos</option>
+              <option value="14">+14 anos</option>
+              <option value="16">+16 anos</option>
+              <option value="18">+18 anos</option>
+              <option value="21">+21 anos</option>
+            </select>
+          </div>
         </div>
+      
       </div>
 
       {/* 2. Imagens */}
@@ -2377,68 +2995,73 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
             </div>
           ))}
         </div>
-        <div style={{ marginTop: '12px', borderTop: '1px solid #f0f0f0', paddingTop: '12px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              Banner de Destaque na Página Inicial (Opcional - Proporção Recomendada: 16:9 ou Banner Largo)
-            </label>
-            <div 
-              onClick={() => document.getElementById('ev-banner-file').click()}
-              style={{
-                width: '100%',
-                height: '120px',
-                borderRadius: '12px',
-                border: '1.5px dashed #ccc',
-                position: 'relative',
-                overflow: 'hidden',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: '#fafafa',
-                cursor: 'pointer'
-              }}
-            >
-              {homepageBanner ? (
-                <>
-                  <img src={homepageBanner} alt="Banner Destaque" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setHomepageBanner(''); }}
-                    style={{
-                      position: 'absolute',
-                      top: '6px',
-                      right: '6px',
-                      backgroundColor: 'rgba(255, 94, 91, 0.85)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '50%',
-                      width: '20px',
-                      height: '20px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      cursor: 'pointer',
-                      padding: 0
-                    }}
-                  >
-                    <X size={12} />
-                  </button>
-                </>
-              ) : (
-                <div style={{ textAlign: 'center', color: '#999', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                  <Upload size={20} />
-                  <span style={{ fontSize: '0.7rem' }}>Clique para enviar o Banner de Destaque</span>
-                </div>
-              )}
-              <input 
-                type="file" 
-                id="ev-banner-file" 
-                accept="image/*" 
-                onChange={handleHomepageBannerUpload}
-                style={{ display: 'none' }}
-              />
-            </div>
+      </div>
+
+      {/* 2.5. Divulgue seu evento na página inicial */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Divulgue seu evento na página inicial</h4>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            Banner do evento (1200 x 500px)
+          </label>
+          <div 
+            onClick={() => document.getElementById('ev-banner-file').click()}
+            style={{
+              width: '100%',
+              height: '140px',
+              borderRadius: '12px',
+              border: '1.5px dashed #ccc',
+              position: 'relative',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: '#fafafa',
+              cursor: 'pointer'
+            }}
+          >
+            {homepageBanner ? (
+              <>
+                <img src={homepageBanner} alt="Banner Destaque" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setHomepageBanner(''); }}
+                  style={{
+                    position: 'absolute',
+                    top: '6px',
+                    right: '6px',
+                    backgroundColor: 'rgba(255, 94, 91, 0.85)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '22px',
+                    height: '22px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    cursor: 'pointer',
+                    padding: 0
+                  }}
+                >
+                  <X size={12} />
+                </button>
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', color: '#999', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+                <Upload size={22} />
+                <span style={{ fontSize: '0.72rem' }}>Clique para enviar o banner</span>
+                <span style={{ fontSize: '0.62rem', color: '#bbb' }}>Dimensão recomendada: 16:9 (ex: 1280 x 720px)</span>
+              </div>
+            )}
+            <input 
+              type="file" 
+              id="ev-banner-file" 
+              accept="image/*" 
+              onChange={handleHomepageBannerUpload}
+              style={{ display: 'none' }}
+            />
           </div>
         </div>
       </div>
@@ -2516,6 +3139,10 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         
         {eventType === 'fisico' ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>Nome do local <span style={{ color: '#f28d1a' }}>*</span></label>
+              <input type="text" value={venueName} onChange={(e) => setVenueName(e.target.value)} className="input-field" placeholder="Ex: Praça Tiradentes, Teatro Municipal..." required />
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '10px' }}>
               <div className="form-group" style={{ marginBottom: 0 }}>
                 <label style={{ fontSize: '0.72rem', fontWeight: 600, color: '#555' }}>CEP</label>
@@ -2614,6 +3241,34 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
           </button>
         </div>
 
+        {/* Modo de Vendas dos Lotes e Limite CPF */}
+        <div style={{ marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '16px', borderTop: '1px solid #f0f0f0', paddingTop: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#444' }}>liberação:</span>
+            <select 
+              value={batchSalesMode} 
+              onChange={(e) => setBatchSalesMode(e.target.value)} 
+              style={{ padding: '6px 10px', fontSize: '0.72rem', borderRadius: '8px', border: '1.5px solid #eee', backgroundColor: 'white', cursor: 'pointer', outline: 'none' }}
+            >
+              <option value="sequential">Automático</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#444' }}>Limite de Ingressos por CPF:</span>
+            <input
+              type="number"
+              value={maxTicketsPerCPF}
+              onChange={(e) => setMaxTicketsPerCPF(e.target.value)}
+              className="input-field"
+              placeholder="Ilimitado"
+              min="1"
+              style={{ maxWidth: '80px', padding: '6px 10px', fontSize: '0.72rem', borderRadius: '8px', border: '1.5px solid #eee', margin: 0 }}
+            />
+          </div>
+        </div>
+
         {ticketTypeSelection === 'pago' ? (
           /* Ingresso Pago */
           <div style={{ marginTop: '4px' }}>
@@ -2640,6 +3295,15 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                       <option value="repassar">Repassar taxas</option>
                       <option value="absorver">Absorver taxas</option>
                     </select>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', cursor: 'pointer', userSelect: 'none', color: '#555' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={b.active !== false} 
+                        onChange={(e) => handleBatchChange(idx, 'active', e.target.checked)} 
+                        style={{ cursor: 'pointer' }}
+                      />
+                      Ativo
+                    </label>
                     <button type="button" onClick={() => handleRemoveBatch(idx)} style={{ background: 'none', border: 'none', color: '#ff5e5b', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}>Excluir</button>
                   </div>
                 );
@@ -2667,6 +3331,15 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
                     <input type="text" placeholder="Nome" value={b.name} onChange={(e) => handleBatchChange(idx, 'name', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '120px' }} required />
                     <input type="text" placeholder="Lote" value={b.batchNumber || ''} onChange={(e) => handleBatchChange(idx, 'batchNumber', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} />
                     <input type="number" placeholder="Quantidade" value={b.limit} onChange={(e) => handleBatchChange(idx, 'limit', e.target.value)} className="input-field" style={{ padding: '6px', fontSize: '0.72rem', margin: 0, width: '80px' }} required />
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem', cursor: 'pointer', userSelect: 'none', color: '#555' }}>
+                      <input 
+                        type="checkbox" 
+                        checked={b.active !== false} 
+                        onChange={(e) => handleBatchChange(idx, 'active', e.target.checked)} 
+                        style={{ cursor: 'pointer' }}
+                      />
+                      Ativo
+                    </label>
                     <button type="button" onClick={() => handleRemoveBatch(idx)} style={{ background: 'none', border: 'none', color: '#ff5e5b', fontSize: '0.72rem', cursor: 'pointer', padding: 0 }}>Excluir</button>
                   </div>
                 );
@@ -2679,8 +3352,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       {/* 8. Cupons de Desconto */}
       <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
         <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Cupons de Desconto:</h4>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-          <span style={{ fontSize: '0.68rem', color: '#777' }}>Cadastre cupons promocionais para seus clientes</span>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: '4px' }}>
           <button
             type="button"
             onClick={handleAddCoupon}
@@ -2747,6 +3419,18 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         )}
       </div>
 
+      {/* 9. Política do Evento */}
+      <div style={{ border: '1px solid #eee', padding: '16px', borderRadius: '24px', backgroundColor: '#ffffff', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h4 style={{ fontSize: '0.85rem', fontWeight: 600, color: '#2d2d2d', margin: 0, borderBottom: '1px solid #f0f0f0', paddingBottom: '6px' }}>Política do Evento</h4>
+        <textarea 
+          value={policy} 
+          onChange={(e) => setPolicy(e.target.value)} 
+          className="input-field" 
+          placeholder="Ex: 1. REEMBOLSO E CANCELAMENTO: O reembolso pode ser solicitado..."
+          style={{ height: '120px', resize: 'vertical' }}
+        />
+      </div>
+
       <div style={{ display: 'flex', gap: '12px', marginTop: '6px' }}>
         <button type="button" onClick={() => setActiveTab('events')} className="btn btn-secondary" style={{ flex: 1 }}>Cancelar</button>
         <button type="submit" className="btn btn-primary" style={{ flex: 1 }}>
@@ -2806,10 +3490,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
 
         {foryouSubTab === 'upload' ? (
           <form onSubmit={handleReelsSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>Upload de Vídeo ForYou</h3>
-            <p style={{ fontSize: '0.75rem', color: '#666', lineHeight: 1.3, margin: 0 }}>
-              Publique vídeos de divulgação do seu evento no feed ForYou para viralizar as vendas dos lotes de ingressos!
-            </p>
+            <h3 style={{ fontSize: '1rem', fontWeight: 500, color: '#2d2d2d', margin: 0 }}>publique seu vídeo na foryou</h3>
 
       {/* 1. Vídeo */}
       <div className="form-group" style={{ marginBottom: 0 }}>
@@ -2927,7 +3608,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
         <label>Legenda chamativa</label>
         <input 
           type="text" 
-          placeholder="Ex: Confere o open bar que te espera nesse festival!" 
+          placeholder="" 
           value={vidTitle} 
           onChange={(e) => setVidTitle(e.target.value)} 
           className="input-field" 
@@ -2939,7 +3620,7 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
       <div className="form-group" style={{ marginBottom: 0 }}>
         <label>Descrição detalhada do Vídeo</label>
         <textarea 
-          placeholder="Conte um pouco sobre o evento..." 
+          placeholder="" 
           value={reelsDesc}
           onChange={(e) => setReelsDesc(e.target.value)}
           className="input-field"
@@ -3411,106 +4092,685 @@ Ao adquirir o ingresso, o portador autoriza a captação e utilização de sua i
               </select>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
-              {((myEvents.find(e => e.id === selectedEventId) || myEvents[0])?.commissioners || []).map(comm => (
-                <div key={comm.code} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem', borderBottom: '1px solid #f9f9f9', paddingBottom: '4px' }}>
-                  <div>
-                    <span>{comm.name}</span> 
-                    <span style={{ fontSize: '0.65rem', backgroundColor: '#f9bb1a20', color: '#f28d1a', padding: '1px 6px', borderRadius: '8px', marginLeft: '6px' }}>Código: {comm.code}</span>
+            {(() => {
+              const activeEventId = selectedEventId || (myEvents[0]?.id || '');
+              const activeEvent = myEvents.find(e => e.id === activeEventId) || myEvents[0];
+              if (!activeEvent) return null;
+
+              const activeBatch = activeEvent.batches 
+                ? activeEvent.batches.find(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) < parseInt(b.limit || 0, 10)) || activeEvent.batches[0] 
+                : null;
+              const isSoldOut = activeEvent.batches && activeEvent.batches.length > 0 
+                ? activeEvent.batches.every(b => parseInt(b.limit || 0, 10) > 0 && parseInt(b.sold || 0, 10) >= parseInt(b.limit || 0, 10)) 
+                : false;
+
+              return (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px',
+                  backgroundColor: '#fdfbf7',
+                  border: '1px solid #f6e8d5',
+                  borderRadius: '16px',
+                  marginBottom: '14px',
+                  animation: 'fadeIn 0.2s ease'
+                }}>
+                  <img 
+                    src={activeEvent.image} 
+                    alt={activeEvent.name} 
+                    style={{
+                      width: '44px',
+                      height: '44px',
+                      borderRadius: '10px',
+                      objectFit: 'cover'
+                    }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <h4 style={{
+                      fontSize: '0.82rem',
+                      fontWeight: 600,
+                      color: '#2d2d2d',
+                      margin: '0 0 2px 0',
+                      whiteSpace: 'nowrap',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis'
+                    }}>
+                      {activeEvent.name}
+                    </h4>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{
+                        fontSize: '0.64rem',
+                        backgroundColor: '#f28d1a15',
+                        color: '#f28d1a',
+                        padding: '2px 8px',
+                        borderRadius: '20px',
+                        fontWeight: 500
+                      }}>
+                        Lote: {activeBatch?.name || 'Lote Único'}
+                      </span>
+                      {activeBatch && (
+                        <span style={{ fontSize: '0.64rem', color: '#666', fontWeight: 500 }}>
+                          {isSoldOut ? 'Esgotado' : `R$ ${parseFloat(activeBatch.price || 0).toFixed(2)}`}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <span>{comm.sales} ingressos vendidos</span>
                 </div>
-              ))}
-              {(!((myEvents.find(e => e.id === selectedEventId) || myEvents[0])?.commissioners) || ((myEvents.find(e => e.id === selectedEventId) || myEvents[0])?.commissioners || []).length === 0) && (
-                <div style={{ fontSize: '0.75rem', color: '#999', textAlign: 'center', padding: '10px' }}>Nenhum comissário vinculado a este evento.</div>
-              )}
+              );
+            })()}
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', borderTop: '1px solid #eee', paddingTop: '10px' }}>
+              {(() => {
+                const activeEventId = selectedEventId || (myEvents[0]?.id || '');
+                const activeEvent = myEvents.find(e => e.id === activeEventId) || myEvents[0];
+                const comms = activeEvent?.commissioners || [];
+                
+                if (comms.length === 0) {
+                  return (
+                    <div style={{ fontSize: '0.75rem', color: '#999', textAlign: 'center', padding: '10px' }}>
+                      Nenhum comissário vinculado a este evento.
+                    </div>
+                  );
+                }
+
+                return comms.map(comm => {
+                  // Find sales (orders) for this commissioner code and event
+                  const commSales = (orders || []).filter(o => 
+                    o.type === 'ticket' && 
+                    o.eventId === activeEventId && 
+                    o.commissionerCode && 
+                    o.commissionerCode.toUpperCase() === comm.code.toUpperCase()
+                  );
+
+                  return (
+                    <div 
+                      key={comm.code} 
+                      style={{ 
+                        backgroundColor: '#f9f9f9', 
+                        padding: '12px', 
+                        borderRadius: '16px', 
+                        border: '1px solid #eee', 
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '8px' 
+                      }}
+                    >
+                      {/* Commissioner Header Info */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {comm.avatar ? (
+                            <img 
+                              src={comm.avatar} 
+                              alt={comm.name} 
+                              style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #eee' }} 
+                            />
+                          ) : (
+                            <div style={{
+                              width: '32px',
+                              height: '32px',
+                              borderRadius: '50%',
+                              backgroundColor: '#e0e0e0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              color: '#888',
+                              border: '1px solid #ddd'
+                            }}>
+                              <User size={16} />
+                            </div>
+                          )}
+                          <div>
+                            <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#2d2d2d' }}>{comm.name}</div>
+                            <div style={{ fontSize: '0.62rem', backgroundColor: '#f9bb1a20', color: '#f28d1a', padding: '1px 6px', borderRadius: '8px', display: 'inline-block', marginTop: '2px' }}>
+                              Código: {comm.code}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (editingCommCode === comm.code) {
+                                setEditingCommCode(null);
+                              } else {
+                                setEditingCommCode(comm.code);
+                                setEditCommRate(comm.rate !== undefined ? comm.rate.toString() : '10');
+                                setEditCommDiscount(comm.discount !== undefined ? comm.discount.toString() : '0');
+                              }
+                            }}
+                            style={{
+                              background: '#fff7e6',
+                              border: 'none',
+                              color: '#f28d1a',
+                              borderRadius: '8px',
+                              width: '26px',
+                              height: '26px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                            title="Editar Taxas"
+                          >
+                            <Edit size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (window.confirm(`Tem certeza que deseja excluir o comissário ${comm.name}?`)) {
+                                const res = await removeCommissioner(activeEventId, comm.code);
+                                if (res.success) {
+                                  alert('Comissário excluído com sucesso!');
+                                } else {
+                                  alert(res.message || 'Erro ao excluir comissário.');
+                                }
+                              }
+                            }}
+                            style={{
+                              background: '#ff5e5b15',
+                              border: 'none',
+                              color: '#ff5e5b',
+                              borderRadius: '8px',
+                              width: '26px',
+                              height: '26px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer'
+                            }}
+                            title="Excluir Comissário"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Commissioner Statistics or Edit Form */}
+                      {editingCommCode === comm.code ? (
+                        <div style={{
+                          backgroundColor: '#fcfcfc',
+                          padding: '12px',
+                          borderRadius: '16px',
+                          border: '1.5px dashed #eee',
+                          marginTop: '4px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px'
+                        }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            <div>
+                              <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Comissão (%)</label>
+                              <input
+                                type="number"
+                                value={editCommRate}
+                                onChange={(e) => setEditCommRate(e.target.value)}
+                                className="input-field"
+                                style={{ padding: '6px 10px', fontSize: '0.7rem', margin: 0, borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}
+                                min="0"
+                                max="100"
+                                step="0.5"
+                              />
+                            </div>
+                            <div>
+                              <label style={{ fontSize: '0.62rem', color: '#666', display: 'block', marginBottom: '2px' }}>Desconto Link (%)</label>
+                              <input
+                                type="number"
+                                value={editCommDiscount}
+                                onChange={(e) => setEditCommDiscount(e.target.value)}
+                                className="input-field"
+                                style={{ padding: '6px 10px', fontSize: '0.7rem', margin: 0, borderRadius: '8px', width: '100%', boxSizing: 'border-box' }}
+                                min="0"
+                                max="100"
+                                step="0.5"
+                              />
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px', justifyContent: 'flex-end', marginTop: '2px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setEditingCommCode(null)}
+                              style={{ padding: '6px 12px', fontSize: '0.65rem', border: 'none', borderRadius: '8px', cursor: 'pointer', backgroundColor: '#eee', color: '#555', fontWeight: 500 }}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                const res = await updateCommissionerRates(activeEventId, comm.code, {
+                                  rate: parseFloat(editCommRate || 10),
+                                  discount: parseFloat(editCommDiscount || 0)
+                                });
+                                if (res.success) {
+                                  setEditingCommCode(null);
+                                  alert('Taxas atualizadas com sucesso!');
+                                } else {
+                                  alert(res.message || 'Erro ao atualizar taxas.');
+                                }
+                              }}
+                              style={{ padding: '6px 12px', fontSize: '0.65rem', border: 'none', borderRadius: '8px', cursor: 'pointer', backgroundColor: '#f28d1a', color: 'white', fontWeight: 650 }}
+                            >
+                              Salvar
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          {/* Render statistics and sales ONLY if expanded */}
+                          {expandedCommCode === comm.code && (
+                            <>
+                              {(() => {
+                                const totalQty = commSales.reduce((acc, o) => acc + (o.quantity || 0), 0);
+                                const totalVal = commSales.reduce((acc, o) => acc + (o.total || 0), 0);
+                                const commRateVal = comm.rate !== undefined ? comm.rate : 10;
+                                const commissionVal = totalVal * (commRateVal / 100);
+
+                                return (
+                                  <div style={{
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    gap: '6px',
+                                    backgroundColor: '#ffffff',
+                                    padding: '8px 12px',
+                                    borderRadius: '12px',
+                                    border: '1px solid #f0f0f0',
+                                    marginTop: '4px'
+                                  }}>
+                                    <div style={{
+                                      display: 'grid',
+                                      gridTemplateColumns: '1fr 1.2fr 1fr',
+                                      gap: '6px'
+                                    }}>
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.58rem', color: '#999' }}>Ingressos Vendidos</span>
+                                        <strong style={{ fontSize: '0.75rem', color: '#2d2d2d' }}>{totalQty} un</strong>
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.58rem', color: '#999' }}>Total Vendido</span>
+                                        <strong style={{ fontSize: '0.75rem', color: '#2ec4b6' }}>R$ {totalVal.toFixed(2)}</strong>
+                                      </div>
+                                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <span style={{ fontSize: '0.58rem', color: '#999' }}>Repasse ({commRateVal}%)</span>
+                                        <strong style={{ fontSize: '0.75rem', color: '#f28d1a' }}>R$ {commissionVal.toFixed(2)}</strong>
+                                      </div>
+                                    </div>
+                                    {comm.discount > 0 && (
+                                      <div style={{ borderTop: '1px solid #f9f9f9', paddingTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                        <span style={{ fontSize: '0.62rem', fontWeight: 600, color: '#f28d1a', backgroundColor: '#fff7e6', padding: '2px 6px', borderRadius: '4px', border: '1px solid #f28d1a20' }}>
+                                          Desconto do link: {comm.discount}%
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })()}
+
+                              {/* Detailed Sales (Lote, Valor) */}
+                              <div style={{ borderTop: '1px solid #eaeaea', paddingTop: '8px', marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                                {commSales.length > 0 ? (
+                                  commSales.map((sale, sIdx) => (
+                                    <div key={sale.id || sIdx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.72rem', color: '#555' }}>
+                                      <span>Lote: <strong>{sale.batchName}</strong> ({sale.quantity}x)</span>
+                                      <span style={{ color: '#2ec4b6', fontWeight: 600 }}>R$ {(sale.total || 0).toFixed(2)}</span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div style={{ fontSize: '0.68rem', color: '#999', fontStyle: 'italic', marginTop: '2px' }}>
+                                    Nenhuma venda registrada para este comissário.
+                                  </div>
+                                )}
+                              </div>
+                            </>
+                          )}
+
+                          {/* Collapsible toggle for sales details */}
+                          <div style={{ display: 'flex', justifyContent: 'center', marginTop: '6px', borderTop: '1px solid #f9f9f9', paddingTop: '4px' }}>
+                            <button
+                              type="button"
+                              onClick={() => setExpandedCommCode(expandedCommCode === comm.code ? null : comm.code)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#f28d1a',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: '4px',
+                                width: '100%'
+                              }}
+                            >
+                              {expandedCommCode === comm.code ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  );
+                });
+              })()}
             </div>
             
-            {/* Add promoter form */}
-            <form onSubmit={handleCommissionerSubmit} style={{ borderTop: '1px solid #eaeaea', marginTop: '12px', paddingTop: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <h4 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '4px' }}>Cadastrar Novo Comissário</h4>
-              
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div>
-                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Nome Completo *</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: Maria Souza" 
-                    value={commName}
-                    onChange={(e) => setCommName(e.target.value)}
-                    className="input-field" 
-                    style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
-                    required
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>E-mail de Acesso *</label>
-                  <input 
-                    type="email" 
-                    placeholder="Ex: maria@gmail.com" 
-                    value={commEmail}
-                    onChange={(e) => setCommEmail(e.target.value)}
-                    className="input-field" 
-                    style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
-                    required
-                  />
-                </div>
-              </div>
+            {/* Form Mode Selector tabs */}
+            <div style={{ display: 'flex', gap: '8px', borderTop: '1px solid #eaeaea', marginTop: '12px', paddingTop: '12px' }}>
+              <button
+                type="button"
+                onClick={() => setCommFormMode('existing')}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: commFormMode === 'existing' ? '#fff7e6' : '#f5f5f5',
+                  color: commFormMode === 'existing' ? '#f28d1a' : '#777',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Vincular Existente
+              </button>
+              <button
+                type="button"
+                onClick={() => setCommFormMode('new')}
+                style={{
+                  flex: 1,
+                  padding: '8px',
+                  borderRadius: '10px',
+                  border: 'none',
+                  backgroundColor: commFormMode === 'new' ? '#fff7e6' : '#f5f5f5',
+                  color: commFormMode === 'new' ? '#f28d1a' : '#777',
+                  fontSize: '0.72rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Cadastrar Novo
+              </button>
+            </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <form onSubmit={handleCommissionerSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '8px' }}>
+              {commFormMode === 'existing' ? (
                 <div>
-                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Telefone *</label>
+                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '6px', fontWeight: 600 }}>
+                    Selecionar Comissário Cadastrado *
+                  </label>
+                  
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                    maxHeight: '180px',
+                    overflowY: 'auto',
+                    border: '1.5px solid #eee',
+                    borderRadius: '12px',
+                    padding: '8px',
+                    backgroundColor: 'white'
+                  }} className="custom-scroll">
+                    {(() => {
+                      const activeEventId = selectedEventId || (myEvents[0]?.id || '');
+                      const activeEventObj = events.find(e => e.id === activeEventId);
+                      const linkedCommCodes = activeEventObj?.commissioners?.map(c => c.code.toUpperCase()) || [];
+                      
+                      const uniqueComms = [];
+                      const seenCodes = new Set();
+                      
+                      (users || []).forEach(u => {
+                        if (u.role === 'commissioner' && u.commissionerCode) {
+                          const upper = u.commissionerCode.toUpperCase();
+                          if (!seenCodes.has(upper) && !linkedCommCodes.includes(upper)) {
+                            seenCodes.add(upper);
+                            uniqueComms.push(u);
+                          }
+                        }
+                      });
+
+                      if (uniqueComms.length === 0) {
+                        return (
+                          <div style={{ padding: '16px', textAlign: 'center', fontSize: '0.72rem', color: '#999', fontStyle: 'italic' }}>
+                            Nenhum comissário disponível para vincular.
+                          </div>
+                        );
+                      }
+
+                      return uniqueComms.map(u => (
+                        <div
+                          key={u.id}
+                          onClick={() => setSelectedExistingCommId(u.id)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            padding: '8px 12px',
+                            borderRadius: '10px',
+                            cursor: 'pointer',
+                            backgroundColor: selectedExistingCommId === u.id ? '#fff7e6' : '#fafafa',
+                            border: `1.5px solid ${selectedExistingCommId === u.id ? '#f28d1a' : '#eee'}`,
+                            transition: 'all 0.2s',
+                            boxSizing: 'border-box'
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {u.avatar ? (
+                              <img 
+                                src={u.avatar} 
+                                alt={u.name} 
+                                style={{ width: '28px', height: '28px', borderRadius: '50%', objectFit: 'cover', border: '1px solid #ddd' }} 
+                              />
+                            ) : (
+                              <div style={{
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '50%',
+                                backgroundColor: '#e0e0e0',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                color: '#888',
+                                border: '1px solid #ddd'
+                              }}>
+                                <User size={13} />
+                              </div>
+                            )}
+                            <div style={{ textAlign: 'left' }}>
+                              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#333' }}>{u.name}</div>
+                              <div style={{ fontSize: '0.62rem', color: '#f28d1a', fontWeight: 600, marginTop: '1px' }}>
+                                Código: {u.commissionerCode.toUpperCase()}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          {selectedExistingCommId === u.id && (
+                            <span style={{
+                              fontSize: '0.58rem',
+                              fontWeight: 700,
+                              color: 'white',
+                              backgroundColor: '#f28d1a',
+                              padding: '2px 8px',
+                              borderRadius: '6px'
+                            }}>
+                              Selecionado
+                            </span>
+                          )}
+                        </div>
+                      ));
+                    })()}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <h4 style={{ fontSize: '0.78rem', fontWeight: 600, color: '#2d2d2d', marginBottom: '2px' }}>Cadastrar Novo Comissário</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Nome Completo *</label>
+                      <input 
+                        type="text" 
+                        value={commName}
+                        onChange={(e) => setCommName(e.target.value)}
+                        className="input-field" 
+                        style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>E-mail de Acesso *</label>
+                      <input 
+                        type="email" 
+                        value={commEmail}
+                        onChange={(e) => setCommEmail(e.target.value)}
+                        className="input-field" 
+                        style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Telefone *</label>
+                      <input 
+                        type="text" 
+                        value={commPhone}
+                        onChange={(e) => setCommPhone(e.target.value)}
+                        className="input-field" 
+                        style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Senha</label>
+                      <input 
+                        type="password" 
+                        value={commPassword}
+                        onChange={(e) => setCommPassword(e.target.value)}
+                        className="input-field" 
+                        style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Código Promocional (Opcional)</label>
+                      <input 
+                        type="text" 
+                        value={commCode}
+                        onChange={(e) => setCommCode(e.target.value)}
+                        className="input-field" 
+                        style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Foto de Perfil (Opcional)</label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', height: '42px' }}>
+                        <div 
+                          onClick={() => document.getElementById('comm-avatar-upload-input').click()}
+                          style={{
+                            width: '38px',
+                            height: '38px',
+                            borderRadius: '50%',
+                            backgroundColor: '#f5f5f5',
+                            border: '1.5px dashed #ccc',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            overflow: 'hidden',
+                            position: 'relative'
+                          }}
+                          title="Fazer upload"
+                        >
+                          {commAvatar ? (
+                            <img src={commAvatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <Camera size={14} style={{ color: '#888' }} />
+                          )}
+                        </div>
+                        {commAvatar && (
+                          <button
+                            type="button"
+                            onClick={() => setCommAvatar('')}
+                            style={{
+                              padding: '6px 10px',
+                              borderRadius: '8px',
+                              border: 'none',
+                              backgroundColor: '#ff5e5b15',
+                              color: '#ff5e5b',
+                              fontSize: '0.68rem',
+                              fontWeight: 500,
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Remover
+                          </button>
+                        )}
+                        <input 
+                          type="file" 
+                          id="comm-avatar-upload-input"
+                          accept="image/*"
+                          onChange={async (e) => {
+                            const file = e.target.files[0];
+                            if (file) {
+                              try {
+                                const url = await uploadAvatar(file, currentUser.id);
+                                setCommAvatar(url);
+                              } catch (err) {
+                                console.error(err);
+                                alert('Erro ao carregar a imagem do comissário.');
+                              }
+                            }
+                          }}
+                          style={{ display: 'none' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {/* Taxas (Shared between both modes) */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '4px' }}>
+                <div>
+                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Taxa do Comissário (%)</label>
                   <input 
-                    type="text" 
-                    placeholder="Ex: (31) 99999-9999" 
-                    value={commPhone}
-                    onChange={(e) => setCommPhone(e.target.value)}
+                    type="number" 
+                    placeholder="Ex: 10" 
+                    value={commRate}
+                    onChange={(e) => setCommRate(e.target.value)}
                     className="input-field" 
                     style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                    min="0"
+                    max="100"
+                    step="0.5"
                     required
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Senha (Opcional - gerada se vazia)</label>
+                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Desconto do Link (%)</label>
                   <input 
-                    type="password" 
-                    placeholder="Escolha ou deixe em branco" 
-                    value={commPassword}
-                    onChange={(e) => setCommPassword(e.target.value)}
+                    type="number" 
+                    placeholder="Ex: 0" 
+                    value={commDiscount}
+                    onChange={(e) => setCommDiscount(e.target.value)}
                     className="input-field" 
                     style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                <div>
-                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Código Promocional (Opcional)</label>
-                  <input 
-                    type="text" 
-                    placeholder="Ex: MARIA10" 
-                    value={commCode}
-                    onChange={(e) => setCommCode(e.target.value)}
-                    className="input-field" 
-                    style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: '0.65rem', color: '#666', display: 'block', marginBottom: '2px' }}>Foto URL (Opcional)</label>
-                  <input 
-                    type="text" 
-                    placeholder="URL da imagem de perfil" 
-                    value={commAvatar}
-                    onChange={(e) => setCommAvatar(e.target.value)}
-                    className="input-field" 
-                    style={{ padding: '8px 12px', fontSize: '0.75rem', borderRadius: '10px', width: '100%', boxSizing: 'border-box', margin: 0 }} 
+                    min="0"
+                    max="100"
+                    step="0.5"
+                    required
                   />
                 </div>
               </div>
 
               <button type="submit" className="btn btn-primary" style={{ padding: '10px 14px', fontSize: '0.78rem', borderRadius: '10px', width: '100%', backgroundColor: '#f28d1a', border: 'none', color: 'white', fontWeight: 600, cursor: 'pointer', marginTop: '6px' }}>
-                Criar e Vincular Comissário
+                {commFormMode === 'existing' ? 'vincular comissário' : 'criar comissário'}
               </button>
+              
+              {commFormMode === 'new' && (
+                <span style={{ fontSize: '0.65rem', color: '#888', textAlign: 'center', display: 'block', marginTop: '4px', lineHeight: 1.3 }}>
+                  Como organizador de eventos, você cria a conta do comissário. Repasse o e-mail e a senha cadastrados para que ele possa acessar o painel de vendas.
+                </span>
+              )}
             </form>
 
             {generatedLink && (

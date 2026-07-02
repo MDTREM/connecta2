@@ -139,25 +139,29 @@ export default function DeliveryArea({ onOpenChat, onToggleNotifications, unread
       {/* Stats and Wallet */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
         {[
-          { label: 'Minha Carteira', val: `R$ ${withdrawableBalance.toFixed(2)}`, desc: 'Saldo para saque', color: '#fffdf4', btn: 'Sacar' },
-          { label: 'Taxa por Entrega', val: `R$ ${deliveryRate.toFixed(2)}`, desc: 'Defina seu preço', color: '#fffdf0', input: true },
-          { label: 'Corridas Feitas', val: `${completedDeliveries.length} entregas`, desc: 'Geral Connecta+', color: '#f3faf8' },
-          { label: 'Ganhos Acumulados', val: `R$ ${totalRiderEarnings.toFixed(2)}`, desc: 'Histórico líquido', color: '#fef3f3' }
+          { label: 'Minha Carteira', val: `R$ ${withdrawableBalance.toFixed(2)}`, desc: 'Saldo para saque', btn: 'Sacar' },
+          { label: 'Taxa por Entrega', val: `R$ ${deliveryRate.toFixed(2)}`, desc: 'Defina seu preço', input: true },
+          { label: 'Corridas Feitas', val: `${completedDeliveries.length} entregas`, desc: 'Geral Connecta+' },
+          { label: 'Ganhos Acumulados', val: `R$ ${totalRiderEarnings.toFixed(2)}`, desc: 'Histórico líquido' }
         ].map(st => (
           <div
             key={st.label}
             style={{
-              backgroundColor: st.color,
-              padding: '14px',
-              borderRadius: '20px',
-              border: '1.5px solid #eaeaea40',
-              boxShadow: 'var(--shadow-sm)'
+              backgroundColor: '#ffffff',
+              padding: '14px 14px 14px 18px',
+              borderRadius: '16px',
+              border: '1px solid #eef2f6',
+              borderLeft: '4px solid #f28d1a',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.02)',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'center'
             }}
           >
-            <span style={{ fontSize: '0.7rem', color: '#888', fontWeight: 600 }}>{st.label}</span>
+            <span style={{ fontSize: '0.72rem', color: '#666', fontWeight: 500 }}>{st.label}</span>
             {st.input ? (
               <div style={{ display: 'flex', gap: '4px', alignItems: 'baseline', margin: '4px 0' }}>
-                <span style={{ fontSize: '0.85rem', fontWeight: 500 }}>R$</span>
+                <span style={{ fontSize: '0.85rem', fontWeight: 500, color: '#1a1a1a' }}>R$</span>
                 <input
                   type="number"
                   step="0.50"
@@ -175,7 +179,7 @@ export default function DeliveryArea({ onOpenChat, onToggleNotifications, unread
                 />
               </div>
             ) : (
-              <div style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d', margin: '4px 0' }}>{st.val}</div>
+              <div style={{ fontSize: '1.25rem', fontWeight: 500, color: '#1a1a1a', margin: '4px 0', letterSpacing: '-0.3px' }}>{st.val}</div>
             )}
             <div style={{ fontSize: '0.62rem', color: '#999' }}>{st.desc}</div>
             {st.btn && (
@@ -190,14 +194,17 @@ export default function DeliveryArea({ onOpenChat, onToggleNotifications, unread
                 }}
                 style={{
                   marginTop: '8px',
-                  padding: '2px 10px',
+                  padding: '4px 12px',
                   borderRadius: '8px',
                   border: 'none',
                   backgroundColor: '#f28d1a',
                   color: 'white',
-                  fontWeight: 500,
-                  fontSize: '0.62rem',
-                  cursor: 'pointer'
+                  fontWeight: 600,
+                  fontSize: '0.65rem',
+                  cursor: 'pointer',
+                  alignSelf: 'flex-start',
+                  boxShadow: '0 2px 6px rgba(242,141,26,0.2)',
+                  transition: 'all 0.2s'
                 }}
               >
                 {st.btn}

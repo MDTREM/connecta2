@@ -4,7 +4,7 @@ import { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWith
 import { IS_BETA_EVENTS_ONLY } from '../config';
 import { 
   collection, doc, setDoc, updateDoc, deleteDoc, 
-  onSnapshot
+  onSnapshot, runTransaction
 } from 'firebase/firestore';
 
 // Safely wrap localStorage.setItem to avoid QuotaExceededError crashes when disk/quota is full
@@ -1132,159 +1132,221 @@ export const FirebaseMockProvider = ({ children }) => {
     return { success: true, order: newOrder };
   };
 
-  const buyTicket = (eventId, batchIndex, qty, commissionerCode = '', useCoins = false, couponAppliedCode = '', selectedSeat = null) => {
+  const buyTicket = async (eventId, batchIndex, qty, commissionerCode = '', useCoins = false, couponAppliedCode = '', selectedSeat = null) => {
     if (!currentUser) return { success: false, message: 'Faça login para comprar ingressos!' };
 
-    const event = events.find(e => e.id === eventId);
-    if (!event) return { success: false, message: 'Evento não encontrado.' };
+    try {
+      const ticketOrderId = generateRandomTicketOrderId();
+      let newTicketOrder = null;
+      let earnedCoins = 0;
 
-    const batch = event.batches[batchIndex];
-    if (!batch) return { success: false, message: 'Lote não encontrado.' };
-
-    // Validar datas de venda do lote
-    const now = new Date();
-    if (batch.startDate) {
-      const startDateTimeStr = `${batch.startDate}T${batch.startTime || '00:00'}`;
-      const startDateTime = new Date(startDateTimeStr);
-      if (now < startDateTime) {
-        return { success: false, message: `Vendas para este lote ainda não iniciaram. Iniciam em ${batch.startDate.split('-').reverse().join('/')} às ${batch.startTime || '00:00'}.` };
-      }
-    }
-    if (batch.endDate) {
-      const endDateTimeStr = `${batch.endDate}T${batch.endTime || '23:59'}`;
-      const endDateTime = new Date(endDateTimeStr);
-      if (now > endDateTime) {
-        return { success: false, message: `Vendas para este lote já foram encerradas em ${batch.endDate.split('-').reverse().join('/')} às ${batch.endTime || '23:59'}.` };
-      }
-    }
-
-    if (batch.sold + qty > batch.limit) {
-      return { success: false, message: 'Ops! Lote esgotado ou sem ingressos suficientes!' };
-    }
-
-    // Validar assento numerado
-    if (event.hasNumberedSeats && selectedSeat) {
-      const soldSeats = event.soldSeats || [];
-      if (soldSeats.includes(selectedSeat)) {
-        return { success: false, message: `O assento ${selectedSeat} já foi reservado por outro cliente. Por favor, escolha outro!` };
-      }
-    }
-
-    const price = parseFloat(batch.price || 0);
-    let subtotal = price * qty;
-
-    // Validar e aplicar Cupom do Evento
-    let couponDiscount = 0;
-    if (couponAppliedCode && event.coupons && event.coupons.length > 0) {
-      const foundCoupon = event.coupons.find(c => c.code.toUpperCase() === couponAppliedCode.toUpperCase());
-      if (foundCoupon) {
-        if (foundCoupon.discountType === 'percent') {
-          couponDiscount = subtotal * (parseFloat(foundCoupon.value || 0) / 100);
-        } else {
-          couponDiscount = parseFloat(foundCoupon.value || 0);
+      const result = await runTransaction(db, async (transaction) => {
+        // 1. Obter o documento do evento atualizado no banco
+        const eventDocRef = doc(db, 'events', eventId);
+        const eventDoc = await transaction.get(eventDocRef);
+        if (!eventDoc.exists()) {
+          throw new Error('Evento não encontrado.');
         }
+        
+        const event = { ...eventDoc.data(), id: eventDoc.id };
+
+        // 2. Obter lote e validar estoque e limites
+        const batch = event.batches[batchIndex];
+        if (!batch) throw new Error('Lote não encontrado.');
+
+        // Validar datas de venda do lote
+        const now = new Date();
+        if (batch.startDate) {
+          const startDateTimeStr = `${batch.startDate}T${batch.startTime || '00:00'}`;
+          const startDateTime = new Date(startDateTimeStr);
+          if (now < startDateTime) {
+            throw new Error(`Vendas para este lote ainda não iniciaram. Iniciam em ${batch.startDate.split('-').reverse().join('/')} às ${batch.startTime || '00:00'}.`);
+          }
+        }
+        if (batch.endDate) {
+          const endDateTimeStr = `${batch.endDate}T${batch.endTime || '23:59'}`;
+          const endDateTime = new Date(endDateTimeStr);
+          if (now > endDateTime) {
+            throw new Error(`Vendas para este lote já foram encerradas em ${batch.endDate.split('-').reverse().join('/')} às ${batch.endTime || '23:59'}.`);
+          }
+        }
+
+        if (parseInt(batch.sold || 0, 10) + parseInt(qty || 0, 10) > parseInt(batch.limit || 0, 10)) {
+          throw new Error('Ops! Lote esgotado ou sem ingressos suficientes!');
+        }
+
+        // Validar assento numerado
+        if (event.hasNumberedSeats && selectedSeat) {
+          const soldSeats = event.soldSeats || [];
+          if (soldSeats.includes(selectedSeat)) {
+            throw new Error(`O assento ${selectedSeat} já foi reservado por outro cliente. Por favor, escolha outro!`);
+          }
+        }
+
+        // Validar limite de ingressos por CPF (usando os orders carregados em cache local)
+        if (event.maxTicketsPerCPF && currentUser.cpf) {
+          const existingTickets = orders.filter(o => 
+            o.type === 'ticket' && 
+            o.eventId === eventId && 
+            o.customerCpf === currentUser.cpf
+          );
+          const alreadyBought = existingTickets.reduce((sum, o) => sum + (o.quantity || 0), 0);
+          if (alreadyBought + qty > event.maxTicketsPerCPF) {
+            const remaining = Math.max(0, event.maxTicketsPerCPF - alreadyBought);
+            throw new Error(remaining === 0 
+              ? `Seu CPF já atingiu o limite de ${event.maxTicketsPerCPF} ingresso(s) para este evento.`
+              : `Seu CPF só pode adquirir mais ${remaining} ingresso(s) para este evento (limite: ${event.maxTicketsPerCPF}).`
+            );
+          }
+        }
+
+        const price = parseFloat(batch.price || 0);
+        let subtotal = price * qty;
+
+        // Validar e aplicar Cupom do Evento
+        let couponDiscount = 0;
+        if (couponAppliedCode && event.coupons && event.coupons.length > 0) {
+          const foundCoupon = event.coupons.find(c => c.code.toUpperCase() === couponAppliedCode.toUpperCase());
+          if (foundCoupon) {
+            if (foundCoupon.discountType === 'percent') {
+              couponDiscount = subtotal * (parseFloat(foundCoupon.value || 0) / 100);
+            } else {
+              couponDiscount = parseFloat(foundCoupon.value || 0);
+            }
+          }
+        }
+        subtotal = Math.max(0, subtotal - couponDiscount);
+
+        // Obter dados personalizados do comissário no evento
+        const eventComm = event.commissioners?.find(c => c.code.toUpperCase() === (commissionerCode || '').toUpperCase());
+        const commRateVal = eventComm ? (eventComm.rate !== undefined ? eventComm.rate : 10) : 10;
+        const commDiscountVal = eventComm ? (eventComm.discount !== undefined ? eventComm.discount : 0) : 0;
+
+        // Aplicar desconto do link do comissário
+        let commissionerLinkDiscount = 0;
+        if (commissionerCode && commDiscountVal > 0) {
+          commissionerLinkDiscount = subtotal * (commDiscountVal / 100);
+          subtotal = Math.max(0, subtotal - commissionerLinkDiscount);
+        }
+
+        // Apply Coins
+        let coinsUsed = 0;
+        let coinDiscount = 0;
+        if (useCoins && currentUser.ouroCoins > 0 && subtotal > 0) {
+          const dailyUsed = getCoinsUsedInPeriod(1);
+          const weeklyUsed = getCoinsUsedInPeriod(7);
+          const dailyRemaining = Math.max(0, 10000 - dailyUsed);
+          const weeklyRemaining = Math.max(0, 30000 - weeklyUsed);
+          
+          let maxCoinsAllowed = Math.min(currentUser.ouroCoins, dailyRemaining, weeklyRemaining);
+          const maxDiscountAllowed = subtotal * 0.25;
+          const maxCoinsByDiscount = Math.floor(maxDiscountAllowed / 0.01);
+          
+          coinsUsed = Math.min(maxCoinsAllowed, maxCoinsByDiscount);
+          coinDiscount = coinsUsed * 0.01;
+        }
+
+        const ticketPriceAfterDiscount = subtotal - coinDiscount;
+
+        // Calcular Taxa do Aplicativo (usa taxa configurável do admin)
+        const ticketsCommRate = (visualLayoutSettings?.commissions?.tickets !== undefined ? visualLayoutSettings.commissions.tickets : 10) / 100;
+        const appFeeAmount = subtotal * ticketsCommRate;
+        
+        let totalClientPays = ticketPriceAfterDiscount;
+        let commissionFee = appFeeAmount;
+
+        if (event.feeOption === 'repassar') {
+          totalClientPays += appFeeAmount;
+          commissionFee = appFeeAmount;
+        } else {
+          commissionFee = appFeeAmount;
+        }
+
+        newTicketOrder = {
+          id: ticketOrderId,
+          customerId: currentUser.id,
+          customerName: currentUser.name,
+          customerCpf: currentUser.cpf || '',
+          customerPhone: currentUser.phone || '',
+          type: 'ticket',
+          eventId,
+          eventName: event.name,
+          eventDate: event.date,
+          eventLocation: event.location,
+          eventImage: event.image,
+          batchName: batch.name,
+          quantity: qty,
+          ticketPrice: price,
+          subtotal: price * qty,
+          couponCode: couponAppliedCode || null,
+          couponDiscount,
+          commissionerLinkDiscount,
+          seatNumber: selectedSeat || null,
+          feeOption: event.feeOption || 'absorver',
+          appFeeAmount,
+          total: totalClientPays,
+          coinsUsed,
+          commissionFee,
+          date: new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+          status: 'delivered',
+          commissionerCode: commissionerCode ? commissionerCode.toUpperCase() : null,
+          commissionerFee: commissionerCode ? (price * qty) * (commRateVal / 100) : 0,
+          legalAttentionNotice: "Atenção! O produtor é o único responsável pela devolução de valores referentes ao(s) ingresso(s). Em caso de arrependimento da compra, o reembolso do valor do ingresso somente será efetuado caso a solicitação seja feita no prazo de até 7 dias a contar da data da compra e desde que realizado o pedido de devolução com no máximo 48h de antecedência do horário de início do evento. Situações fora do descrito estarão condicionadas a decisão dos produtores do evento."
+        };
+
+        // Atualizar o Lote vendido
+        const newBatches = [...event.batches];
+        newBatches[batchIndex] = {
+          ...newBatches[batchIndex],
+          sold: parseInt(newBatches[batchIndex].sold || 0, 10) + parseInt(qty || 0, 10)
+        };
+
+        const newSoldSeats = [...(event.soldSeats || [])];
+        if (event.hasNumberedSeats && selectedSeat) {
+          newSoldSeats.push(selectedSeat);
+        }
+        
+        let newCommissioners = [...(event.commissioners || [])];
+        if (commissionerCode) {
+          newCommissioners = newCommissioners.map(c => 
+            c.code.toUpperCase() === commissionerCode.toUpperCase() 
+              ? { ...c, sales: c.sales + qty } 
+              : c
+          );
+        }
+
+        // 3. Gravar dados usando transaction
+        transaction.update(eventDocRef, {
+          batches: newBatches,
+          commissioners: newCommissioners,
+          soldSeats: newSoldSeats
+        });
+
+        const orderDocRef = doc(db, 'orders', ticketOrderId);
+        transaction.set(orderDocRef, newTicketOrder);
+
+        earnedCoins = Math.floor(totalClientPays);
+        const finalCoins = Math.max(0, currentUser.ouroCoins - coinsUsed + earnedCoins);
+
+        const userDocRef = doc(db, 'users', currentUser.id);
+        transaction.update(userDocRef, { ouroCoins: finalCoins });
+
+        return { success: true, order: newTicketOrder };
+      });
+
+      // 4. Criar notificações
+      const event = events.find(e => e.id === eventId);
+      if (event) {
+        createNotification(event.organizerId, `Uai, mais vendas! Ingressos para o evento "${event.name}" comprados por ${currentUser.name}.`);
+        createNotification(currentUser.id, `Ingressos comprados! Encontre-os na carteira do app. Ganhou ${earnedCoins} OuroCoins!`);
       }
+
+      return result;
+
+    } catch (error) {
+      console.error("Erro na transação de compra de ingresso:", error);
+      return { success: false, message: error.message || 'Erro ao finalizar a compra do ingresso.' };
     }
-    subtotal = Math.max(0, subtotal - couponDiscount);
-
-    // Apply Coins
-    let coinsUsed = 0;
-    let coinDiscount = 0;
-    if (useCoins && currentUser.ouroCoins > 0 && subtotal > 0) {
-      const dailyUsed = getCoinsUsedInPeriod(1);
-      const weeklyUsed = getCoinsUsedInPeriod(7);
-      const dailyRemaining = Math.max(0, 10000 - dailyUsed);
-      const weeklyRemaining = Math.max(0, 30000 - weeklyUsed);
-      
-      let maxCoinsAllowed = Math.min(currentUser.ouroCoins, dailyRemaining, weeklyRemaining);
-      const maxDiscountAllowed = subtotal * 0.25;
-      const maxCoinsByDiscount = Math.floor(maxDiscountAllowed / 0.01);
-      
-      coinsUsed = Math.min(maxCoinsAllowed, maxCoinsByDiscount);
-      coinDiscount = coinsUsed * 0.01;
-    }
-
-    const ticketPriceAfterDiscount = subtotal - coinDiscount;
-
-    // Calcular Taxa do Aplicativo (10%)
-    const appFeeRate = 0.10;
-    const appFeeAmount = subtotal * appFeeRate;
-    
-    let totalClientPays = ticketPriceAfterDiscount;
-    let commissionFee = appFeeAmount;
-
-    if (event.feeOption === 'repassar') {
-      totalClientPays += appFeeAmount;
-      commissionFee = appFeeAmount;
-    } else {
-      commissionFee = appFeeAmount;
-    }
-
-    const ticketOrderId = generateRandomTicketOrderId();
-
-    const newTicketOrder = {
-      id: ticketOrderId,
-      customerId: currentUser.id,
-      customerName: currentUser.name,
-      customerCpf: currentUser.cpf || '',
-      customerPhone: currentUser.phone || '',
-      type: 'ticket',
-      eventId,
-      eventName: event.name,
-      eventDate: event.date,
-      eventLocation: event.location,
-      eventImage: event.image,
-      batchName: batch.name,
-      quantity: qty,
-      ticketPrice: price,
-      subtotal: price * qty,
-      couponCode: couponAppliedCode || null,
-      couponDiscount,
-      seatNumber: selectedSeat || null,
-      feeOption: event.feeOption || 'absorver',
-      appFeeAmount,
-      total: totalClientPays,
-      coinsUsed,
-      commissionFee,
-      date: new Date().toLocaleDateString('pt-BR') + ' às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-      status: 'delivered',
-      commissionerCode: commissionerCode ? commissionerCode.toUpperCase() : null,
-      legalAttentionNotice: "Atenção! O produtor é o único responsável pela devolução de valores referentes ao(s) ingresso(s). Em caso de arrependimento da compra, o reembolso do valor do ingresso somente será efetuado caso a solicitação seja feita no prazo de até 7 dias a contar da data da compra e desde que realizado o pedido de devolução com no máximo 48h de antecedência do horário de início do evento. Situações fora do descrito estarão condicionadas a decisão dos produtores do evento."
-    };
-
-    const newBatches = [...event.batches];
-    newBatches[batchIndex].sold += qty;
-
-    const newSoldSeats = [...(event.soldSeats || [])];
-    if (event.hasNumberedSeats && selectedSeat) {
-      newSoldSeats.push(selectedSeat);
-    }
-    
-    let newCommissioners = [...(event.commissioners || [])];
-    if (commissionerCode) {
-      newCommissioners = newCommissioners.map(c => 
-        c.code.toUpperCase() === commissionerCode.toUpperCase() 
-          ? { ...c, sales: c.sales + qty } 
-          : c
-      );
-    }
-
-    updateDoc(doc(db, 'events', eventId), { 
-      batches: newBatches, 
-      commissioners: newCommissioners,
-      soldSeats: newSoldSeats
-    }).catch(err => console.error(err));
-
-    setDoc(doc(db, 'orders', ticketOrderId), newTicketOrder).catch(err => console.error(err));
-
-    const earnedCoins = Math.floor(totalClientPays);
-    const finalCoins = Math.max(0, currentUser.ouroCoins - coinsUsed + earnedCoins);
-    updateDoc(doc(db, 'users', currentUser.id), { ouroCoins: finalCoins }).catch(err => console.error(err));
-    
-    createNotification(event.organizerId, `Uai, mais vendas! Ingressos para o evento "${event.name}" comprados por ${currentUser.name}.`);
-    createNotification(currentUser.id, `Ingressos comprados! Encontre-os na carteira do app. Ganhou ${earnedCoins} OuroCoins!`);
-
-    return { success: true, order: newTicketOrder };
   };
 
   const validateTicket = async (ticketId, organizerId, filterEventId = 'all') => {

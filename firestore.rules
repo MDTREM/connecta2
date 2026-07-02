@@ -10,17 +10,26 @@ service cloud.firestore {
       // Qualquer pessoa pode ler perfis de usuários (para ver lojas, avaliações, etc.)
       allow read: if true;
       
-      // Usuário pode criar seu próprio documento no signup
-      allow create: if request.auth != null && request.auth.uid == userId;
-      
-      // Usuário pode editar seu próprio perfil, ou admin pode editar qualquer um
-      allow update: if request.auth != null && (
+      // Usuário pode criar seu próprio documento no signup, 
+      // ou organizador pode criar comissários
+      allow create: if request.auth != null && (
         request.auth.uid == userId ||
+        isOrganizer() ||
         isAdmin()
       );
       
-      // Apenas admin pode deletar usuários
-      allow delete: if isAdmin();
+      // Usuário pode editar seu próprio perfil, ou admin/organizador pode editar
+      allow update: if request.auth != null && (
+        request.auth.uid == userId ||
+        isOrganizer() ||
+        isAdmin()
+      );
+      
+      // Admin ou organizador podem deletar usuários (comissários)
+      allow delete: if request.auth != null && (
+        isOrganizer() ||
+        isAdmin()
+      );
     }
 
     // ========================================

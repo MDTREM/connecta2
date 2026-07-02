@@ -6,6 +6,12 @@ import {
   ShoppingCart, MapPin, Camera, Music, Coffee, Book, 
   Gem, Scissors, Brush, Utensils, Wine, Mountain, 
   Sun, Umbrella, Zap, Flame, Leaf,
+  Clapperboard, Mic, PartyPopper, Beer, Gamepad2, Smile, 
+  HeartHandshake, Dumbbell, Bike, Car, Volume2, Disc, 
+  Theater, Tv, ShoppingBag, Milestone, Laptop,
+  GraduationCap, Drama, Church, Compass, Laugh, Trophy,
+  Presentation, Users, Hammer, Rainbow, Film, Network,
+  Trees, Store, Image, BookOpen, Landmark,
   X, User, MessageSquare
 } from 'lucide-react';
 import Chat from '../Shared/Chat';
@@ -14,7 +20,13 @@ const iconComponents = {
   Sparkles, Palette, Gift, Wrench, Ticket, Star, Award, Heart, 
   ShoppingCart, MapPin, Camera, Music, Coffee, Book, 
   Gem, Scissors, Brush, Utensils, Wine, Mountain, 
-  Sun, Umbrella, Zap, Flame, Leaf
+  Sun, Umbrella, Zap, Flame, Leaf,
+  Clapperboard, Mic, PartyPopper, Beer, Gamepad2, Smile, 
+  HeartHandshake, Dumbbell, Bike, Car, Volume2, Disc, 
+  Theater, Tv, ShoppingBag, Milestone, Laptop,
+  GraduationCap, Drama, Church, Compass, Laugh, Trophy,
+  Presentation, Users, Hammer, Rainbow, Film, Network,
+  Trees, Store, Image, BookOpen, Landmark
 };
 const compressImage = (file, maxWidth, maxHeight, callback) => {
   const reader = new FileReader();
@@ -54,7 +66,7 @@ const compressImage = (file, maxWidth, maxHeight, callback) => {
 export default function AdminArea({ onLogout, onGoToHome }) {
   const { 
     users, orders, servicesHired, coupons, updateRegistrationStatus, 
-    setUserBanStatus, createCoupon, triggerGlobalNotification, setUsers,
+    setUserBanStatus, createCoupon, deleteCoupon, triggerGlobalNotification, setUsers,
     categories, addCategory, editCategory, deleteCategory,
     visualLayoutSettings, updateVisualLayoutSettings, logout,
     banners, addBanner, deleteBanner,
@@ -160,29 +172,31 @@ export default function AdminArea({ onLogout, onGoToHome }) {
   const organizersCount = users.filter(u => u.role === 'organizer').length;
   const motoboysCount = users.filter(u => u.role === 'motoboy').length;
 
-  // Revenue by sector
+  // Revenue by sector - recalculate commissions dynamically from configured rates
+  const prodCommRate = (visualLayoutSettings?.commissions?.products ?? 10) / 100;
+  const ticketCommRate = (visualLayoutSettings?.commissions?.tickets ?? 10) / 100;
+  const servCommRate = (visualLayoutSettings?.commissions?.services ?? 12) / 100;
+
   let productSales = 0;
-  let productCommissions = 0;
   let ticketSales = 0;
-  let ticketCommissions = 0;
 
   orders.forEach(o => {
+    const orderSubtotal = parseFloat(o.subtotal || o.total || 0);
     if (o.type === 'ticket') {
-      ticketSales += o.total;
-      ticketCommissions += o.commissionFee;
+      ticketSales += orderSubtotal;
     } else {
-      productSales += o.total;
-      productCommissions += o.commissionFee;
+      productSales += orderSubtotal;
     }
   });
+
+  const productCommissions = productSales * prodCommRate;
+  const ticketCommissions = ticketSales * ticketCommRate;
 
   const serviceVolume = servicesHired
     .filter(h => h.status === 'completed' || h.status === 'accepted')
     .reduce((acc, h) => acc + h.total, 0);
 
-  const serviceCommissions = servicesHired
-    .filter(h => h.status === 'completed' || h.status === 'accepted')
-    .reduce((acc, h) => acc + h.commissionFee, 0);
+  const serviceCommissions = serviceVolume * servCommRate;
 
   const totalGMV = productSales + ticketSales + serviceVolume;
   const totalCommissions = productCommissions + ticketCommissions + serviceCommissions;
@@ -226,16 +240,17 @@ export default function AdminArea({ onLogout, onGoToHome }) {
 
   orders.forEach(o => {
     const d = parseOrderDate(o.date);
-    const orderTotal = o.total || 0;
-    const orderComm = o.commissionFee || 0;
+    const orderSubtotal = parseFloat(o.subtotal || o.total || 0);
+    const orderRate = o.type === 'ticket' ? ticketCommRate : prodCommRate;
+    const orderComm = orderSubtotal * orderRate;
 
     if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
-      grossMonthly += orderTotal;
+      grossMonthly += orderSubtotal;
       netMonthly += orderComm;
     }
 
     if (d.getDate() === now.getDate() && d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
-      grossDaily += orderTotal;
+      grossDaily += orderSubtotal;
       netDaily += orderComm;
     }
   });
@@ -244,7 +259,7 @@ export default function AdminArea({ onLogout, onGoToHome }) {
     if (sh.status === 'completed' || sh.status === 'accepted') {
       const d = parseServiceDate(sh.date);
       const shTotal = sh.total || 0;
-      const shComm = sh.commissionFee || 0;
+      const shComm = shTotal * servCommRate;
 
       if (d.getMonth() === currentMonth && d.getFullYear() === currentYear) {
         grossMonthly += shTotal;
@@ -316,13 +331,10 @@ export default function AdminArea({ onLogout, onGoToHome }) {
         color: 'white',
         boxShadow: '0 8px 20px rgba(242,141,26,0.2)'
       }}>
-        <span style={{ fontSize: '0.75rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Faturamento Líquido Connecta+ (Comissões)</span>
+        <span style={{ fontSize: '0.75rem', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.5px' }}>Faturamento Líquido</span>
         <h1 style={{ fontSize: '2.2rem', fontWeight: 900, margin: '4px 0', color: 'white' }}>
           R$ {totalCommissions.toFixed(2)}
         </h1>
-        <p style={{ fontSize: '0.75rem', opacity: 0.9 }}>
-          Volume Transacionado Geral (GMV): <strong>R$ {totalGMV.toFixed(2)}</strong>
-        </p>
       </div>
 
       {/* Detailed Revenue Dashboard (Gross & Net / Daily, Monthly, Always) */}
@@ -755,7 +767,32 @@ export default function AdminArea({ onLogout, onGoToHome }) {
                   Desconto: {cp.discountType === 'fixed' ? `R$ ${cp.value.toFixed(2)}` : `${cp.value}%`} | Mínimo: R$ {cp.minPurchase.toFixed(2)}
                 </div>
               </div>
-              <span style={{ fontSize: '0.7rem', color: '#2ec4b6', fontWeight: 500 }}>Ativo</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '0.7rem', color: '#2ec4b6', fontWeight: 500 }}>Ativo</span>
+                <button
+                  type="button"
+                  onClick={() => { if (window.confirm(`Tem certeza que deseja excluir o cupom "${cp.code}"?`)) deleteCoupon(cp.code); }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#ff5e5b',
+                    padding: '4px',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'background 0.2s'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#fff0f0'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  title="Excluir cupom"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                  </svg>
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -1405,6 +1442,7 @@ export default function AdminArea({ onLogout, onGoToHome }) {
             nearbyStores: { label: 'Lojas Próximas', icon: '📍' },
             products: { label: 'Produtos para Você', icon: '🛍️' },
             buyers: { label: 'Top Compradores', icon: '🏆' },
+            banners_events: { label: 'Banners de Eventos', icon: '🎪' },
             events: { label: 'Eventos', icon: '🎉' },
             services: { label: 'Serviços', icon: '🔧' }
           };

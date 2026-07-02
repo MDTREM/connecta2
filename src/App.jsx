@@ -20,9 +20,12 @@ function AppContent() {
   // Navigation subviews
   const [clientView, setClientView] = useState('client_home');
   const [showChatRoom, setShowChatRoom] = useState(false);
+  const [chatTargetUserId, setChatTargetUserId] = useState(null);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showAuthScreen, setShowAuthScreen] = useState(false);
   const [showPartnerSwitchModal, setShowPartnerSwitchModal] = useState(false);
+  const [isClientEditingProfile, setIsClientEditingProfile] = useState(false);
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
   // Controle de visualização da Home x Painel para parceiros
   const [viewMode, setViewMode] = useState('panel'); // 'panel' ou 'home'
@@ -42,18 +45,34 @@ function AppContent() {
     setClientView(viewName);
   };
 
-  // Sincronizar viewMode quando o usuário logar ou deslogar
+  // Sincronizar viewMode quando o usuário logar ou deslogar, exceto se houver link de evento
   useEffect(() => {
     if (currentUser) {
       if (currentUser.role === 'client') {
         setViewMode('home');
       } else {
-        setViewMode('panel');
+        const params = new URLSearchParams(window.location.search);
+        const hasEventLink = params.get('event') || sessionStorage.getItem('connecta_referred_event');
+        if (!hasEventLink) {
+          setViewMode('panel');
+        } else {
+          setViewMode('home');
+        }
       }
     } else {
       setViewMode('home');
     }
   }, [currentUser]);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const eventParam = params.get('event');
+    if (eventParam) {
+      sessionStorage.setItem('connecta_referred_event', eventParam);
+      setViewMode('home');
+      setClientView('client_event');
+    }
+  }, []);
 
   // If user log out, reset view
   useEffect(() => {
@@ -146,13 +165,13 @@ function AppContent() {
       return (
         <div style={{ padding: '16px', height: '100%', backgroundColor: '#ffffff' }} className="animate-fade-in">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2 style={{ fontSize: '1.2rem', fontWeight: 800 }}>Notificações</h2>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: 500, color: '#2d2d2d' }}>Notificações</h2>
             <button 
               onClick={() => {
                 if (currentUser) markNotificationsRead(currentUser.id);
                 setShowNotifications(false);
               }}
-              style={{ background: 'none', border: 'none', color: '#f28d1a', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+              style={{ background: 'none', border: 'none', color: '#f28d1a', fontSize: '0.8rem', fontWeight: 500, cursor: 'pointer' }}
             >
               Fechar
             </button>
@@ -195,6 +214,7 @@ function AppContent() {
           currentView={clientView} 
           onSwitchView={(v) => {
             if (v === 'go_to_partner_panel') {
+              sessionStorage.removeItem('connecta_referred_event');
               setViewMode('panel');
             } else if (!currentUser && (v === 'client_checkout' || v === 'client_ourocoins' || v === 'client_favorites')) {
               setShowAuthScreen(true);
@@ -202,12 +222,17 @@ function AppContent() {
               setClientView(v);
             }
           }} 
-          onOpenChat={() => {
+          onOpenChat={(targetUserId) => {
             if (!currentUser) setShowAuthScreen(true);
-            else setShowChatRoom(true);
+            else {
+              setChatTargetUserId(targetUserId || null);
+              setShowChatRoom(true);
+            }
           }} 
           isVisitor={false}
           onTriggerLogin={() => setShowAuthScreen(true)}
+          onEditingProfileChange={setIsClientEditingProfile}
+          onTicketModalChange={setIsTicketModalOpen}
         />
       );
     }
@@ -224,12 +249,17 @@ function AppContent() {
                 setClientView(v);
               }
             }} 
-            onOpenChat={() => {
+            onOpenChat={(targetUserId) => {
               if (!currentUser) setShowAuthScreen(true);
-              else setShowChatRoom(true);
+              else {
+                setChatTargetUserId(targetUserId || null);
+                setShowChatRoom(true);
+              }
             }} 
             isVisitor={!currentUser}
             onTriggerLogin={() => setShowAuthScreen(true)}
+            onEditingProfileChange={setIsClientEditingProfile}
+            onTicketModalChange={setIsTicketModalOpen}
           />
         );
       case 'seller':
@@ -295,6 +325,8 @@ function AppContent() {
   const isClientRole = !currentUser || currentUser.role === 'client' || viewMode === 'home';
   const showBottomBar = isClientRole && 
                         !showChatRoom && 
+                        !isClientEditingProfile &&
+                        !isTicketModalOpen &&
                         ['client_home', 'client_search', 'client_foryou', 'client_favorites', 'client_profile', 'client_coupons', 'client_tickets'].includes(clientView);
 
   // Desktop Top Nav for client
@@ -304,8 +336,8 @@ function AppContent() {
     const navItems = [
       { id: 'client_home', label: 'Início', icon: <Home size={18} /> },
       { id: 'client_search', label: 'Buscar', icon: <Search size={18} /> },
+      { id: 'client_foryou', label: 'ForYou', icon: <Play size={18} /> },
       ...(!IS_BETA_EVENTS_ONLY ? [
-        { id: 'client_foryou', label: 'ForYou', icon: <Play size={18} /> },
         { id: 'client_ourocoins', label: 'OuroCoins', icon: <Coins size={18} />, requireAuth: true }
       ] : []),
       { id: 'client_favorites', label: 'Favoritos', icon: <Heart size={18} />, requireAuth: true },
@@ -406,7 +438,10 @@ function AppContent() {
 
             {currentUser && currentUser.role !== 'client' && (
               <button
-                onClick={() => setViewMode('panel')}
+                onClick={() => {
+                  sessionStorage.removeItem('connecta_referred_event');
+                  setViewMode('panel');
+                }}
                 style={{
                   padding: '8px 18px',
                   borderRadius: '99px',
@@ -565,7 +600,7 @@ function AppContent() {
           width: '100%',
           maxWidth: '100%',
           boxSizing: 'border-box',
-          paddingBottom: (!isDesktop && showBottomBar && clientView !== 'client_foryou') ? '88px' : '0px'
+          paddingBottom: (!isDesktop && showBottomBar && clientView !== 'client_foryou' && clientView !== 'client_receipt') ? '88px' : '0px'
         }}>
           <div className="content-container" style={{
             height: clientView === 'client_foryou' ? (isDesktop ? 'calc(100vh - 64px)' : 'calc(100vh - 72px)') : 'auto',
@@ -577,7 +612,7 @@ function AppContent() {
         </div>
 
         {/* MOBILE BOTTOM BAR (hidden on desktop) */}
-        {!isDesktop && showBottomBar && (
+        {!isDesktop && showBottomBar && clientView !== 'client_receipt' && (
           <div className="bottom-nav">
             <button 
               onClick={() => handleClientTabClick('client_home')}
@@ -595,33 +630,18 @@ function AppContent() {
               <span>buscar</span>
             </button>
 
-            {/* Glowing ForYou / Coupons center button */}
-            {IS_BETA_EVENTS_ONLY ? (
-              <button 
-                onClick={() => {
-                  if (!currentUser) {
-                    setShowAuthScreen(true);
-                  } else {
-                    handleClientTabClick('client_coupons');
-                  }
-                }}
-                className={`bottom-nav-center ${clientView === 'client_coupons' ? 'active' : ''}`}
-                style={{
-                  background: clientView === 'client_coupons' 
-                    ? 'linear-gradient(135deg, #f28d1a 0%, #f9bb1a 100%)' 
-                    : 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)'
-                }}
-              >
-                <Ticket size={22} />
-              </button>
-            ) : (
-              <button 
-                onClick={() => handleClientTabClick('client_foryou')}
-                className="bottom-nav-center"
-              >
-                <Play size={22} />
-              </button>
-            )}
+            {/* Glowing ForYou center button */}
+            <button 
+              onClick={() => handleClientTabClick('client_foryou')}
+              className={`bottom-nav-center ${clientView === 'client_foryou' ? 'active' : ''}`}
+              style={{
+                background: clientView === 'client_foryou' 
+                  ? 'linear-gradient(135deg, #f28d1a 0%, #f9bb1a 100%)' 
+                  : 'linear-gradient(135deg, #f9bb1a 0%, #f28d1a 100%)'
+              }}
+            >
+              <Play size={22} />
+            </button>
 
             <button 
               onClick={() => {
@@ -664,7 +684,7 @@ function AppContent() {
             display: 'flex',
             flexDirection: 'column'
           }}>
-            <Chat onCloseChat={() => setShowChatRoom(false)} />
+            <Chat targetChatUserId={chatTargetUserId} onCloseChat={() => { setChatTargetUserId(null); setShowChatRoom(false); }} />
           </div>
         )}
 
