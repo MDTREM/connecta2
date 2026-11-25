@@ -1,10 +1,27 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { db, auth } from '../firebase/config';
 import { onAuthStateChanged, signInWithEmailAndPassword, signOut, createUserWithEmailAndPassword } from 'firebase/auth';
-import { IS_BETA_EVENTS_ONLY } from '../config';
+import { IS_BETA_EVENTS_ONLY, USE_MOCK_DATA } from '../config';
+import {
+  MOCK_USERS,
+  MOCK_PRODUCTS,
+  MOCK_EVENTS,
+  MOCK_SERVICES,
+  MOCK_JOBS,
+  MOCK_VIDEOS,
+  MOCK_COUPONS,
+  MOCK_ORDERS,
+  MOCK_SERVICES_HIRED,
+  MOCK_NOTIFICATIONS,
+  MOCK_PRODUCT_REVIEWS,
+  MOCK_SERVICE_REVIEWS,
+  MOCK_BANNERS,
+  MOCK_CATEGORIES,
+  MOCK_VISUAL_SETTINGS
+} from '../data/mockData';
 import { 
-  collection, doc, setDoc, updateDoc, deleteDoc, 
-  onSnapshot, runTransaction
+  collection, doc, setDoc as fbSetDoc, updateDoc as fbUpdateDoc, deleteDoc as fbDeleteDoc, 
+  onSnapshot, runTransaction as fbRunTransaction
 } from 'firebase/firestore';
 
 // Safely wrap localStorage.setItem to avoid QuotaExceededError crashes when disk/quota is full
@@ -24,40 +41,41 @@ const generateRandomOrderId = () => 'OP-' + Math.floor(100000 + Math.random() * 
 const generateRandomTicketOrderId = () => 'TK-' + Math.floor(100000 + Math.random() * 900000);
 
 export const FirebaseMockProvider = ({ children }) => {
-  const [users, setUsers] = useState([]);
+  const [users, setUsers] = useState(() => (USE_MOCK_DATA ? MOCK_USERS : []));
   const [deletedUsers, setDeletedUsers] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [events, setEvents] = useState([]);
-  const [services, setServices] = useState([]);
-  const [jobs, setJobs] = useState([]);
-  const [jobsLoaded, setJobsLoaded] = useState(false);
-  const [videos, setVideos] = useState([]);
-  const [coupons, setCoupons] = useState([]);
+  const [products, setProducts] = useState(() => (USE_MOCK_DATA ? MOCK_PRODUCTS : []));
+  const [events, setEvents] = useState(() => (USE_MOCK_DATA ? MOCK_EVENTS : []));
+  const [services, setServices] = useState(() => (USE_MOCK_DATA ? MOCK_SERVICES : []));
+  const [jobs, setJobs] = useState(() => (USE_MOCK_DATA ? MOCK_JOBS : []));
+  const [jobsLoaded, setJobsLoaded] = useState(USE_MOCK_DATA);
+  const [videos, setVideos] = useState(() => (USE_MOCK_DATA ? MOCK_VIDEOS : []));
+  const [coupons, setCoupons] = useState(() => (USE_MOCK_DATA ? MOCK_COUPONS : []));
   const [videoComments, setVideoComments] = useState([]);
-  const [orders, setOrders] = useState([]);
-  const [servicesHired, setServicesHired] = useState([]);
+  const [orders, setOrders] = useState(() => (USE_MOCK_DATA ? MOCK_ORDERS : []));
+  const [servicesHired, setServicesHired] = useState(() => (USE_MOCK_DATA ? MOCK_SERVICES_HIRED : []));
   const [chats, setChats] = useState([]);
-  const [notifications, setNotifications] = useState([]);
+  const [notifications, setNotifications] = useState(() => (USE_MOCK_DATA ? MOCK_NOTIFICATIONS : []));
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('connecta_current_user');
-    return saved ? JSON.parse(saved) : null;
+    if (saved) return JSON.parse(saved);
+    return USE_MOCK_DATA ? MOCK_USERS[0] : null;
   });
   const [userLocation, setUserLocation] = useState('Centro Histórico, Ouro Preto - MG');
   const [cart, setCart] = useState(() => {
     const saved = localStorage.getItem('connecta_cart');
     return saved ? JSON.parse(saved) : [];
   });
-  const [productReviews, setProductReviews] = useState([]);
-  const [serviceReviews, setServiceReviews] = useState([]);
-  const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [authInitialized, setAuthInitialized] = useState(false);
-  const [usersLoaded, setUsersLoaded] = useState(false);
-  const [productsLoaded, setProductsLoaded] = useState(false);
-  const [eventsLoaded, setEventsLoaded] = useState(false);
-  const [servicesLoaded, setServicesLoaded] = useState(false);
-  const [bannersLoaded, setBannersLoaded] = useState(false);
-  const [categoriesLoaded, setCategoriesLoaded] = useState(false);
-  const [homeSectionsLoaded, setHomeSectionsLoaded] = useState(false);
+  const [productReviews, setProductReviews] = useState(() => (USE_MOCK_DATA ? MOCK_PRODUCT_REVIEWS : []));
+  const [serviceReviews, setServiceReviews] = useState(() => (USE_MOCK_DATA ? MOCK_SERVICE_REVIEWS : []));
+  const [isAuthLoading, setIsAuthLoading] = useState(!USE_MOCK_DATA);
+  const [authInitialized, setAuthInitialized] = useState(USE_MOCK_DATA);
+  const [usersLoaded, setUsersLoaded] = useState(USE_MOCK_DATA);
+  const [productsLoaded, setProductsLoaded] = useState(USE_MOCK_DATA);
+  const [eventsLoaded, setEventsLoaded] = useState(USE_MOCK_DATA);
+  const [servicesLoaded, setServicesLoaded] = useState(USE_MOCK_DATA);
+  const [bannersLoaded, setBannersLoaded] = useState(USE_MOCK_DATA);
+  const [categoriesLoaded, setCategoriesLoaded] = useState(USE_MOCK_DATA);
+  const [homeSectionsLoaded, setHomeSectionsLoaded] = useState(USE_MOCK_DATA);
   const [authFirebaseUser, setAuthFirebaseUser] = useState(null);
 
   // Failsafe load timeout for slow networks/devices (resolves loading in 3.5s max)
@@ -77,10 +95,11 @@ export const FirebaseMockProvider = ({ children }) => {
     }, 3500);
     return () => clearTimeout(timer);
   }, []);
-  const [banners, setBanners] = useState([]);
+  const [banners, setBanners] = useState(() => (USE_MOCK_DATA ? MOCK_BANNERS : []));
   const [homeSections, setHomeSections] = useState([]);
-  const [categories, setCategories] = useState([]);
+  const [categories, setCategories] = useState(() => (USE_MOCK_DATA ? MOCK_CATEGORIES : []));
   const [visualLayoutSettings, setVisualLayoutSettings] = useState(() => {
+    if (USE_MOCK_DATA) return MOCK_VISUAL_SETTINGS;
     const saved = localStorage.getItem('connecta_visual_layout_settings');
     return saved ? JSON.parse(saved) : {
       customTexts: {},
@@ -89,6 +108,87 @@ export const FirebaseMockProvider = ({ children }) => {
       avatarOffset: { top: -36, left: 32 }
     };
   });
+
+  // In-memory Firestore write dispatcher when USE_MOCK_DATA is enabled
+  const collectionMap = {
+    users: { get: () => users, set: setUsers, key: 'id' },
+    deletedUsers: { get: () => deletedUsers, set: setDeletedUsers, key: 'id' },
+    products: { get: () => products, set: setProducts, key: 'id' },
+    events: { get: () => events, set: setEvents, key: 'id' },
+    services: { get: () => services, set: setServices, key: 'id' },
+    jobs: { get: () => jobs, set: setJobs, key: 'id' },
+    videos: { get: () => videos, set: setVideos, key: 'id' },
+    coupons: { get: () => coupons, set: setCoupons, key: 'code' },
+    videoComments: { get: () => videoComments, set: setVideoComments, key: 'id' },
+    orders: { get: () => orders, set: setOrders, key: 'id' },
+    servicesHired: { get: () => servicesHired, set: setServicesHired, key: 'id' },
+    chats: { get: () => chats, set: setChats, key: 'id' },
+    notifications: { get: () => notifications, set: setNotifications, key: 'id' },
+    productReviews: { get: () => productReviews, set: setProductReviews, key: 'id' },
+    serviceReviews: { get: () => serviceReviews, set: setServiceReviews, key: 'id' },
+    categories: { get: () => categories, set: setCategories, key: 'id' },
+    banners: { get: () => banners, set: setBanners, key: 'id' },
+    homeSections: { get: () => homeSections, set: setHomeSections, key: 'id' }
+  };
+
+  const setDoc = async (docRef, data, options) => {
+    if (!USE_MOCK_DATA) return fbSetDoc(docRef, data, options);
+    const colName = docRef?.parent?.id;
+    const docId = docRef?.id;
+    if (colName === 'settings' && docId === 'visualLayout') {
+      setVisualLayoutSettings(prev => (options?.merge ? { ...prev, ...data } : data));
+      return;
+    }
+    const entry = collectionMap[colName];
+    if (!entry) return;
+    entry.set(prev => {
+      const idx = prev.findIndex(item => item[entry.key] === docId);
+      const record = { ...data, [entry.key]: docId };
+      if (idx === -1) return [...prev, record];
+      const next = [...prev];
+      next[idx] = options?.merge ? { ...next[idx], ...record } : record;
+      return next;
+    });
+  };
+
+  const updateDoc = async (docRef, data) => {
+    if (!USE_MOCK_DATA) return fbUpdateDoc(docRef, data);
+    const colName = docRef?.parent?.id;
+    const docId = docRef?.id;
+    if (colName === 'settings' && docId === 'visualLayout') {
+      setVisualLayoutSettings(prev => ({ ...prev, ...data }));
+      return;
+    }
+    const entry = collectionMap[colName];
+    if (!entry) return;
+    entry.set(prev => prev.map(item => (item[entry.key] === docId ? { ...item, ...data } : item)));
+  };
+
+  const deleteDoc = async (docRef) => {
+    if (!USE_MOCK_DATA) return fbDeleteDoc(docRef);
+    const colName = docRef?.parent?.id;
+    const docId = docRef?.id;
+    const entry = collectionMap[colName];
+    if (!entry) return;
+    entry.set(prev => prev.filter(item => item[entry.key] !== docId));
+  };
+
+  const runTransaction = async (firestoreDb, updateFn) => {
+    if (!USE_MOCK_DATA) return fbRunTransaction(firestoreDb, updateFn);
+    const tx = {
+      get: async (docRef) => {
+        const colName = docRef?.parent?.id;
+        const docId = docRef?.id;
+        const entry = collectionMap[colName];
+        const found = entry ? entry.get().find(item => item[entry.key] === docId) : undefined;
+        return { exists: () => Boolean(found), data: () => found };
+      },
+      set: (docRef, data, opts) => setDoc(docRef, data, opts),
+      update: (docRef, data) => updateDoc(docRef, data),
+      delete: (docRef) => deleteDoc(docRef)
+    };
+    return updateFn(tx);
+  };
 
   const parseDateStr = (dateStr) => {
     if (!dateStr) return new Date(0);
@@ -128,6 +228,7 @@ export const FirebaseMockProvider = ({ children }) => {
 
   // --- Firestore real-time listeners ---
   useEffect(() => {
+    if (USE_MOCK_DATA) return;
     // Public subscriptions that anyone (even guest users) can read
     const unsubUsers = onSnapshot(collection(db, 'users'), (snapshot) => {
       const list = [];
@@ -462,6 +563,7 @@ export const FirebaseMockProvider = ({ children }) => {
 
   // Manage currentUser and isAuthLoading deterministically
   useEffect(() => {
+    if (USE_MOCK_DATA) return;
     if (!authInitialized) {
       setIsAuthLoading(true);
       return;
@@ -521,6 +623,24 @@ export const FirebaseMockProvider = ({ children }) => {
 
   // --- AUTH SERVICES ---
   const login = async (email, password) => {
+    if (USE_MOCK_DATA) {
+      const userDoc = users.find(u => u.email?.toLowerCase() === email?.toLowerCase());
+      if (!userDoc) {
+        return { success: false, message: 'E-mail não encontrado nos dados mock. Use ex: cliente@connecta.com (senha 123456).' };
+      }
+      if (userDoc.banned) {
+        return { success: false, message: 'Eita! Esta conta foi suspensa por descumprir as regras.' };
+      }
+      if (userDoc.commissionerPassword && userDoc.commissionerPassword !== password) {
+        return { success: false, message: 'Senha incorreta para esta conta de comissário.' };
+      }
+      if (!userDoc.commissionerPassword && password !== '123456' && password !== 'admin123456') {
+        return { success: false, message: 'Senha incorreta. Para usuários mock, use a senha: 123456' };
+      }
+      setCurrentUser(userDoc);
+      return { success: true, user: userDoc };
+    }
+
     // 1. Verificar primeiro se é um comissário cadastrado localmente pelo organizador
     const localUser = users.find(u => u.email?.toLowerCase() === email?.toLowerCase() && u.role === 'commissioner');
     if (localUser) {
@@ -560,16 +680,43 @@ export const FirebaseMockProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    try {
-      await signOut(auth);
-    } catch (e) {
-      console.error('Logout error:', e);
+    if (!USE_MOCK_DATA) {
+      try {
+        await signOut(auth);
+      } catch (e) {
+        console.error('Logout error:', e);
+      }
     }
     setCurrentUser(null);
     setCart([]);
   };
 
   const signup = async (userData) => {
+    if (USE_MOCK_DATA) {
+      const exists = users.some(u => u.email?.toLowerCase() === userData.email?.toLowerCase());
+      if (exists) {
+        return { success: false, message: 'Já existe uma conta com este e-mail!' };
+      }
+      const uid = 'user_' + Math.random().toString(36).substr(2, 9);
+      const newUser = {
+        email: userData.email,
+        role: userData.role,
+        name: userData.name,
+        phone: userData.phone || '',
+        address: userData.address || '',
+        registrationStatus: 'approved',
+        banned: false,
+        createdAt: Date.now(),
+        ...userData,
+        ouroCoins: 0,
+        id: uid
+      };
+      delete newUser.password;
+      setUsers(prev => [...prev, newUser]);
+      setCurrentUser(newUser);
+      return { success: true, user: newUser };
+    }
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, userData.email, userData.password);
       const uid = userCredential.user.uid;
